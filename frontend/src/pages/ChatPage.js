@@ -220,6 +220,19 @@ export default function ChatPage() {
   const [autoExport, setAutoExport] = useState(false);
   const [modelRoles, setModelRoles] = useState({});
   const [showRolesDialog, setShowRolesDialog] = useState(false);
+  
+  // Auto-cascade feature
+  const [showCascadeDialog, setShowCascadeDialog] = useState(false);
+  const [cascadeConfig, setCascadeConfig] = useState({
+    enabled: false,
+    rounds: 3,
+    turnsPerRound: 1,
+    sourceModel: '',
+    targetModels: [],
+    sendToAll: true
+  });
+  const [cascadeRunning, setCascadeRunning] = useState(false);
+  const [cascadeProgress, setCascadeProgress] = useState({ round: 0, turn: 0 });
 
   // Get visible models for carousel (show 2 at a time)
   const getVisibleModels = () => {

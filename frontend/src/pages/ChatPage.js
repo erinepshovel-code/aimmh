@@ -973,20 +973,22 @@ export default function ChatPage() {
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything..."
+                placeholder="Type your prompt... (Ctrl+Enter to send)"
                 className="resize-none bg-background text-sm"
                 rows={2}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  // Ctrl+Enter or Cmd+Enter to send
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     handleSend();
                   }
+                  // Regular Enter adds new line (default behavior)
                 }}
                 disabled={streaming}
                 data-testid="chat-input"
               />
               <div className="text-[10px] text-muted-foreground">
-                Desktop: Shift+Enter for new line • Mobile: Use ↵ button below
+                Ctrl+Enter to send • Enter for new line • Mobile: Use buttons →
               </div>
             </div>
             <div className="flex flex-col gap-1">

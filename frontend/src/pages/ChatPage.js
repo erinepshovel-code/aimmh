@@ -693,6 +693,86 @@ export default function ChatPage() {
     }
   };
 
+  const handleCascade = async () => {
+    if (!cascadeConfig.sourceModel || cascadeConfig.targetModels.length === 0) {
+      toast.error('Please configure source and target models');
+      return;
+    }
+
+    setCascadeRunning(true);
+    setShowCascadeDialog(false);
+    
+    try {
+      for (let round = 1; round <= cascadeConfig.rounds; round++) {
+        setCascadeProgress({ round, turn: 0 });
+        toast.info(`🔄 Cascade Round ${round}/${cascadeConfig.rounds}`);
+        
+        for (let turn = 1; turn <= cascadeConfig.turnsPerRound; turn++) {
+          setCascadeProgress({ round, turn });
+          
+          // Get last response from source model
+          const sourceMessages = messages.filter(m => m.model === cascadeConfig.sourceModel);
+          if (sourceMessages.length === 0) {
+            toast.error('No response from source model yet');
+            break;
+          }
+          
+          const lastSourceResponse = sourceMessages[sourceMessages.length - 1].content;
+          const cascadePrompt = `[CASCADE Round ${round}, Turn ${turn}]\n\nPrevious response from ${cascadeConfig.sourceModel}:\n${lastSourceResponse}\n\nPlease respond to this:`;
+          
+          // Send to target models
+          const targets = cascadeConfig.sendToAll ? cascadeConfig.targetModels : [cascadeConfig.targetModels[0]];
+          await handleSend(cascadePrompt, targets, true);
+          
+          // Wait for responses
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // Wait for streaming to complete
+          while (streaming) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+          // Additional delay between turns
+          if (turn < cascadeConfig.turnsPerRound) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+        
+        // Delay between rounds
+        if (round < cascadeConfig.rounds) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+      
+      toast.success(`✅ Cascade complete: ${cascadeConfig.rounds} rounds, ${cascadeConfig.turnsPerRound} turns each`);
+      
+      if (autoExport && conversationId) {
+        await handleExport('json');
+      }
+      
+    } catch (error) {
+      console.error('Cascade error:', error);
+      toast.error('Cascade interrupted');
+    } finally {
+      setCascadeRunning(false);
+      setCascadeProgress({ round: 0, turn: 0 });
+    }
+  };
+
+  const handleQuickCascade = (sourceModel, targetModel) => {
+    // Quick cascade: send this model's response to another model
+    const sourceMessages = messages.filter(m => m.model === sourceModel);
+    if (sourceMessages.length === 0) {
+      toast.error('No response from source model');
+      return;
+    }
+    
+    const lastResponse = sourceMessages[sourceMessages.length - 1].content;
+    const prompt = `Response from ${sourceModel}:\n${lastResponse}\n\nYour turn to respond:`;
+    
+    handleSend(prompt, [targetModel]);
+  };
+
   const handleToggleSelect = (messageId) => {
     setSelectedMessages(prev => 
       prev.includes(messageId)

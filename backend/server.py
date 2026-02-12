@@ -898,10 +898,13 @@ async def ingest_to_agent_zero(
         logger.error(f"Agent Zero ingestion failed: {e}")
         raise HTTPException(status_code=503, detail=f"Agent Zero unreachable: {str(e)}")
 
+class A0RouteRequest(BaseModel):
+    message: str
+    models: List[str]
+
 @api_router.post("/a0/route")
 async def route_via_agent_zero(
-    message: str = Field(...),
-    models: List[str] = Field(...),
+    request: A0RouteRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """Route request through Agent Zero for TIW policy + logging"""

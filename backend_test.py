@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 class MultiAIChatTester:
-    def __init__(self, base_url="https://ai-prompt-hub-35.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://ai-synthesis-1.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.token = None
         self.user_id = None

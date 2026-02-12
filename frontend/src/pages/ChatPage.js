@@ -860,6 +860,10 @@ export default function ChatPage() {
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Dashboard
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={logout}>
                 Logout
               </DropdownMenuItem>

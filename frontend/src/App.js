@@ -6,6 +6,7 @@ import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
+import DashboardPage from './pages/DashboardPage';
 import './App.css';
 
 const ProtectedRoute = ({ children }) => {

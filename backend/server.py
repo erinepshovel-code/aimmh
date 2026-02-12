@@ -923,8 +923,8 @@ async def route_via_agent_zero(
             response = await client.post(
                 f"{a0_url}/route",
                 json={
-                    "message": message,
-                    "models": models,
+                    "message": request.message,
+                    "models": request.models,
                     "user_id": get_user_id(current_user),
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 },

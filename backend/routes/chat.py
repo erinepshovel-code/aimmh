@@ -54,6 +54,7 @@ async def chat_stream(
             try:
                 model_lower = model_spec.lower()
                 message_id = str(uuid.uuid4())
+                t_start = time.time()
 
                 yield {
                     "event": "start",

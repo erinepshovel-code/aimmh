@@ -185,6 +185,11 @@ export default function SettingsPage() {
           </CardHeader>
         </Card>
 
+        {/* Agent Zero Integration */}
+        <div className="mb-6">
+          <A0Settings />
+        </div>
+
         {/* API Keys */}
         <div className="space-y-4">
           {Object.entries(API_KEY_GUIDES).map(([provider, info]) => (

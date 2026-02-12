@@ -160,6 +160,16 @@ export default function SettingsPage() {
           <h1 className="text-3xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Settings
           </h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/dashboard')}
+            className="ml-auto"
+            data-testid="go-to-dashboard-btn"
+          >
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Dashboard
+          </Button>
         </div>
 
         {/* Universal Key Info */}

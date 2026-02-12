@@ -5,9 +5,10 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Switch } from '../components/ui/switch';
-import { ArrowLeft, ExternalLink, Key, Lock } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Key, Lock, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import A0Settings from '../components/A0Settings';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 

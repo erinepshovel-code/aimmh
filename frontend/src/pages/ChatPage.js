@@ -195,31 +195,36 @@ const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, 
 export default function ChatPage() {
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const [selectedModels, setSelectedModels] = useState(['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview']);
-  const [visibleModelIndex, setVisibleModelIndex] = useState(0);
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [conversationId, setConversationId] = useState(null);
-  const [streaming, setStreaming] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState([]);
-  const [pausedModels, setPausedModels] = useState({});
+  const {
+    selectedModels, setSelectedModels,
+    visibleModelIndex, setVisibleModelIndex,
+    input, setInput,
+    messages, setMessages,
+    conversationId, setConversationId,
+    streaming, setStreaming,
+    selectedMessages, setSelectedMessages,
+    pausedModels, setPausedModels,
+    promptHistory, setPromptHistory,
+    messageIndexMap, setMessageIndexMap,
+    nextIndex, setNextIndex,
+    globalContext, setGlobalContext,
+    autoExport, setAutoExport,
+    modelRoles, setModelRoles,
+    resetChat,
+  } = useChat();
+
+  // UI-only state (fine to reset on remount)
   const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);
   const [synthesisModels, setSynthesisModels] = useState([]);
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
-  const [promptHistory, setPromptHistory] = useState([]);
-  const [showPromptHistory, setShowPromptHistory] = useState(false); // Hidden by default on mobile
-  const [messageIndexMap, setMessageIndexMap] = useState({});
-  const [nextIndex, setNextIndex] = useState(1);
+  const [showPromptHistory, setShowPromptHistory] = useState(false);
   
   // Research features
   const [batchPrompts, setBatchPrompts] = useState('');
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
-  const [globalContext, setGlobalContext] = useState('');
   const [showGlobalContext, setShowGlobalContext] = useState(false);
-  const [autoExport, setAutoExport] = useState(false);
-  const [modelRoles, setModelRoles] = useState({});
   const [showRolesDialog, setShowRolesDialog] = useState(false);
   
   // Auto-cascade feature

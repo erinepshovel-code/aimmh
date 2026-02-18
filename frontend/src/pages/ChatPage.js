@@ -8,6 +8,7 @@ import { Settings, Send, ThumbsUp, ThumbsDown, Copy, Share2, Volume2, Plus, Chev
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useChat } from '../contexts/ChatContext';
 import ModelSelector from '../components/ModelSelector';
 import { Badge } from '../components/ui/badge';
 import { Checkbox } from '../components/ui/checkbox';

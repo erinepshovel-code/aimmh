@@ -7,45 +7,87 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { toast } from 'sonner';
-import { Wifi, WifiOff, Cloud, Smartphone, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff, Cloud, Smartphone, RefreshCw, Copy, Save, ChevronDown, ChevronUp } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const APP_URL = process.env.REACT_APP_BACKEND_URL;
+const SESSION_KEY = 'a0_session_config';
 axios.defaults.withCredentials = true;
+
+const ENDPOINTS = [
+  { method: 'POST', path: '/api/edcm/ingest', desc: 'Push EDCM metrics (5 indices)' },
+  { method: 'POST', path: '/api/a0/route', desc: 'Send prompts through hub' },
+  { method: 'POST', path: '/api/chat/stream', desc: 'Stream multi-model responses (SSE)' },
+  { method: 'GET', path: '/api/conversations/{id}/export?format=json', desc: 'Pull transcripts' },
+  { method: 'GET', path: '/api/edcm/dashboard', desc: 'Read all dashboard data' },
+];
+
+const A0_EXPECTS = [
+  { method: 'GET', path: '/health', desc: 'Health check (this app calls A0)' },
+  { method: 'POST', path: '/ingest/transcript', desc: 'Receive conversation (auto-ingest)' },
+  { method: 'POST', path: '/route', desc: 'Receive routed prompts' },
+];
+
+function loadSessionConfig() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
 
 export default function A0Settings() {
   const [config, setConfig] = useState({
     mode: 'local',
-    local_url: 'http://192.168.1.1',
+    local_url: '',
     local_port: 8787,
     cloud_url: '',
     api_key: '',
     route_via_a0: false,
-    auto_ingest: false
+    auto_ingest: false,
   });
   const [health, setHealth] = useState(null);
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showEndpoints, setShowEndpoints] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
 
   useEffect(() => {
-    loadConfig();
+    // Session config takes priority (manual entry per session)
+    const session = loadSessionConfig();
+    if (session) {
+      setConfig(session);
+      return;
+    }
+    // Fall back to saved server config
+    loadSavedConfig();
   }, []);
 
-  const loadConfig = async () => {
+  // Persist to session on every change
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(config));
+  }, [config]);
+
+  const loadSavedConfig = async () => {
     try {
       const res = await axios.get(`${API}/a0/config`);
-      setConfig(res.data);
-    } catch (err) {
+      const data = res.data;
+      if (data.local_url || data.cloud_url) {
+        setConfig(data);
+        setHasSaved(true);
+      }
+    } catch {
       // use defaults
     }
   };
 
-  const saveConfig = async () => {
+  const saveToServer = async () => {
     setSaving(true);
     try {
       await axios.put(`${API}/a0/config`, config);
-      toast.success('A0 config saved');
-    } catch (err) {
-      toast.error('Failed to save config');
+      setHasSaved(true);
+      toast.success('Config saved permanently');
+    } catch {
+      toast.error('Failed to save');
     } finally {
       setSaving(false);
     }
@@ -54,14 +96,14 @@ export default function A0Settings() {
   const checkHealth = async () => {
     setChecking(true);
     try {
+      // Push session config to server first so health check uses it
+      await axios.put(`${API}/a0/config`, config);
       const res = await axios.get(`${API}/a0/health`);
       setHealth(res.data);
-      if (res.data.status === 'connected') {
-        toast.success('Agent Zero connected');
-      } else {
-        toast.error(`A0: ${res.data.status}`);
-      }
-    } catch (err) {
+      toast[res.data.status === 'connected' ? 'success' : 'error'](
+        `A0: ${res.data.status}`
+      );
+    } catch {
       setHealth({ status: 'error' });
       toast.error('Health check failed');
     } finally {
@@ -69,28 +111,46 @@ export default function A0Settings() {
     }
   };
 
-  const statusColor = health?.status === 'connected' ? 'text-emerald-400' : health?.status === 'unreachable' ? 'text-red-400' : 'text-muted-foreground';
+  const copyEndpoints = () => {
+    const text = `# Multi-AI Hub → A0 Endpoints\nBase URL: ${APP_URL}\nAuth: Bearer <JWT> header\n\n` +
+      `## Endpoints A0 can call:\n` +
+      ENDPOINTS.map(e => `${e.method} ${APP_URL}${e.path}\n  ${e.desc}`).join('\n') +
+      `\n\n## Endpoints A0 must expose:\n` +
+      A0_EXPECTS.map(e => `${e.method} ${e.path}\n  ${e.desc}`).join('\n');
+    navigator.clipboard.writeText(text);
+    toast.success('Endpoint info copied');
+  };
+
+  const clearSession = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    setConfig({ mode: 'local', local_url: '', local_port: 8787, cloud_url: '', api_key: '', route_via_a0: false, auto_ingest: false });
+    setHealth(null);
+    toast('Session config cleared');
+  };
 
   return (
     <Card className="border-border" data-testid="a0-settings-card">
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           Agent Zero Integration
-          <Badge variant={health?.status === 'connected' ? 'default' : 'outline'} className="text-[10px] ml-auto">
-            {health?.status || 'Unknown'}
+          <Badge
+            variant={health?.status === 'connected' ? 'default' : 'outline'}
+            className="text-[10px] ml-auto"
+          >
+            {health?.status || 'Not tested'}
           </Badge>
         </CardTitle>
         <CardDescription className="text-xs">
-          Connect to A0 control plane for EDCM analysis and unified routing
+          Manual entry per session &middot; {hasSaved ? 'Saved config loaded' : 'Not saved'}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 space-y-4">
-        {/* Connection Mode Tabs */}
+        {/* Connection Mode */}
         <div className="flex gap-2">
           <Button
             variant={config.mode === 'local' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setConfig(prev => ({ ...prev, mode: 'local' }))}
+            onClick={() => setConfig(p => ({ ...p, mode: 'local' }))}
             className="flex-1"
             data-testid="a0-mode-local"
           >
@@ -99,7 +159,7 @@ export default function A0Settings() {
           <Button
             variant={config.mode === 'cloud' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setConfig(prev => ({ ...prev, mode: 'cloud' }))}
+            onClick={() => setConfig(p => ({ ...p, mode: 'cloud' }))}
             className="flex-1"
             data-testid="a0-mode-cloud"
           >
@@ -107,18 +167,18 @@ export default function A0Settings() {
           </Button>
         </div>
 
-        {/* Local Device Config */}
+        {/* Local Device */}
         {config.mode === 'local' && (
           <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border">
             <Label className="text-xs font-medium flex items-center gap-1">
-              <Smartphone className="h-3 w-3" /> Samsung Galaxy A16u / Local Device
+              <Smartphone className="h-3 w-3" /> Samsung Galaxy A16u / Local
             </Label>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
                 <Label className="text-[10px] text-muted-foreground">Device IP / URL</Label>
                 <Input
                   value={config.local_url}
-                  onChange={e => setConfig(prev => ({ ...prev, local_url: e.target.value }))}
+                  onChange={e => setConfig(p => ({ ...p, local_url: e.target.value }))}
                   placeholder="http://192.168.1.50"
                   className="font-mono text-xs h-8"
                   data-testid="a0-local-url"
@@ -129,20 +189,19 @@ export default function A0Settings() {
                 <Input
                   type="number"
                   value={config.local_port}
-                  onChange={e => setConfig(prev => ({ ...prev, local_port: parseInt(e.target.value) || 8787 }))}
-                  placeholder="8787"
+                  onChange={e => setConfig(p => ({ ...p, local_port: parseInt(e.target.value) || 8787 }))}
                   className="font-mono text-xs h-8"
                   data-testid="a0-local-port"
                 />
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              LAN: http://&lt;PHONE_IP&gt;:PORT &middot; Spawnable subagents on configurable ports
+              Configurable port for spawning subagents
             </p>
           </div>
         )}
 
-        {/* Google Cloud Config (Stub) */}
+        {/* Google Cloud (Stub) */}
         {config.mode === 'cloud' && (
           <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border">
             <Label className="text-xs font-medium flex items-center gap-1">
@@ -150,12 +209,12 @@ export default function A0Settings() {
             </Label>
             <Input
               value={config.cloud_url}
-              onChange={e => setConfig(prev => ({ ...prev, cloud_url: e.target.value }))}
+              onChange={e => setConfig(p => ({ ...p, cloud_url: e.target.value }))}
               placeholder="https://your-a0-instance.run.app"
               className="font-mono text-xs h-8"
               data-testid="a0-cloud-url"
             />
-            <Badge variant="outline" className="text-[9px]">Coming Soon &mdash; Cloud deployment stub</Badge>
+            <Badge variant="outline" className="text-[9px]">In progress &mdash; creating cloud access</Badge>
           </div>
         )}
 
@@ -165,7 +224,7 @@ export default function A0Settings() {
           <Input
             type="password"
             value={config.api_key}
-            onChange={e => setConfig(prev => ({ ...prev, api_key: e.target.value }))}
+            onChange={e => setConfig(p => ({ ...p, api_key: e.target.value }))}
             placeholder="Leave empty if not required"
             className="font-mono text-xs h-8"
             data-testid="a0-api-key"
@@ -181,7 +240,7 @@ export default function A0Settings() {
             </div>
             <Switch
               checked={config.route_via_a0}
-              onCheckedChange={v => setConfig(prev => ({ ...prev, route_via_a0: v }))}
+              onCheckedChange={v => setConfig(p => ({ ...p, route_via_a0: v }))}
               data-testid="a0-route-toggle"
             />
           </div>
@@ -192,7 +251,7 @@ export default function A0Settings() {
             </div>
             <Switch
               checked={config.auto_ingest}
-              onCheckedChange={v => setConfig(prev => ({ ...prev, auto_ingest: v }))}
+              onCheckedChange={v => setConfig(p => ({ ...p, auto_ingest: v }))}
               data-testid="a0-ingest-toggle"
             />
           </div>
@@ -200,26 +259,107 @@ export default function A0Settings() {
 
         {/* Actions */}
         <div className="flex gap-2">
-          <Button size="sm" onClick={saveConfig} disabled={saving} className="flex-1" data-testid="a0-save-btn">
-            {saving ? 'Saving...' : 'Save Config'}
-          </Button>
-          <Button size="sm" variant="outline" onClick={checkHealth} disabled={checking} data-testid="a0-health-btn">
+          <Button size="sm" variant="outline" onClick={checkHealth} disabled={checking} className="flex-1" data-testid="a0-health-btn">
             <RefreshCw className={`h-3 w-3 mr-1 ${checking ? 'animate-spin' : ''}`} />
-            Test
+            Test Connection
+          </Button>
+          <Button size="sm" onClick={saveToServer} disabled={saving} data-testid="a0-save-btn">
+            <Save className="h-3 w-3 mr-1" />
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSession} className="text-xs" data-testid="a0-clear-btn">
+            Clear
           </Button>
         </div>
 
-        {/* Health details */}
+        {/* Health result */}
         {health && (
           <div className="text-[10px] p-2 rounded bg-muted/30 space-y-1">
             <div className="flex items-center gap-1">
-              {health.status === 'connected' ? <Wifi className="h-3 w-3 text-emerald-400" /> : <WifiOff className="h-3 w-3 text-red-400" />}
-              <span className={statusColor}>{health.status}</span>
+              {health.status === 'connected' ?
+                <Wifi className="h-3 w-3 text-emerald-400" /> :
+                <WifiOff className="h-3 w-3 text-red-400" />
+              }
+              <span className={health.status === 'connected' ? 'text-emerald-400' : 'text-red-400'}>
+                {health.status}
+              </span>
             </div>
             {health.a0_url && <div className="text-muted-foreground font-mono">{health.a0_url}</div>}
             {health.error && <div className="text-red-400">{health.error}</div>}
           </div>
         )}
+
+        {/* Endpoint Connection Info */}
+        <div className="border border-border rounded-lg overflow-hidden">
+          <button
+            onClick={() => setShowEndpoints(!showEndpoints)}
+            className="w-full flex items-center justify-between p-3 text-xs font-medium hover:bg-muted/30 transition-colors"
+            data-testid="a0-endpoints-toggle"
+          >
+            <span>Endpoint Connection Info</span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[10px]"
+                onClick={e => { e.stopPropagation(); copyEndpoints(); }}
+                data-testid="a0-copy-endpoints"
+              >
+                <Copy className="h-3 w-3 mr-1" /> Copy
+              </Button>
+              {showEndpoints ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </div>
+          </button>
+
+          {showEndpoints && (
+            <div className="p-3 pt-0 space-y-3">
+              {/* Endpoints A0 can call on this app */}
+              <div>
+                <Label className="text-[10px] text-muted-foreground mb-1 block">
+                  A0 calls this app at: <span className="font-mono text-foreground">{APP_URL}</span>
+                </Label>
+                <div className="space-y-1">
+                  {ENDPOINTS.map(e => (
+                    <div key={e.path} className="flex items-start gap-2 text-[10px] font-mono p-1.5 rounded bg-muted/20">
+                      <Badge variant="outline" className="text-[8px] shrink-0 mt-0.5 w-10 justify-center">
+                        {e.method}
+                      </Badge>
+                      <div>
+                        <div className="text-foreground">{e.path}</div>
+                        <div className="text-muted-foreground font-sans">{e.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Endpoints A0 must expose */}
+              <div>
+                <Label className="text-[10px] text-muted-foreground mb-1 block">
+                  A0 must expose (this app calls A0):
+                </Label>
+                <div className="space-y-1">
+                  {A0_EXPECTS.map(e => (
+                    <div key={e.path} className="flex items-start gap-2 text-[10px] font-mono p-1.5 rounded bg-muted/20">
+                      <Badge variant="outline" className="text-[8px] shrink-0 mt-0.5 w-10 justify-center">
+                        {e.method}
+                      </Badge>
+                      <div>
+                        <div className="text-foreground">{e.path}</div>
+                        <div className="text-muted-foreground font-sans">{e.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-[10px] text-muted-foreground p-2 rounded bg-muted/20">
+                Auth: <span className="font-mono">Authorization: Bearer &lt;JWT&gt;</span> header on all calls.
+                A0-to-app also accepts <span className="font-mono">X-A0-Key</span> if set above.
+              </div>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

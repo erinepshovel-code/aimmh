@@ -89,12 +89,14 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <div className="App">
-          <AppRoutes />
-          <Toaster position="top-right" theme="dark" />
-        </div>
-      </BrowserRouter>
+      <ChatProvider>
+        <BrowserRouter>
+          <div className="App">
+            <AppRoutes />
+            <Toaster position="top-right" theme="dark" />
+          </div>
+        </BrowserRouter>
+      </ChatProvider>
     </AuthProvider>
   );
 }

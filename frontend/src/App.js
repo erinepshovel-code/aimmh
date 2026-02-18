@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ChatProvider } from './contexts/ChatContext';
 import { Toaster } from './components/ui/sonner';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';

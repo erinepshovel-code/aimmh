@@ -601,12 +601,7 @@ export default function ChatPage() {
   };
 
   const handleNewChat = () => {
-    setMessages([]);
-    setConversationId(null);
-    setPromptHistory([]);
-    setSelectedMessages([]);
-    setMessageIndexMap({});
-    setNextIndex(1);
+    resetChat();
   };
 
   const handleBatchRun = async () => {

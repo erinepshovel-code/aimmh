@@ -57,6 +57,11 @@ code {
         -ms-overflow-style: none;
         scrollbar-width: none;
     }
+
+    /* Emergent platform badge can sometimes overlay the viewport and intercept clicks */
+    #emergent-badge {
+        pointer-events: none !important;
+    }
 }
 
 @layer components {

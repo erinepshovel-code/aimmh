@@ -260,9 +260,9 @@ export default function ChatPage() {
     );
   };
 
-  const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false) => {
+  const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false) => {
     let baseMessage = customMessage || input;
-    if (!baseMessage.trim() || streaming) return;
+    if (!baseMessage.trim() || streaming) return null;
     
     const modelsToQuery = targetModels || selectedModels.filter(m => !pausedModels[m]);
     if (modelsToQuery.length === 0) {
@@ -331,7 +331,7 @@ export default function ChatPage() {
 
     // For now, use the first model's context (simplified approach)
     // In production, you'd want to handle per-model messages differently
-    const messageToSend = buildMessageForModel(modelsToQuery[0]);
+    const messageToSend = skipWrap ? baseMessage : buildMessageForModel(modelsToQuery[0]);
 
     try {
       const token = localStorage.getItem('token');
@@ -362,6 +362,8 @@ export default function ChatPage() {
       modelsToQuery.forEach(model => {
         modelBuffers[model] = { id: '', content: '' };
       });
+
+      const finalContents = {};
 
       while (true) {
         const { done, value } = await reader.read();
@@ -417,6 +419,11 @@ export default function ChatPage() {
                         : m
                     )
                   );
+
+                  // capture final content for return
+                  if (data.model && modelBuffers[data.model]) {
+                    finalContents[data.model] = modelBuffers[data.model].content;
+                  }
                 }
               }
               
@@ -439,9 +446,12 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Stream error:', error);
       toast.error('Failed to send message');
+      return null;
     } finally {
       setStreaming(false);
     }
+
+    return finalContents;
   };
 
   const handleSynthesis = async () => {

@@ -45,7 +45,7 @@ function MetricGauge({ value, label, desc, color }) {
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium" style={{ color }}>{label}</span>
         <span className="text-xs font-mono">
-          {isStub ? <Badge variant="outline" className="text-[9px]">Awaiting A0</Badge> : value.toFixed(3)}
+          {isStub ? <Badge variant="outline" className="text-[9px]">Awaiting a0</Badge> : value.toFixed(3)}
         </span>
       </div>
       <div className="h-2 bg-muted rounded-full overflow-hidden">

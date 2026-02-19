@@ -313,7 +313,7 @@ export default function A0Settings() {
 
           {showEndpoints && (
             <div className="p-3 pt-0 space-y-3">
-              {/* Endpoints A0 can call on this app */}
+              {/* Endpoints a0 can call on this app */}
               <div>
                 <Label className="text-[10px] text-muted-foreground mb-1 block">
                   A0 calls this app at: <span className="font-mono text-foreground">{APP_URL}</span>

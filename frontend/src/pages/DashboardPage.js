@@ -159,7 +159,7 @@ export default function DashboardPage() {
           <CardHeader className="p-3 pb-1">
             <CardTitle className="text-sm flex items-center gap-2">
               <Activity className="h-4 w-4" /> EDCM Metrics
-              <Badge variant="outline" className="text-[9px] ml-auto">Stubs &mdash; Fed by A0</Badge>
+              <Badge variant="outline" className="text-[9px] ml-auto">Stubs &mdash; Fed by a0</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 space-y-3">

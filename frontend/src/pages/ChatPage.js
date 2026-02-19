@@ -200,6 +200,7 @@ export default function ChatPage() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const {
+    activeTopTab, setActiveTopTab,
     selectedModels, setSelectedModels,
     visibleModelIndex, setVisibleModelIndex,
     input, setInput,
@@ -211,9 +212,13 @@ export default function ChatPage() {
     promptHistory, setPromptHistory,
     messageIndexMap, setMessageIndexMap,
     nextIndex, setNextIndex,
+    allocPromptIndex,
     globalContext, setGlobalContext,
     autoExport, setAutoExport,
     modelRoles, setModelRoles,
+    cascadeConfig, setCascadeConfig,
+    cascadeRunning, setCascadeRunning,
+    cascadeProgress, setCascadeProgress,
     resetChat,
   } = useChat();
 

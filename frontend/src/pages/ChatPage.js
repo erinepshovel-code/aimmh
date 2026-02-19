@@ -233,6 +233,8 @@ export default function ChatPage() {
   const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);
   const [synthesisModels, setSynthesisModels] = useState([]);
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
+  const [showRolesDialog, setShowRolesDialog] = useState(false);
+
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   
   // Research features

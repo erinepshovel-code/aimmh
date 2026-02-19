@@ -101,7 +101,7 @@ export default function A0Settings() {
       const res = await axios.get(`${API}/a0/health`);
       setHealth(res.data);
       toast[res.data.status === 'connected' ? 'success' : 'error'](
-        `A0: ${res.data.status}`
+        `a0: ${res.data.status}`
       );
     } catch {
       setHealth({ status: 'error' });

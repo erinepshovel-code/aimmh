@@ -773,7 +773,7 @@ export default function ChatPage() {
       if (cascadeConfig.seedMode === 'custom') {
         seedText = cascadeConfig.seedCustomText || '';
       } else {
-        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+        const lastUser = [...initialMessages].reverse().find(m => m.role === 'user');
         seedText = lastUser?.content || '';
       }
       if (!seedText.trim()) {

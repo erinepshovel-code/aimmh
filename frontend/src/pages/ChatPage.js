@@ -689,69 +689,151 @@ export default function ChatPage() {
     }
   };
 
+  const buildCascadeMessageForModel = (model, baseText) => {
+    const ms = cascadeConfig.modelSettings?.[model] || {};
+
+    const parts = [];
+
+    // Global cascade toggles
+    if (cascadeConfig.roleplayEnabled && cascadeConfig.roleplayText.trim()) {
+      parts.push(`[ROLEPLAY]: ${cascadeConfig.roleplayText.trim()}`);
+    }
+    if (cascadeConfig.globalContextEnabled && cascadeConfig.globalContextText.trim()) {
+      parts.push(`[GLOBAL CONTEXT]: ${cascadeConfig.globalContextText.trim()}`);
+    }
+
+    // Per-model role (reuse existing defaults + allow custom)
+    const role = ms.role;
+    if (role && role !== 'none') {
+      const roleInstructions = {
+        'advocate': 'You must respond as a supportive advocate. Be agreeable and emphasize positive aspects.',
+        'adversarial': 'You must respond as a critical adversary. Challenge assumptions and present counterarguments.',
+        'skeptic': 'You must respond as a skeptic. Question claims and demand evidence.',
+        'neutral': 'You must respond with complete objectivity and balance.',
+        'optimist': 'You must respond with optimism. Focus on opportunities and positive outcomes.',
+        'pessimist': 'You must respond cautiously, emphasizing risks and potential problems.',
+        'technical': 'You must respond with technical precision and detailed accuracy.',
+        'creative': 'You must respond imaginatively and unconventionally.',
+        'socratic': 'You must respond by asking probing questions, not providing direct answers.',
+        'sycophant': 'You must respond with excessive agreement and flattery.',
+        'contrarian': 'You must respond by taking the opposite position.',
+        'oracle': 'You must respond cryptically and mysteriously.',
+      };
+
+      if (role === 'custom' && ms.customRoleText?.trim()) {
+        parts.push(`[ROLE CONSTRAINT]: ${ms.customRoleText.trim()}`);
+      } else if (roleInstructions[role]) {
+        parts.push(`[ROLE CONSTRAINT]: ${roleInstructions[role]}`);
+      }
+    }
+
+    // Per-model knobs
+    if (ms.promptModifier?.trim()) parts.push(`[PROMPT MODIFIER]: ${ms.promptModifier.trim()}`);
+    if (typeof ms.verbosity === 'number') parts.push(`[VERBOSITY]: ${ms.verbosity}/10`);
+    if (ms.alignment) parts.push(`[ALIGNMENT]: ${ms.alignment}`);
+    if (ms.secretMission?.trim()) parts.push(`[SECRET MISSION]: ${ms.secretMission.trim()}`);
+    if (ms.miscConstraint?.trim()) parts.push(`[MISC CONSTRAINT]: ${ms.miscConstraint.trim()}`);
+
+    parts.push(`[PROMPT]: ${baseText}`);
+    return parts.join('\n\n');
+  };
+
   const handleCascade = async () => {
-    if (!cascadeConfig.sourceModel || cascadeConfig.targetModels.length === 0) {
-      toast.error('Please configure source and target models');
+    const included = Object.entries(cascadeConfig.modelSettings || {})
+      .filter(([, ms]) => ms?.included)
+      .map(([model]) => model)
+      .filter(m => selectedModels.includes(m));
+
+    if (included.length === 0) {
+      toast.error('Select at least one model for cascade');
       return;
     }
 
+    if (cascadeRunning) return;
+
     setCascadeRunning(true);
-    setShowCascadeDialog(false);
-    
+
     try {
+      // Seed prompt
+      let seedText = '';
+      if (cascadeConfig.seedMode === 'custom') {
+        seedText = cascadeConfig.seedCustomText || '';
+      } else {
+        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+        seedText = lastUser?.content || '';
+      }
+      if (!seedText.trim()) {
+        toast.error('Cascade needs a seed prompt (send a user prompt first or set a custom seed)');
+        return;
+      }
+
+      let lastOutput = seedText;
+
       for (let round = 1; round <= cascadeConfig.rounds; round++) {
-        setCascadeProgress({ round, turn: 0 });
-        toast.info(`🔄 Cascade Round ${round}/${cascadeConfig.rounds}`);
-        
-        for (let turn = 1; turn <= cascadeConfig.turnsPerRound; turn++) {
-          setCascadeProgress({ round, turn });
-          
-          // Get last response from source model
-          const sourceMessages = messages.filter(m => m.model === cascadeConfig.sourceModel);
-          if (sourceMessages.length === 0) {
-            toast.error('No response from source model yet');
-            break;
-          }
-          
-          const lastSourceResponse = sourceMessages[sourceMessages.length - 1].content;
-          const cascadePrompt = `[CASCADE Round ${round}, Turn ${turn}]\n\nPrevious response from ${cascadeConfig.sourceModel}:\n${lastSourceResponse}\n\nPlease respond to this:`;
-          
-          // Send to target models
-          const targets = cascadeConfig.sendToAll ? cascadeConfig.targetModels : [cascadeConfig.targetModels[0]];
-          await handleSend(cascadePrompt, targets, true);
-          
-          // Wait for responses
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          // Wait for streaming to complete
-          while (streaming) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-          
-          // Additional delay between turns
-          if (turn < cascadeConfig.turnsPerRound) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
+        // order for this round
+        let order = (cascadeConfig.order || included).filter(m => included.includes(m));
+        if (cascadeConfig.randomOrderPerRound) {
+          order = [...order].sort(() => Math.random() - 0.5);
         }
-        
-        // Delay between rounds
-        if (round < cascadeConfig.rounds) {
-          await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // total turns for progress
+        const totalTurns = order.reduce((sum, model) => {
+          const ms = cascadeConfig.modelSettings?.[model] || {};
+          const turns = (typeof ms.turnsPerRound === 'number' && ms.turnsPerRound > 0)
+            ? ms.turnsPerRound
+            : cascadeConfig.defaultTurnsPerModelPerRound;
+          return sum + Math.max(0, turns);
+        }, 0);
+
+        let doneTurns = 0;
+        toast.info(`Cascade round ${round}/${cascadeConfig.rounds}`);
+
+        for (const model of order) {
+          const ms = cascadeConfig.modelSettings?.[model] || {};
+          const turns = (typeof ms.turnsPerRound === 'number' && ms.turnsPerRound > 0)
+            ? ms.turnsPerRound
+            : cascadeConfig.defaultTurnsPerModelPerRound;
+
+          for (let t = 1; t <= turns; t++) {
+            if (!cascadeRunning) throw new Error('Cascade stopped');
+
+            doneTurns += 1;
+            setCascadeProgress({ round, model, turn: doneTurns, totalTurns });
+
+            const base = `[CASCADE]\n[ROUND ${round}/${cascadeConfig.rounds}]\n[MODEL ${model}]\n[TURN ${t}/${turns}]\n\nINPUT:\n${lastOutput}`;
+            const perModelPrompt = buildCascadeMessageForModel(model, base);
+
+            await handleSend(perModelPrompt, [model], true);
+
+            // Wait for streaming to complete
+            while (streaming) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+
+            // Pull the most recent assistant message for this model
+            const latest = [...messages].reverse().find(m => m.role === 'assistant' && m.model === model && !m.streaming);
+            if (latest?.content) {
+              lastOutput = latest.content;
+            }
+          }
         }
       }
-      
-      toast.success(`✅ Cascade complete: ${cascadeConfig.rounds} rounds, ${cascadeConfig.turnsPerRound} turns each`);
-      
+
+      toast.success('Cascade complete');
+
       if (autoExport && conversationId) {
         await handleExport('json');
       }
-      
+
     } catch (error) {
-      console.error('Cascade error:', error);
-      toast.error('Cascade interrupted');
+      if (String(error?.message || '').includes('Cascade stopped')) {
+        toast('Cascade stopped');
+      } else {
+        toast.error('Cascade interrupted');
+      }
     } finally {
       setCascadeRunning(false);
-      setCascadeProgress({ round: 0, turn: 0 });
+      setCascadeProgress({ round: 0, model: '', turn: 0, totalTurns: 0 });
     }
   };
 

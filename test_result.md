@@ -140,12 +140,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Auto-Cascade Phase 1"
-    - "Verify tabs do not reset unsent inputs"
-    - "Verify mobile Send button not covered by floater"
+    - "Fix 'Made with Emergent' floater blocking Send button"
   stuck_tasks: []
   test_all: false
-  test_priority: "sequential"
+  test_priority: "high_first"
 
 agent_communication:
   - agent: "main"

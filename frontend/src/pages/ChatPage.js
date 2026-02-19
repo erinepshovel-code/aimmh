@@ -790,7 +790,7 @@ export default function ChatPage() {
         // total turns for progress
         const totalTurns = order.reduce((sum, model) => {
           const ms = cascadeConfig.modelSettings?.[model] || {};
-          const turns = (typeof ms.turnsPerRound === 'number' && ms.turnsPerRound > 0)
+          const turns = (typeof ms.turnsPerRound === 'number')
             ? ms.turnsPerRound
             : cascadeConfig.defaultTurnsPerModelPerRound;
           return sum + Math.max(0, turns);
@@ -801,7 +801,7 @@ export default function ChatPage() {
 
         for (const model of order) {
           const ms = cascadeConfig.modelSettings?.[model] || {};
-          const turns = (typeof ms.turnsPerRound === 'number' && ms.turnsPerRound > 0)
+          const turns = (typeof ms.turnsPerRound === 'number')
             ? ms.turnsPerRound
             : cascadeConfig.defaultTurnsPerModelPerRound;
 

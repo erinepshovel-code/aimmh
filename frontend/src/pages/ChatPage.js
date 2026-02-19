@@ -267,7 +267,7 @@ export default function ChatPage() {
     const modelsToQuery = targetModels || selectedModels.filter(m => !pausedModels[m]);
     if (modelsToQuery.length === 0) {
       toast.error('All models are paused or no models selected');
-      return;
+      return null;
     }
     
     if (!customMessage) setInput('');

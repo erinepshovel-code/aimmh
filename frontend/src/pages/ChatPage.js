@@ -884,7 +884,7 @@ export default function ChatPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setShowBatchDialog(true)} disabled={batchRunning}>
+              <DropdownMenuItem onClick={() => setActiveTopTab('batch')} disabled={batchRunning}>
                 <FileText className="h-4 w-4 mr-2" />
                 {batchRunning ? `Batch ${currentBatchIndex}...` : 'Batch Prompts'}
               </DropdownMenuItem>

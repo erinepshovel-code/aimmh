@@ -764,6 +764,9 @@ export default function ChatPage() {
 
     setCascadeRunning(true);
 
+    // Get a stable snapshot of messages before starting
+    const initialMessages = messages;
+
     try {
       // Seed prompt
       let seedText = '';

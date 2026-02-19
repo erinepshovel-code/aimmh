@@ -236,18 +236,7 @@ export default function ChatPage() {
   const [showGlobalContext, setShowGlobalContext] = useState(false);
   const [showRolesDialog, setShowRolesDialog] = useState(false);
   
-  // Auto-cascade feature
-  const [showCascadeDialog, setShowCascadeDialog] = useState(false);
-  const [cascadeConfig, setCascadeConfig] = useState({
-    enabled: false,
-    rounds: 3,
-    turnsPerRound: 1,
-    sourceModel: '',
-    targetModels: [],
-    sendToAll: true
-  });
-  const [cascadeRunning, setCascadeRunning] = useState(false);
-  const [cascadeProgress, setCascadeProgress] = useState({ round: 0, turn: 0 });
+  // Auto-cascade feature state now lives in ChatContext
 
   // Get visible models for carousel (show 2 at a time)
   const getVisibleModels = () => {

@@ -428,9 +428,7 @@ export default function ChatPage() {
           }
         }
       }
-      
-      // Update index counter for next batch
-      setNextIndex(prev => prev + modelsToQuery.length);
+      // Note: prompt indices allocated incrementally via allocPromptIndex()
       
       // Auto-export if enabled
       if (autoExport && !skipAutoExport && conversationId) {

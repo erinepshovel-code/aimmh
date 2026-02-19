@@ -838,19 +838,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleQuickCascade = (sourceModel, targetModel) => {
-    // Quick cascade: send this model's response to another model
-    const sourceMessages = messages.filter(m => m.model === sourceModel);
-    if (sourceMessages.length === 0) {
-      toast.error('No response from source model');
-      return;
-    }
-    
-    const lastResponse = sourceMessages[sourceMessages.length - 1].content;
-    const prompt = `Response from ${sourceModel}:\n${lastResponse}\n\nYour turn to respond:`;
-    
-    handleSend(prompt, [targetModel]);
-  };
+  // (Legacy quick-cascade removed; cascade is configured via the Cascade tab)
 
   const handleToggleSelect = (messageId) => {
     setSelectedMessages(prev => 

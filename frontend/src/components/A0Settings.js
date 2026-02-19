@@ -23,7 +23,7 @@ const ENDPOINTS = [
 ];
 
 const A0_EXPECTS = [
-  { method: 'GET', path: '/health', desc: 'Health check (this app calls A0)' },
+  { method: 'GET', path: '/health', desc: 'Health check (this app calls a0)' },
   { method: 'POST', path: '/ingest/transcript', desc: 'Receive conversation (auto-ingest)' },
   { method: 'POST', path: '/route', desc: 'Receive routed prompts' },
 ];

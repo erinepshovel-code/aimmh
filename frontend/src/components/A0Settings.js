@@ -316,7 +316,7 @@ export default function A0Settings() {
               {/* Endpoints a0 can call on this app */}
               <div>
                 <Label className="text-[10px] text-muted-foreground mb-1 block">
-                  A0 calls this app at: <span className="font-mono text-foreground">{APP_URL}</span>
+                  a0 calls this app at: <span className="font-mono text-foreground">{APP_URL}</span>
                 </Label>
                 <div className="space-y-1">
                   {ENDPOINTS.map(e => (

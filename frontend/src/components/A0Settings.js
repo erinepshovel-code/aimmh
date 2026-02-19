@@ -336,7 +336,7 @@ export default function A0Settings() {
               {/* Endpoints a0 must expose */}
               <div>
                 <Label className="text-[10px] text-muted-foreground mb-1 block">
-                  A0 must expose (this app calls A0):
+                  a0 must expose (this app calls a0):
                 </Label>
                 <div className="space-y-1">
                   {A0_EXPECTS.map(e => (

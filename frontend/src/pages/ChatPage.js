@@ -1407,12 +1407,12 @@ export default function ChatPage() {
 
           <TabsContent value="roles" className="mt-2">
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setShowRolesDialog(true)}>
-                🎭 Open role assignment
-              </Button>
               <div className="text-[10px] text-muted-foreground">
-                Roles persist across tabs.
+                Roles can be assigned via the dialog.
               </div>
+              <Button size="sm" variant="outline" onClick={() => setShowRolesDialog(true)}>
+                Open roles
+              </Button>
             </div>
           </TabsContent>
         </Tabs>

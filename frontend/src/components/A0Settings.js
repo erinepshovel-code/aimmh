@@ -235,7 +235,7 @@ export default function A0Settings() {
         <div className="space-y-2">
           <div className="flex items-center justify-between p-2 rounded bg-muted/30">
             <div>
-              <Label className="text-xs">Route via A0</Label>
+              <Label className="text-xs">Route via a0</Label>
               <p className="text-[10px] text-muted-foreground">TIW policy gate + unified logging</p>
             </div>
             <Switch

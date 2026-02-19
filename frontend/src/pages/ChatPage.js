@@ -323,8 +323,7 @@ export default function ChatPage() {
     };
     
     // Add to prompt history
-    const promptIndex = nextIndex;
-    setNextIndex(prev => prev + 1);
+    const promptIndex = allocPromptIndex();
     setPromptHistory(prev => [...prev, { index: promptIndex, content: baseMessage, timestamp: new Date() }]);
     
     setMessages(prev => [...prev, userMsg]);

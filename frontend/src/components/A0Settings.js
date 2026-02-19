@@ -333,7 +333,7 @@ export default function A0Settings() {
                 </div>
               </div>
 
-              {/* Endpoints A0 must expose */}
+              {/* Endpoints a0 must expose */}
               <div>
                 <Label className="text-[10px] text-muted-foreground mb-1 block">
                   A0 must expose (this app calls A0):

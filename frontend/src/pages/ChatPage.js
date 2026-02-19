@@ -268,6 +268,8 @@ export default function ChatPage() {
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false) => {
     let baseMessage = customMessage || input;
     if (!baseMessage.trim() || streaming) return null;
+
+    let finalContents = {};
     
     const modelsToQuery = targetModels || selectedModels.filter(m => !pausedModels[m]);
     if (modelsToQuery.length === 0) {

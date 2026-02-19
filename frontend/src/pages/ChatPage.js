@@ -809,7 +809,7 @@ export default function ChatPage() {
             : cascadeConfig.defaultTurnsPerModelPerRound;
 
           for (let t = 1; t <= turns; t++) {
-            if (!cascadeRunning) throw new Error('Cascade stopped');
+            if (!cascadeRunningRef.current) throw new Error('Cascade stopped');
 
             doneTurns += 1;
             setCascadeProgress({ round, model, turn: doneTurns, totalTurns });

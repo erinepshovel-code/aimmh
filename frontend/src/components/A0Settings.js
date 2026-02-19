@@ -112,10 +112,10 @@ export default function A0Settings() {
   };
 
   const copyEndpoints = () => {
-    const text = `# Multi-AI Hub → A0 Endpoints\nBase URL: ${APP_URL}\nAuth: Bearer <JWT> header\n\n` +
-      `## Endpoints A0 can call:\n` +
+    const text = `# Multi-AI Hub → a0 Endpoints\nBase URL: ${APP_URL}\nAuth: Bearer <JWT> header\n\n` +
+      `## Endpoints a0 can call:\n` +
       ENDPOINTS.map(e => `${e.method} ${APP_URL}${e.path}\n  ${e.desc}`).join('\n') +
-      `\n\n## Endpoints A0 must expose:\n` +
+      `\n\n## Endpoints a0 must expose:\n` +
       A0_EXPECTS.map(e => `${e.method} ${e.path}\n  ${e.desc}`).join('\n');
     navigator.clipboard.writeText(text);
     toast.success('Endpoint info copied');

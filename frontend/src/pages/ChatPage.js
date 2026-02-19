@@ -814,18 +814,10 @@ export default function ChatPage() {
             const base = `[CASCADE]\n[ROUND ${round}/${cascadeConfig.rounds}]\n[MODEL ${model}]\n[TURN ${t}/${turns}]\n\nINPUT:\n${lastOutput}`;
             const perModelPrompt = buildCascadeMessageForModel(model, base);
 
-            await handleSend(perModelPrompt, [model], true);
+            const out = await handleSend(perModelPrompt, [model], true, true);
 
-            // Wait for streaming to complete
-            while (streaming) {
-              await new Promise(resolve => setTimeout(resolve, 300));
-            }
-
-            // Pull the most recent assistant message for this model
-            const latest = [...messages].reverse().find(m => m.role === 'assistant' && m.model === model && !m.streaming);
-            if (latest?.content) {
-              lastOutput = latest.content;
-            }
+            const latest = out?.[model];
+            if (latest) lastOutput = latest;
           }
         }
       }

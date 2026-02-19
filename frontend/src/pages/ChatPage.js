@@ -370,7 +370,6 @@ export default function ChatPage() {
         modelBuffers[model] = { id: '', content: '' };
       });
 
-      const finalContents = {};
 
       while (true) {
         const { done, value } = await reader.read();

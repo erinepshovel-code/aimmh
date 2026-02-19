@@ -104,7 +104,7 @@ user_problem_statement: "Multi-model prompt hub with advanced research features 
 frontend:
   - task: "Auto-Cascade Phase 1 (tabs UI + per-model controls + sequential chaining via /api/chat/stream)"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/pages/ChatPage.js"
     stuck_count: 0
     priority: "high"
@@ -116,6 +116,9 @@ frontend:
       - working: false
         agent: "testing"
         comment: "CRITICAL ISSUE: 'Made with Emergent' floater (#emergent-badge) blocks Send button interaction on both desktop and mobile viewports. All core functionality works: ✅ Login successful ✅ All 4 tabs present and functional ✅ Tab switching preserves unsent text ✅ Chat functionality works (with force clicks) ✅ Cascade configuration complete (rounds, turns, asymmetry) ✅ Single-model and multi-model cascade operational ✅ Start/Stop cascade controls work ✅ Progress indicators display ✅ Mobile bottom padding implemented. The floater intercepts pointer events preventing normal Send button clicks. Requires z-index fix or repositioning."
+      - working: true
+        agent: "testing"
+        comment: "FLOATER FIX VERIFIED: ✅ CSS fix successfully applied in /app/frontend/src/index.css with '#emergent-badge { pointer-events: none !important; }' ✅ Emergent badge confirmed to have pointer-events: none on both auth and chat pages ✅ Send button no longer blocked by floater overlay ✅ Desktop viewport (1920x1080): Send button clickable without force=True ✅ Mobile viewport (390x844): Send button clickable without force=True ✅ All core functionality remains intact. The critical blocking issue has been resolved - users can now interact with the Send button normally on both desktop and mobile viewports."
 
   - task: "Naming compatibility: use lowercase a0 in UI"
     implemented: true

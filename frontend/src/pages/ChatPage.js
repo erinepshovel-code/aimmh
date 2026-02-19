@@ -1124,24 +1124,8 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Input Area - Mobile Optimized */}
-      <div className="border-t border-border bg-[#18181B]">
-        {/* Global Context (EDCM Research) */}
-        {showGlobalContext && (
-          <div className="p-2 border-b border-border">
-            <Label className="text-[10px] font-medium mb-1 flex items-center gap-1">
-              🌐 Global Context
-            </Label>
-            <Textarea
-              value={globalContext}
-              onChange={(e) => setGlobalContext(e.target.value)}
-              placeholder="Enter global context constraints for EDCM analysis..."
-              className="resize-none bg-background text-xs"
-              rows={2}
-            />
-          </div>
-        )}
-        
+      {/* Input / Controls Area - Mobile Optimized */}
+      <div className="border-t border-border bg-[#18181B] pb-14 sm:pb-2">
         {/* Main Input */}
         <div className="p-2">
           <div className="flex gap-1">
@@ -1187,6 +1171,20 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
+
+        {/* Cascade running status */}
+        {cascadeRunning && (
+          <div className="px-2 pb-2">
+            <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
+              <div className="text-[10px] text-muted-foreground">
+                Cascade: Round {cascadeProgress.round}/{cascadeConfig.rounds} • {cascadeProgress.model || '—'} • Turn {cascadeProgress.turn}/{cascadeProgress.totalTurns}
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setCascadeRunning(false)} className="h-7 px-2 text-[10px]">
+                Stop
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Synthesis Dialog */}

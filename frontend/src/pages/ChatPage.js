@@ -232,8 +232,6 @@ export default function ChatPage() {
   // UI-only state (fine to reset on remount)
   const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);
   const [synthesisModels, setSynthesisModels] = useState([]);
-  const [showRolesDialog, setShowRolesDialog] = useState(false);
-
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   

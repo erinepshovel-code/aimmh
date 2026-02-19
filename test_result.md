@@ -77,9 +77,6 @@
 #
 # 3. Track Stuck Tasks:
 #    - Monitor which tasks have high stuck_count values or where you are fixing same issue again and again, analyze that when you read task_result.md
-#    - For persistent issues, use websearch tool to find solutions
-#    - Pay special attention to tasks in the stuck_tasks list
-#    - When you fix an issue with a stuck task, don't reset the stuck_count until the testing agent confirms it's working
 #
 # 4. Provide Context to Testing Agent:
 #    - When calling the testing agent, provide clear instructions about:
@@ -101,3 +98,49 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Multi-model prompt hub with advanced research features (Auto-Cascade), Agent Zero (a0) integration, and mobile-first UI."
+
+frontend:
+  - task: "Auto-Cascade Phase 1 (tabs UI + per-model controls + sequential chaining via /api/chat/stream)"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented top tabs (Chat/Cascade/Batch/Roles) with state persistence via ChatContext/sessionStorage. Added Cascade config (rounds, default turns, per-model overrides incl. asymmetry, random order, seed mode, global context/roleplay, verbosity slider w/ pop-culture labels, alignment, secret mission, misc constraint). Implemented sequential cascade engine that calls existing /api/chat/stream per turn and chains last output forward; added Stop control and progress display. Added mobile padding to avoid Emergent floater covering Send button."
+
+  - task: "Naming compatibility: use lowercase a0 in UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/A0Settings.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated various UI labels and copied endpoint spec text from 'A0' to 'a0'."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Auto-Cascade Phase 1"
+    - "Verify tabs do not reset unsent inputs"
+    - "Verify mobile Send button not covered by floater"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "sequential"
+
+agent_communication:
+  - agent: "main"
+    message: "Please run playwright-based UI testing on stage preview. Validate login (use existing test creds if needed), navigate to Chat, verify top tabs, configure cascade (single-model and multi-model with asymmetry), start/stop cascade, ensure messages append and progress updates. Also verify unsent inputs persist when switching tabs, and Send button is accessible (not overlapped by 'Made with Emergent' floater)."

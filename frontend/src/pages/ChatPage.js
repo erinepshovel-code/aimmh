@@ -1711,7 +1711,7 @@ export default function ChatPage() {
               Assign behavioral roles for EDCM dissonance testing
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {selectedModels.map(model => (
               <div key={model} className="space-y-1">
@@ -1722,23 +1722,23 @@ export default function ChatPage() {
                   className="w-full p-1.5 rounded bg-background border border-border text-xs"
                 >
                   <option value="none">No specific role</option>
-                  <option value="advocate">🗣️ Advocate</option>
-                  <option value="adversarial">⚔️ Adversarial</option>
-                  <option value="skeptic">🤔 Skeptic</option>
-                  <option value="neutral">⚖️ Neutral</option>
-                  <option value="optimist">🌟 Optimist</option>
-                  <option value="pessimist">🌧️ Pessimist</option>
-                  <option value="technical">🔧 Technical</option>
-                  <option value="creative">🎨 Creative</option>
-                  <option value="socratic">❓ Socratic</option>
-                  <option value="sycophant">😊 Sycophant</option>
-                  <option value="contrarian">🔄 Contrarian</option>
-                  <option value="oracle">🔮 Oracle</option>
+                  <option value="advocate">Advocate</option>
+                  <option value="adversarial">Adversarial</option>
+                  <option value="skeptic">Skeptic</option>
+                  <option value="neutral">Neutral</option>
+                  <option value="optimist">Optimist</option>
+                  <option value="pessimist">Pessimist</option>
+                  <option value="technical">Technical</option>
+                  <option value="creative">Creative</option>
+                  <option value="socratic">Socratic</option>
+                  <option value="sycophant">Sycophant</option>
+                  <option value="contrarian">Contrarian</option>
+                  <option value="oracle">Oracle</option>
                 </select>
               </div>
             ))}
           </div>
-          
+
           <Button variant="outline" onClick={() => setShowRolesDialog(false)} size="sm" className="w-full">
             Done
           </Button>

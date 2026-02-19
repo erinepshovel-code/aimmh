@@ -233,10 +233,8 @@ export default function ChatPage() {
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
-  const [showGlobalContext, setShowGlobalContext] = useState(false);
-  const [showRolesDialog, setShowRolesDialog] = useState(false);
   
-  // Auto-cascade feature state now lives in ChatContext
+  // NOTE: Global Context + Roles are now handled via top tabs
 
   // Get visible models for carousel (show 2 at a time)
   const getVisibleModels = () => {

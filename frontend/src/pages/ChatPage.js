@@ -635,7 +635,7 @@ export default function ChatPage() {
       setCurrentBatchIndex(i + 1);
       toast.info(`Running prompt ${i + 1} of ${prompts.length}`);
       
-      await handleSend(prompts[i], null, true); // Skip auto-export for batch
+      await handleSend(prompts[i], null, true, false); // Skip auto-export for batch
       
       // Wait for streaming to complete
       while (streaming) {

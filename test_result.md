@@ -144,3 +144,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Please run playwright-based UI testing on stage preview. Validate login (use existing test creds if needed), navigate to Chat, verify top tabs, configure cascade (single-model and multi-model with asymmetry), start/stop cascade, ensure messages append and progress updates. Also verify unsent inputs persist when switching tabs, and Send button is accessible (not overlapped by 'Made with Emergent' floater)."
+  - agent: "testing"
+    message: "COMPLETED comprehensive Auto-Cascade Phase 1 testing. CRITICAL ISSUE FOUND: 'Made with Emergent' floater blocks Send button interaction on both desktop and mobile viewports. All other functionality works correctly - tabs, persistence, cascade configuration, single/multi-model cascades, progress indicators, and stop functionality all operational. Mobile viewport has proper bottom padding but floater still causes overlay issues. Recommend immediate fix for floater z-index or positioning."

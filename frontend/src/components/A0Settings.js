@@ -355,7 +355,7 @@ export default function A0Settings() {
 
               <div className="text-[10px] text-muted-foreground p-2 rounded bg-muted/20">
                 Auth: <span className="font-mono">Authorization: Bearer &lt;JWT&gt;</span> header on all calls.
-                a0-to-app also accepts <span className="font-mono">X-A0-Key</span> if set above.
+                a0-to-app also accepts <span className="font-mono">X-a0-Key</span> if set above.
               </div>
             </div>
           )}

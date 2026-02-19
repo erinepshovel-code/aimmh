@@ -897,10 +897,13 @@ export default function ChatPage() {
                 <FileText className="h-4 w-4 mr-2" />
                 {batchRunning ? `Batch ${currentBatchIndex}...` : 'Batch Prompts'}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowGlobalContext(!showGlobalContext)}>
-                🌐 Global Context
+              <DropdownMenuItem onClick={() => setActiveTopTab('cascade')}>
+                🔁 Cascade
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowRolesDialog(true)}>
+              <DropdownMenuItem onClick={() => setActiveTopTab('batch')} disabled={batchRunning}>
+                📋 Batch Prompts
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTopTab('roles')}>
                 🎭 Assign Roles
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleNewChat}>

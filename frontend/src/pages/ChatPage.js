@@ -212,12 +212,6 @@ export default function ChatPage() {
     pausedModels, setPausedModels,
     promptHistory, setPromptHistory,
     messageIndexMap, setMessageIndexMap,
-  const cascadeRunningRef = useRef(cascadeRunning);
-  useEffect(() => {
-    cascadeRunningRef.current = cascadeRunning;
-  }, [cascadeRunning]);
-
-
     nextIndex, setNextIndex,
     allocPromptIndex,
     globalContext, setGlobalContext,
@@ -228,6 +222,11 @@ export default function ChatPage() {
     cascadeProgress, setCascadeProgress,
     resetChat,
   } = useChat();
+
+  const cascadeRunningRef = useRef(cascadeRunning);
+  useEffect(() => {
+    cascadeRunningRef.current = cascadeRunning;
+  }, [cascadeRunning]);
 
   // UI-only state (fine to reset on remount)
   const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
+import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { Settings, Send, ThumbsUp, ThumbsDown, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3 } from 'lucide-react';
@@ -225,6 +226,8 @@ export default function ChatPage() {
   // UI-only state (fine to reset on remount)
   const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);
   const [synthesisModels, setSynthesisModels] = useState([]);
+  const [showRolesDialog, setShowRolesDialog] = useState(false);
+
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   

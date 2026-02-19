@@ -220,7 +220,7 @@ export default function A0Settings() {
 
         {/* API Key */}
         <div className="space-y-1">
-          <Label className="text-xs">A0 API Key (optional)</Label>
+          <Label className="text-xs">a0 API Key (optional)</Label>
           <Input
             type="password"
             value={config.api_key}

@@ -394,7 +394,7 @@ export default function ChatPage() {
                       );
                     } else {
                       // Assign index when message is created
-                      const msgIndex = nextIndex + Object.keys(modelBuffers).indexOf(data.model);
+                      const msgIndex = allocPromptIndex();
                       setMessageIndexMap(prev => ({ ...prev, [data.message_id]: msgIndex }));
                       
                       return [...prev, {

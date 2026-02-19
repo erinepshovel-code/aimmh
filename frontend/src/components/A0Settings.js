@@ -132,7 +132,7 @@ export default function A0Settings() {
     <Card className="border-border" data-testid="a0-settings-card">
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
-          Agent Zero Integration
+          a0 Integration
           <Badge
             variant={health?.status === 'connected' ? 'default' : 'outline'}
             className="text-[10px] ml-auto"

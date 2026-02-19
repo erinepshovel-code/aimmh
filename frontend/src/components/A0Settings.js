@@ -246,7 +246,7 @@ export default function A0Settings() {
           </div>
           <div className="flex items-center justify-between p-2 rounded bg-muted/30">
             <div>
-              <Label className="text-xs">Auto-Ingest to A0</Label>
+              <Label className="text-xs">Auto-Ingest to a0</Label>
               <p className="text-[10px] text-muted-foreground">Export EDCM jsonl after each conversation</p>
             </div>
             <Switch

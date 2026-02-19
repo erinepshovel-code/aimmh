@@ -951,44 +951,469 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Model Selector Bar - Mobile Optimized */}
+      {/* Top Tabs */}
       <div className="p-2 border-b border-border bg-[#18181B]">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <ModelSelector
-              selectedModels={selectedModels}
-              onChange={setSelectedModels}
-              maxModels={6}
-            />
-          </div>
-          
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {messages.filter(m => m.role === 'assistant').length > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSelectAll}
-                className="h-8 px-2 text-xs"
-                data-testid="select-all-btn"
-              >
-                <CheckCheck className="h-3 w-3" />
+        <Tabs value={activeTopTab} onValueChange={setActiveTopTab}>
+          <TabsList className="w-full grid grid-cols-4">
+            <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
+            <TabsTrigger value="cascade" className="text-xs">Cascade</TabsTrigger>
+            <TabsTrigger value="batch" className="text-xs">Batch</TabsTrigger>
+            <TabsTrigger value="roles" className="text-xs">Roles</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="chat" className="mt-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <ModelSelector
+                  selectedModels={selectedModels}
+                  onChange={setSelectedModels}
+                  maxModels={6}
+                />
+              </div>
+
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {messages.filter(m => m.role === 'assistant').length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSelectAll}
+                    className="h-8 px-2 text-xs"
+                    data-testid="select-all-btn"
+                  >
+                    <CheckCheck className="h-3 w-3" />
+                  </Button>
+                )}
+
+                {selectedMessages.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => setShowSynthesisDialog(true)}
+                    className="h-8 px-2 text-xs"
+                    data-testid="synthesis-btn"
+                  >
+                    <Wand2 className="h-3 w-3 mr-1" />
+                    {selectedMessages.length}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="cascade" className="mt-2">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Rounds</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={cascadeConfig.rounds}
+                    onChange={(e) => setCascadeConfig(p => ({ ...p, rounds: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Default turns/model/round</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={cascadeConfig.defaultTurnsPerModelPerRound}
+                    onChange={(e) => setCascadeConfig(p => ({ ...p, defaultTurnsPerModelPerRound: Math.max(0, parseInt(e.target.value) || 0) }))}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
+                <div>
+                  <Label className="text-xs">Random order per round</Label>
+                  <p className="text-[10px] text-muted-foreground">Shuffle included models each round</p>
+                </div>
+                <Switch
+                  checked={cascadeConfig.randomOrderPerRound}
+                  onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, randomOrderPerRound: v }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
+                  <div>
+                    <Label className="text-xs">Global context</Label>
+                    <p className="text-[10px] text-muted-foreground">Cascade-only</p>
+                  </div>
+                  <Switch
+                    checked={cascadeConfig.globalContextEnabled}
+                    onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, globalContextEnabled: v }))}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
+                  <div>
+                    <Label className="text-xs">Roleplay</Label>
+                    <p className="text-[10px] text-muted-foreground">Cascade-only</p>
+                  </div>
+                  <Switch
+                    checked={cascadeConfig.roleplayEnabled}
+                    onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, roleplayEnabled: v }))}
+                  />
+                </div>
+              </div>
+
+              {(cascadeConfig.globalContextEnabled || cascadeConfig.roleplayEnabled) && (
+                <div className="grid grid-cols-1 gap-2">
+                  {cascadeConfig.globalContextEnabled && (
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Global context text</Label>
+                      <Textarea
+                        value={cascadeConfig.globalContextText}
+                        onChange={(e) => setCascadeConfig(p => ({ ...p, globalContextText: e.target.value }))}
+                        rows={2}
+                        className="text-xs"
+                        placeholder="Prepend to every cascade turn..."
+                      />
+                    </div>
+                  )}
+                  {cascadeConfig.roleplayEnabled && (
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Roleplay text</Label>
+                      <Textarea
+                        value={cascadeConfig.roleplayText}
+                        onChange={(e) => setCascadeConfig(p => ({ ...p, roleplayText: e.target.value }))}
+                        rows={2}
+                        className="text-xs"
+                        placeholder="Define scenario/voice to maintain..."
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Seed</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={cascadeConfig.seedMode}
+                    onValueChange={(v) => setCascadeConfig(p => ({ ...p, seedMode: v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Seed mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="last_user">Use last user prompt</SelectItem>
+                      <SelectItem value="custom">Custom seed text</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCascadeConfig(p => ({ ...p, order: selectedModels }))}
+                    className="h-8 text-xs"
+                    title="Reset order to selected models"
+                  >
+                    Reset order
+                  </Button>
+                </div>
+
+                {cascadeConfig.seedMode === 'custom' && (
+                  <Textarea
+                    value={cascadeConfig.seedCustomText}
+                    onChange={(e) => setCascadeConfig(p => ({ ...p, seedCustomText: e.target.value }))}
+                    rows={2}
+                    className="text-xs mt-2"
+                    placeholder="Seed the cascade with this text..."
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Turn order (per round)</Label>
+                  <div className="text-[10px] text-muted-foreground">{cascadeConfig.order?.length || 0} models</div>
+                </div>
+                <div className="space-y-1">
+                  {(cascadeConfig.order || []).map((m, idx) => (
+                    <div key={m} className="flex items-center gap-2 rounded border border-border bg-muted/30 p-2">
+                      <div className="text-xs font-mono flex-1 truncate">{m}</div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        disabled={idx === 0}
+                        onClick={() => setCascadeConfig(p => {
+                          const arr = [...(p.order || [])];
+                          [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                          return { ...p, order: arr };
+                        })}
+                        title="Move up"
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        disabled={idx === (cascadeConfig.order || []).length - 1}
+                        onClick={() => setCascadeConfig(p => {
+                          const arr = [...(p.order || [])];
+                          [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
+                          return { ...p, order: arr };
+                        })}
+                        title="Move down"
+                      >
+                        ↓
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Per-model controls</Label>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {selectedModels.map(model => {
+                    const ms = cascadeConfig.modelSettings?.[model] || {};
+                    const pop = (v) => {
+                      if (v <= 2) return 'Whisper (Mr. Rogers)';
+                      if (v <= 4) return 'Concise (Spock)';
+                      if (v <= 6) return 'Balanced (Hermione)';
+                      if (v <= 8) return 'Verbose (Tony Stark)';
+                      return 'Maximalist (JoJo narrator)';
+                    };
+
+                    return (
+                      <div key={model} className="rounded border border-border bg-muted/20 p-2 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-medium truncate">{model}</div>
+                          <Switch
+                            checked={!!ms.included}
+                            onCheckedChange={(v) => setCascadeConfig(p => ({
+                              ...p,
+                              modelSettings: {
+                                ...(p.modelSettings || {}),
+                                [model]: { ...(p.modelSettings?.[model] || {}), included: v }
+                              }
+                            }))}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Turns/round override</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={ms.turnsPerRound ?? ''}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const parsed = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
+                                setCascadeConfig(p => ({
+                                  ...p,
+                                  modelSettings: {
+                                    ...(p.modelSettings || {}),
+                                    [model]: { ...(p.modelSettings?.[model] || {}), turnsPerRound: parsed }
+                                  }
+                                }));
+                              }}
+                              className="h-8 text-xs font-mono"
+                              placeholder="(default)"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Alignment</Label>
+                            <Select
+                              value={ms.alignment || 'true_neutral'}
+                              onValueChange={(v) => setCascadeConfig(p => ({
+                                ...p,
+                                modelSettings: {
+                                  ...(p.modelSettings || {}),
+                                  [model]: { ...(p.modelSettings?.[model] || {}), alignment: v }
+                                }
+                              }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Alignment" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="lawful_good">Lawful Good</SelectItem>
+                                <SelectItem value="neutral_good">Neutral Good</SelectItem>
+                                <SelectItem value="chaotic_good">Chaotic Good</SelectItem>
+                                <SelectItem value="lawful_neutral">Lawful Neutral</SelectItem>
+                                <SelectItem value="true_neutral">True Neutral</SelectItem>
+                                <SelectItem value="chaotic_neutral">Chaotic Neutral</SelectItem>
+                                <SelectItem value="lawful_evil">Lawful Evil</SelectItem>
+                                <SelectItem value="neutral_evil">Neutral Evil</SelectItem>
+                                <SelectItem value="chaotic_evil">Chaotic Evil</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Role</Label>
+                          <Select
+                            value={ms.role || 'none'}
+                            onValueChange={(v) => setCascadeConfig(p => ({
+                              ...p,
+                              modelSettings: {
+                                ...(p.modelSettings || {}),
+                                [model]: { ...(p.modelSettings?.[model] || {}), role: v }
+                              }
+                            }))}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="advocate">Advocate</SelectItem>
+                              <SelectItem value="adversarial">Adversarial</SelectItem>
+                              <SelectItem value="skeptic">Skeptic</SelectItem>
+                              <SelectItem value="neutral">Neutral</SelectItem>
+                              <SelectItem value="optimist">Optimist</SelectItem>
+                              <SelectItem value="pessimist">Pessimist</SelectItem>
+                              <SelectItem value="technical">Technical</SelectItem>
+                              <SelectItem value="creative">Creative</SelectItem>
+                              <SelectItem value="socratic">Socratic</SelectItem>
+                              <SelectItem value="sycophant">Sycophant</SelectItem>
+                              <SelectItem value="contrarian">Contrarian</SelectItem>
+                              <SelectItem value="oracle">Oracle</SelectItem>
+                              <SelectItem value="custom">Custom…</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {ms.role === 'custom' && (
+                            <Input
+                              value={ms.customRoleText || ''}
+                              onChange={(e) => setCascadeConfig(p => ({
+                                ...p,
+                                modelSettings: {
+                                  ...(p.modelSettings || {}),
+                                  [model]: { ...(p.modelSettings?.[model] || {}), customRoleText: e.target.value }
+                                }
+                              }))}
+                              className="h-8 text-xs font-mono mt-1"
+                              placeholder="Enter custom role constraint..."
+                            />
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Verbosity: {ms.verbosity ?? 5}/10 — {pop(ms.verbosity ?? 5)}</Label>
+                          <Slider
+                            value={[ms.verbosity ?? 5]}
+                            min={1}
+                            max={10}
+                            step={1}
+                            onValueChange={(vals) => {
+                              const v = vals?.[0] ?? 5;
+                              setCascadeConfig(p => ({
+                                ...p,
+                                modelSettings: {
+                                  ...(p.modelSettings || {}),
+                                  [model]: { ...(p.modelSettings?.[model] || {}), verbosity: v }
+                                }
+                              }));
+                            }}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Prompt modifier</Label>
+                          <Input
+                            value={ms.promptModifier || ''}
+                            onChange={(e) => setCascadeConfig(p => ({
+                              ...p,
+                              modelSettings: {
+                                ...(p.modelSettings || {}),
+                                [model]: { ...(p.modelSettings?.[model] || {}), promptModifier: e.target.value }
+                              }
+                            }))}
+                            className="h-8 text-xs font-mono"
+                            placeholder="E.g., 'be brutally concise'"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Secret mission</Label>
+                            <Input
+                              value={ms.secretMission || ''}
+                              onChange={(e) => setCascadeConfig(p => ({
+                                ...p,
+                                modelSettings: {
+                                  ...(p.modelSettings || {}),
+                                  [model]: { ...(p.modelSettings?.[model] || {}), secretMission: e.target.value }
+                                }
+                              }))}
+                              className="h-8 text-xs font-mono"
+                              placeholder="Hidden objective..."
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Misc constraint</Label>
+                            <Input
+                              value={ms.miscConstraint || ''}
+                              onChange={(e) => setCascadeConfig(p => ({
+                                ...p,
+                                modelSettings: {
+                                  ...(p.modelSettings || {}),
+                                  [model]: { ...(p.modelSettings?.[model] || {}), miscConstraint: e.target.value }
+                                }
+                              }))}
+                              className="h-8 text-xs font-mono"
+                              placeholder="Extra constraint..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCascade}
+                  disabled={cascadeRunning}
+                  className="flex-1"
+                  data-testid="cascade-start-btn"
+                >
+                  {cascadeRunning ? 'Running…' : 'Start cascade'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setCascadeRunning(false)}
+                  disabled={!cascadeRunning}
+                  className="w-24"
+                >
+                  Stop
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="batch" className="mt-2">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setShowBatchDialog(true)} disabled={batchRunning}>
+                <FileText className="h-4 w-4 mr-2" />
+                {batchRunning ? `Batch ${currentBatchIndex}...` : 'Open batch runner'}
               </Button>
-            )}
-            
-            {selectedMessages.length > 0 && (
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => setShowSynthesisDialog(true)}
-                className="h-8 px-2 text-xs"
-                data-testid="synthesis-btn"
-              >
-                <Wand2 className="h-3 w-3 mr-1" />
-                {selectedMessages.length}
+              <div className="text-[10px] text-muted-foreground">
+                Batch prompts run sequentially.
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="roles" className="mt-2">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setShowRolesDialog(true)}>
+                🎭 Open role assignment
               </Button>
-            )}
-          </div>
-        </div>
+              <div className="text-[10px] text-muted-foreground">
+                Roles persist across tabs.
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Main Content */}

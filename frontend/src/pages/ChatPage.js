@@ -1290,6 +1290,7 @@ export default function ChatPage() {
                             }}
                             className="h-8 text-xs font-mono"
                             placeholder="(default)"
+                            data-testid={`cascade-turns-input-${model.replace(/[^a-z0-9]+/gi, '-')}`}
                           />
                         </div>
                       </div>

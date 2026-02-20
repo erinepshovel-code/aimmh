@@ -1444,16 +1444,7 @@ export default function ChatPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="roles" className="mt-2">
-            <div className="flex items-center gap-2">
-              <div className="text-[10px] text-muted-foreground">
-                Roles can be assigned via the dialog.
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setShowRolesDialog(true)}>
-                Open roles
-              </Button>
-            </div>
-          </TabsContent>
+
         </Tabs>
       </div>
 

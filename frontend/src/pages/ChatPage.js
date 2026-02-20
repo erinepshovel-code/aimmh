@@ -217,6 +217,7 @@ export default function ChatPage() {
     globalContext, setGlobalContext,
     autoExport, setAutoExport,
     modelRoles, setModelRoles,
+    contextMode, setContextMode,
     cascadeConfig, setCascadeConfig,
     cascadeRunning, setCascadeRunning,
     cascadeProgress, setCascadeProgress,

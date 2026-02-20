@@ -1161,6 +1161,7 @@ export default function ChatPage() {
                     rows={2}
                     className="text-xs"
                     placeholder="Define scenario/voice to maintain..."
+                    data-testid="cascade-roleplay-textarea"
                   />
                 </div>
               )}

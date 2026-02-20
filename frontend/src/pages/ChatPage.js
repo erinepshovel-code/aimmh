@@ -343,19 +343,23 @@ export default function ChatPage() {
     };
 
     // Store the base message for display
-    const userMsg = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: baseMessage,  // Display only the base message
-      model: 'user',
-      timestamp: new Date()
-    };
-    
-    // Add to prompt history
-    const promptIndex = allocPromptIndex();
-    setPromptHistory(prev => [...prev, { index: promptIndex, content: baseMessage, timestamp: new Date() }]);
-    
-    setMessages(prev => [...prev, userMsg]);
+    if (!suppressUserMessage) {
+      const userMsg = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: baseMessage,  // Display only the base message
+        model: 'user',
+        timestamp: new Date()
+      };
+      
+      // Add to prompt history
+      if (!suppressPromptHistory) {
+        const promptIndex = allocPromptIndex();
+        setPromptHistory(prev => [...prev, { index: promptIndex, content: baseMessage, timestamp: new Date() }]);
+      }
+      
+      setMessages(prev => [...prev, userMsg]);
+    }
 
     // Per-model prompt shaping (Scene) is applied via per_model_messages on the backend.
     // We send the base message + a per-model map.

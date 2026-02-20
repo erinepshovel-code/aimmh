@@ -303,12 +303,16 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Scene mode selector + per-model prompt properties"
-    - "Parallel compartmented vs shared-room semantics"
-  stuck_tasks: []
+    - "Cascade execution and Stop button"
+    - "Response feedback: thumbs up/down buttons"
+  stuck_tasks:
+    - "Cascade tab: cascade-only controls + engine uses Scene properties"
+    - "Cascade execution and Stop button"
   test_all: false
-  test_priority: "sequential"
+  test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
     message: "Implemented universal key default ON, shared-room vs compartmented context semantics, Scene tab prompt properties, error bubble guarantee for missing keys, and a0 local device name. UI tested via frontend testing agent and backend smoke-tested via curl."
+  - agent: "testing"
+    message: "Completed UI testing of sequential cascade flow. CRITICAL ISSUE FOUND: Cascade does NOT execute when Start button is clicked. All individual UI components work correctly (Include last N responses field, seed mode, model reordering, model includes), but the handleCascade function fails to start the cascade - no API calls are made and button state doesn't change. This blocks testing of sequential responses, Stop button functionality, and feedback buttons. The selectedModels array may be empty causing early return at line 807 of ChatPage.js, or there's a silent exception. Need main agent to debug handleCascade function and fix cascade execution before feedback testing can be completed."

@@ -38,6 +38,7 @@ function loadSessionConfig() {
 export default function A0Settings() {
   const [config, setConfig] = useState({
     mode: 'local',
+    local_name: 'local-device',
     local_url: '',
     local_port: 8787,
     cloud_url: '',

@@ -1345,7 +1345,7 @@ export default function ChatPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => setCascadeRunning(false)}
+                  onClick={() => { setCascadeRunning(false); cascadeRunningRef.current = false; }}
                   disabled={!cascadeRunning}
                   className="w-24"
                   data-testid="cascade-stop-btn"

@@ -1267,6 +1267,7 @@ export default function ChatPage() {
                                 [model]: { ...(p.modelSettings?.[model] || {}), included: v }
                               }
                             }))}
+                            data-testid={`cascade-include-switch-${model.replace(/[^a-z0-9]+/gi, '-')}`}
                           />
                         </div>
 

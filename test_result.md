@@ -122,11 +122,11 @@ frontend:
 
   - task: "Universal key default ON behavior and multi-model error handling regression"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/pages/SettingsPage.js"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -134,6 +134,9 @@ frontend:
       - working: false
         agent: "testing"
         comment: "❌ AUTHENTICATION BLOCKING ISSUE: Cannot complete targeted regression testing due to authentication problems. OAuth flow redirects correctly but automated testing cannot complete OAuth. Manual login with testuser_refactor/test123456 fails with 401 errors on /api/auth/me calls despite successful login (200 OK). Backend logs show successful logins but session persistence issues. ✅ VERIFIED: App loads correctly, OAuth flow initiates properly, login form validation works, mobile responsiveness functional. ❌ CANNOT TEST: Universal key default behavior, multi-model error handling, bias prevention - all require authenticated access. Authentication session persistence needs fixing for proper testing."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TESTING COMPLETED: All test cases from user request successfully verified. ✅ Authentication: Login with testuser_refactor/test123456 works correctly ✅ Settings page universal key default ON: GPT, Claude, Gemini switches default to ON as expected ✅ Gemini toggle OFF functionality: Successfully toggles and maintains state ✅ Chat top tabs: All 4 tabs present in correct order (Chat|Scene|Cascade|Batch) ✅ Tab switching: Works correctly and preserves state ✅ Scene tab elements: Shows context mode selector and global context textarea ✅ Context mode behavior: Can be set to Shared room, supports multiple prompts ✅ Per-model prompt customization: Scene tab provides functional per-model prompt properties and modifier fields ✅ Error handling: Appropriate handling when API keys are disabled ✅ No critical console errors detected. All UI elements are responsive and functional. Authentication issues from previous test resolved."
 
   - task: "Naming compatibility: use lowercase a0 in UI"
     implemented: true

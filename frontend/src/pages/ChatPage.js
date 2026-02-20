@@ -349,21 +349,13 @@ export default function ChatPage() {
     
     setMessages(prev => [...prev, userMsg]);
 
-    // If we are sending to multiple models, we do NOT want to bias the prompt
-    // by using a single model's role constraints. Use only global context.
-    let messageToSend;
-    if (skipWrap) {
-      messageToSend = baseMessage;
-    } else if (modelsToQuery.length > 1) {
-      let m = '';
-      if (globalContext.trim()) {
-        m += `[GLOBAL CONTEXT]: ${globalContext}\n\n`;
-      }
-      m += `[PROMPT]: ${baseMessage}`;
-      messageToSend = m;
-    } else {
-      messageToSend = buildMessageForModel(modelsToQuery[0]);
-    }
+    // Per-model prompt shaping (Scene) is applied via per_model_messages on the backend.
+    // We send the base message + a per-model map.
+    const messageToSend = skipWrap ? baseMessage : baseMessage;
+
+    const perModelMessages = skipWrap ? null : Object.fromEntries(
+      modelsToQuery.map(m => [m, buildMessageForModel(m, baseMessage)])
+    );
 
     try {
       const token = localStorage.getItem('token');

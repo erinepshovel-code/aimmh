@@ -22,6 +22,7 @@ function buildDefaultCascadeConfig(selectedModels, savedConfig) {
   const defaults = {
     rounds: 3,
     defaultTurnsPerModelPerRound: 1,
+    sequentialContextCount: 1,
     randomOrderPerRound: false,
     // Global prompt toggles (cascade-only)
     globalContextEnabled: false,

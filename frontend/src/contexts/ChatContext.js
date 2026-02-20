@@ -84,6 +84,9 @@ export const ChatProvider = ({ children }) => {
   const [autoExport, setAutoExport] = useState(saved?.autoExport || false);
   const [modelRoles, setModelRoles] = useState(saved?.modelRoles || {});
 
+
+  const [contextMode, setContextMode] = useState(saved?.contextMode || 'compartmented');
+
   const [cascadeConfig, setCascadeConfig] = useState(
     buildDefaultCascadeConfig(saved?.selectedModels || ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview'], saved?.cascadeConfig)
   );

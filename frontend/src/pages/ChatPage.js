@@ -1313,6 +1313,7 @@ export default function ChatPage() {
                   onClick={() => setCascadeRunning(false)}
                   disabled={!cascadeRunning}
                   className="w-24"
+                  data-testid="cascade-stop-btn"
                 >
                   Stop
                 </Button>

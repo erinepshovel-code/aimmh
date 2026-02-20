@@ -834,6 +834,9 @@ export default function ChatPage() {
     try {
       // Seed prompt
       let seedText = '';
+      console.log('[CASCADE] seedMode:', cascadeConfig.seedMode);
+      console.log('[CASCADE] seedCustomText:', cascadeConfig.seedCustomText);
+      
       if (cascadeConfig.seedMode === 'custom') {
         seedText = cascadeConfig.seedCustomText || '';
       } else {
@@ -841,11 +844,16 @@ export default function ChatPage() {
         seedText = lastUser?.content || '';
       }
 
+      console.log('[CASCADE] seedText:', seedText);
+
       if (!seedText.trim()) {
+        console.log('[CASCADE] ERROR: No seed text');
         toast.error('Cascade needs a seed prompt (send a user prompt first or set a custom seed)');
         setCascadeRunning(false);
         return;
       }
+      
+      console.log('[CASCADE] Seed text valid, continuing...');
 
       // Ensure we have a conversation id for cascade messages
       const cascadeConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

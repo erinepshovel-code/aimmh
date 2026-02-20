@@ -120,6 +120,21 @@ frontend:
         agent: "testing"
         comment: "FLOATER FIX VERIFIED: ✅ CSS fix successfully applied in /app/frontend/src/index.css with '#emergent-badge { pointer-events: none !important; }' ✅ Emergent badge confirmed to have pointer-events: none on both auth and chat pages ✅ Send button no longer blocked by floater overlay ✅ Desktop viewport (1920x1080): Send button clickable without force=True ✅ Mobile viewport (390x844): Send button clickable without force=True ✅ All core functionality remains intact. The critical blocking issue has been resolved - users can now interact with the Send button normally on both desktop and mobile viewports."
 
+  - task: "Universal key default ON behavior and multi-model error handling regression"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/pages/SettingsPage.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented universal key switches for GPT/Claude/Gemini with default ON behavior. Added error handling for models without API keys to show '[ERROR] No API key configured' instead of silent failures. Implemented multi-model prompt bias prevention to avoid role constraints affecting all models."
+      - working: false
+        agent: "testing"
+        comment: "❌ AUTHENTICATION BLOCKING ISSUE: Cannot complete targeted regression testing due to authentication problems. OAuth flow redirects correctly but automated testing cannot complete OAuth. Manual login with testuser_refactor/test123456 fails with 401 errors on /api/auth/me calls despite successful login (200 OK). Backend logs show successful logins but session persistence issues. ✅ VERIFIED: App loads correctly, OAuth flow initiates properly, login form validation works, mobile responsiveness functional. ❌ CANNOT TEST: Universal key default behavior, multi-model error handling, bias prevention - all require authenticated access. Authentication session persistence needs fixing for proper testing."
+
   - task: "Naming compatibility: use lowercase a0 in UI"
     implemented: true
     working: true

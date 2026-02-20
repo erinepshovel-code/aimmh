@@ -375,7 +375,10 @@ export default function ChatPage() {
         body: JSON.stringify({
           message: messageToSend,
           models: modelsToQuery,
-          conversation_id: currentConvId
+          conversation_id: currentConvId,
+          context_mode: contextMode,
+          per_model_messages: perModelMessages || undefined,
+          persist_user_message: true
         })
       });
 

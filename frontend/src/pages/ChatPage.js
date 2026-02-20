@@ -1050,55 +1050,27 @@ export default function ChatPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
-                  <div>
-                    <Label className="text-xs">Global context</Label>
-                    <p className="text-[10px] text-muted-foreground">Cascade-only</p>
-                  </div>
-                  <Switch
-                    checked={cascadeConfig.globalContextEnabled}
-                    onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, globalContextEnabled: v }))}
-                  />
+              <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
+                <div>
+                  <Label className="text-xs">Roleplay</Label>
+                  <p className="text-[10px] text-muted-foreground">Cascade-only</p>
                 </div>
-                <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
-                  <div>
-                    <Label className="text-xs">Roleplay</Label>
-                    <p className="text-[10px] text-muted-foreground">Cascade-only</p>
-                  </div>
-                  <Switch
-                    checked={cascadeConfig.roleplayEnabled}
-                    onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, roleplayEnabled: v }))}
-                  />
-                </div>
+                <Switch
+                  checked={cascadeConfig.roleplayEnabled}
+                  onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, roleplayEnabled: v }))}
+                />
               </div>
 
-              {(cascadeConfig.globalContextEnabled || cascadeConfig.roleplayEnabled) && (
-                <div className="grid grid-cols-1 gap-2">
-                  {cascadeConfig.globalContextEnabled && (
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Global context text</Label>
-                      <Textarea
-                        value={cascadeConfig.globalContextText}
-                        onChange={(e) => setCascadeConfig(p => ({ ...p, globalContextText: e.target.value }))}
-                        rows={2}
-                        className="text-xs"
-                        placeholder="Prepend to every cascade turn..."
-                      />
-                    </div>
-                  )}
-                  {cascadeConfig.roleplayEnabled && (
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Roleplay text</Label>
-                      <Textarea
-                        value={cascadeConfig.roleplayText}
-                        onChange={(e) => setCascadeConfig(p => ({ ...p, roleplayText: e.target.value }))}
-                        rows={2}
-                        className="text-xs"
-                        placeholder="Define scenario/voice to maintain..."
-                      />
-                    </div>
-                  )}
+              {cascadeConfig.roleplayEnabled && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Roleplay text</Label>
+                  <Textarea
+                    value={cascadeConfig.roleplayText}
+                    onChange={(e) => setCascadeConfig(p => ({ ...p, roleplayText: e.target.value }))}
+                    rows={2}
+                    className="text-xs"
+                    placeholder="Define scenario/voice to maintain..."
+                  />
                 </div>
               )}
 
@@ -1182,18 +1154,10 @@ export default function ChatPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">Per-model controls</Label>
+                <Label className="text-xs">Per-model turns / include (cascade-only)</Label>
                 <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {selectedModels.map(model => {
                     const ms = cascadeConfig.modelSettings?.[model] || {};
-                    const pop = (v) => {
-                      if (v <= 2) return 'Whisper (Mr. Rogers)';
-                      if (v <= 4) return 'Concise (Spock)';
-                      if (v <= 6) return 'Balanced (Hermione)';
-                      if (v <= 8) return 'Verbose (Tony Stark)';
-                      return 'Maximalist (JoJo narrator)';
-                    };
-
                     return (
                       <div key={model} className="rounded border border-border bg-muted/20 p-2 space-y-2">
                         <div className="flex items-center justify-between gap-2">
@@ -1210,173 +1174,26 @@ export default function ChatPage() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Turns/round override</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={ms.turnsPerRound ?? ''}
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                const parsed = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
-                                setCascadeConfig(p => ({
-                                  ...p,
-                                  modelSettings: {
-                                    ...(p.modelSettings || {}),
-                                    [model]: { ...(p.modelSettings?.[model] || {}), turnsPerRound: parsed }
-                                  }
-                                }));
-                              }}
-                              className="h-8 text-xs font-mono"
-                              placeholder="(default)"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Alignment</Label>
-                            <Select
-                              value={ms.alignment || 'true_neutral'}
-                              onValueChange={(v) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), alignment: v }
-                                }
-                              }))}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Alignment" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="lawful_good">Lawful Good</SelectItem>
-                                <SelectItem value="neutral_good">Neutral Good</SelectItem>
-                                <SelectItem value="chaotic_good">Chaotic Good</SelectItem>
-                                <SelectItem value="lawful_neutral">Lawful Neutral</SelectItem>
-                                <SelectItem value="true_neutral">True Neutral</SelectItem>
-                                <SelectItem value="chaotic_neutral">Chaotic Neutral</SelectItem>
-                                <SelectItem value="lawful_evil">Lawful Evil</SelectItem>
-                                <SelectItem value="neutral_evil">Neutral Evil</SelectItem>
-                                <SelectItem value="chaotic_evil">Chaotic Evil</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
                         <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Role</Label>
-                          <Select
-                            value={ms.role || 'none'}
-                            onValueChange={(v) => setCascadeConfig(p => ({
-                              ...p,
-                              modelSettings: {
-                                ...(p.modelSettings || {}),
-                                [model]: { ...(p.modelSettings?.[model] || {}), role: v }
-                              }
-                            }))}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="advocate">Advocate</SelectItem>
-                              <SelectItem value="adversarial">Adversarial</SelectItem>
-                              <SelectItem value="skeptic">Skeptic</SelectItem>
-                              <SelectItem value="neutral">Neutral</SelectItem>
-                              <SelectItem value="optimist">Optimist</SelectItem>
-                              <SelectItem value="pessimist">Pessimist</SelectItem>
-                              <SelectItem value="technical">Technical</SelectItem>
-                              <SelectItem value="creative">Creative</SelectItem>
-                              <SelectItem value="socratic">Socratic</SelectItem>
-                              <SelectItem value="sycophant">Sycophant</SelectItem>
-                              <SelectItem value="contrarian">Contrarian</SelectItem>
-                              <SelectItem value="oracle">Oracle</SelectItem>
-                              <SelectItem value="custom">Custom…</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {ms.role === 'custom' && (
-                            <Input
-                              value={ms.customRoleText || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), customRoleText: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono mt-1"
-                              placeholder="Enter custom role constraint..."
-                            />
-                          )}
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Verbosity: {ms.verbosity ?? 5}/10 — {pop(ms.verbosity ?? 5)}</Label>
-                          <Slider
-                            value={[ms.verbosity ?? 5]}
-                            min={1}
-                            max={10}
-                            step={1}
-                            onValueChange={(vals) => {
-                              const v = vals?.[0] ?? 5;
+                          <Label className="text-[10px] text-muted-foreground">Turns/round override</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={ms.turnsPerRound ?? ''}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const parsed = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
                               setCascadeConfig(p => ({
                                 ...p,
                                 modelSettings: {
                                   ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), verbosity: v }
+                                  [model]: { ...(p.modelSettings?.[model] || {}), turnsPerRound: parsed }
                                 }
                               }));
                             }}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Prompt modifier</Label>
-                          <Input
-                            value={ms.promptModifier || ''}
-                            onChange={(e) => setCascadeConfig(p => ({
-                              ...p,
-                              modelSettings: {
-                                ...(p.modelSettings || {}),
-                                [model]: { ...(p.modelSettings?.[model] || {}), promptModifier: e.target.value }
-                              }
-                            }))}
                             className="h-8 text-xs font-mono"
-                            placeholder="E.g., 'be brutally concise'"
+                            placeholder="(default)"
                           />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Secret mission</Label>
-                            <Input
-                              value={ms.secretMission || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), secretMission: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono"
-                              placeholder="Hidden objective..."
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Misc constraint</Label>
-                            <Input
-                              value={ms.miscConstraint || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), miscConstraint: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono"
-                              placeholder="Extra constraint..."
-                            />
-                          </div>
                         </div>
                       </div>
                     );

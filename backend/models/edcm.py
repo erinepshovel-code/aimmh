@@ -24,6 +24,7 @@ class EDCMMetricsIngest(BaseModel):
 class A0Config(BaseModel):
     """Per-user Agent Zero connection config"""
     mode: str = "local"  # "local" or "cloud"
+    local_name: str = "local-device"
     local_url: str = "http://192.168.1.1"
     local_port: int = 8787
     cloud_url: str = ""

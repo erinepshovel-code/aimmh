@@ -801,10 +801,10 @@ export default function ChatPage() {
   };
 
   const handleCascade = async () => {
-    const included = Object.entries(cascadeConfig.modelSettings || {})
-      .filter(([, ms]) => ms?.included)
-      .map(([model]) => model)
-      .filter(m => selectedModels.includes(m));
+    const included = selectedModels.filter(model => {
+      const ms = cascadeConfig.modelSettings?.[model];
+      return ms?.included !== false;
+    });
 
     if (included.length === 0) {
       toast.error('Select at least one model for cascade');

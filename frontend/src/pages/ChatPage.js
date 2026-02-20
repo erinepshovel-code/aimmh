@@ -1225,6 +1225,7 @@ export default function ChatPage() {
                           return { ...p, order: arr };
                         })}
                         title="Move up"
+                        data-testid={`cascade-order-up-${m.replace(/[^a-z0-9]+/gi, '-')}`}
                       >
                         ↑
                       </Button>

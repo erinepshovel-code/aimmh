@@ -821,12 +821,34 @@ export default function ChatPage() {
         const lastUser = [...initialMessages].reverse().find(m => m.role === 'user');
         seedText = lastUser?.content || '';
       }
+
       if (!seedText.trim()) {
         toast.error('Cascade needs a seed prompt (send a user prompt first or set a custom seed)');
         return;
       }
 
-      let lastOutput = seedText;
+      // Ensure we have a conversation id for cascade messages
+      const currentConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (!conversationId) {
+        setConversationId(currentConvId);
+      }
+
+      // If using a custom seed, add it as a user message once
+      if (cascadeConfig.seedMode === 'custom') {
+        const userMsg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: seedText,
+          model: 'user',
+          timestamp: new Date()
+        };
+        const promptIndex = allocPromptIndex();
+        setPromptHistory(prev => [...prev, { index: promptIndex, content: seedText, timestamp: new Date() }]);
+        setMessages(prev => [...prev, userMsg]);
+      }
+
+      const responseHistory = [];
+      const contextWindow = Math.max(1, parseInt(cascadeConfig.sequentialContextCount || 1) || 1);
 
       for (let round = 1; round <= cascadeConfig.rounds; round++) {
         // order for this round
@@ -859,13 +881,27 @@ export default function ChatPage() {
             doneTurns += 1;
             setCascadeProgress({ round, model, turn: doneTurns, totalTurns });
 
-            const base = `[CASCADE]\n[ROUND ${round}/${cascadeConfig.rounds}]\n[MODEL ${model}]\n[TURN ${t}/${turns}]\n\nINPUT:\n${lastOutput}`;
+            const recentResponses = responseHistory.slice(-contextWindow);
+            const responseBlock = recentResponses.length 
+              ? recentResponses.map((resp, idx) => {
+                  const ordinal = responseHistory.length - recentResponses.length + idx + 1;
+                  return `Response ${ordinal} (${resp.model}):\n${resp.content}`;
+                }).join('\n\n')
+              : `Seed prompt:\n${seedText}`;
+
+            const base = `[CASCADE]\n[ROUND ${round}/${cascadeConfig.rounds}]\n[MODEL ${model}]\n[TURN ${t}/${turns}]\n\n${recentResponses.length ? 'PREVIOUS RESPONSES:\n' + responseBlock : responseBlock}`;
             const perModelPrompt = buildCascadeMessageForModel(model, base);
 
-            const out = await handleSend(perModelPrompt, [model], true, true);
+            const persistSeed = cascadeConfig.seedMode === 'custom' && responseHistory.length === 0;
+            const out = await handleSend(perModelPrompt, [model], true, true, {
+              persistUserMessage: persistSeed,
+              suppressUserMessage: true,
+              suppressPromptHistory: true,
+              historyLimit: 0
+            });
 
             const latest = out?.[model];
-            if (latest) lastOutput = latest;
+            if (latest) responseHistory.push({ model, content: latest });
           }
         }
       }

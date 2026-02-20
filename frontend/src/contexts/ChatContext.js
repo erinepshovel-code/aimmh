@@ -127,6 +127,7 @@ export const ChatProvider = ({ children }) => {
   }, [activeTopTab, selectedModels, visibleModelIndex, input, messages, conversationId,
       selectedMessages, pausedModels, promptHistory, messageIndexMap,
       nextIndex, globalContext, autoExport, modelRoles,
+      contextMode,
       cascadeConfig, cascadeRunning, cascadeProgress]);
 
   const resetChat = useCallback(() => {

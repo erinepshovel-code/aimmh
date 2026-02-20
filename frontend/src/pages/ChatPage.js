@@ -822,8 +822,6 @@ export default function ChatPage() {
     try {
       // Seed prompt
       let seedText = '';
-      console.log('[CASCADE] seedMode:', cascadeConfig.seedMode);
-      console.log('[CASCADE] seedCustomText:', cascadeConfig.seedCustomText);
       
       if (cascadeConfig.seedMode === 'custom') {
         seedText = cascadeConfig.seedCustomText || '';
@@ -832,16 +830,13 @@ export default function ChatPage() {
         seedText = lastUser?.content || '';
       }
 
-      console.log('[CASCADE] seedText:', seedText);
 
       if (!seedText.trim()) {
-        console.log('[CASCADE] ERROR: No seed text');
         toast.error('Cascade needs a seed prompt (send a user prompt first or set a custom seed)');
         setCascadeRunning(false);
         return;
       }
       
-      console.log('[CASCADE] Seed text valid, continuing...');
 
       // Ensure we have a conversation id for cascade messages
       const cascadeConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -930,16 +925,12 @@ export default function ChatPage() {
       }
 
     } catch (error) {
-      console.log('[CASCADE] ERROR caught:', error);
-      console.log('[CASCADE] Error message:', error?.message);
-      console.log('[CASCADE] Error stack:', error?.stack);
       if (String(error?.message || '').includes('Cascade stopped')) {
         toast('Cascade stopped');
       } else {
         toast.error('Cascade interrupted');
       }
     } finally {
-      console.log('[CASCADE] Finally block - setting cascadeRunning to false');
       setCascadeRunning(false);
       setCascadeProgress({ round: 0, model: '', turn: 0, totalTurns: 0 });
     }

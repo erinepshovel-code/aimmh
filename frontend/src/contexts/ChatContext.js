@@ -120,6 +120,7 @@ export const ChatProvider = ({ children }) => {
       conversationId, selectedMessages, pausedModels,
       promptHistory, messageIndexMap, nextIndex,
       globalContext, autoExport, modelRoles,
+      contextMode,
       cascadeConfig, cascadeRunning, cascadeProgress,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));

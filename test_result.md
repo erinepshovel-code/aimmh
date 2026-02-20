@@ -235,6 +235,66 @@ frontend:
         agent: "main"
         comment: "Added local_name field to local device settings UI and session default config."
 
+  - task: "Sequential cascade flow: Include last N responses field"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Verified 'Include last N responses' field is visible in Cascade tab (data-testid='cascade-context-count-input'), accepts numeric values, and can be set to 2 as requested. Field correctly binds to cascadeConfig.sequentialContextCount state."
+
+  - task: "Cascade seed mode: Custom seed text option"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Verified seed mode selector with 'Use last user prompt' and 'Custom seed text' options. When Custom is selected, textarea appears and accepts seed prompt text. UI works correctly."
+
+  - task: "Cascade model reordering: Up/down buttons"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Verified model reordering UI with up/down arrow buttons. Buttons correctly enabled/disabled based on position (first item's up button disabled, last item's down button disabled). Clicking buttons successfully reorders models in the turn order list."
+
+  - task: "Cascade execution and Stop button"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "BLOCKER: Cascade execution does not work. Start cascade button does not trigger cascade run - no API calls made, button state unchanged, Stop button stays disabled. Cannot test sequential responses or Stop functionality because cascade never starts. Related to main cascade task failure."
+
+  - task: "Response feedback: thumbs up/down buttons"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Unable to test feedback buttons because cascade does not generate responses. Feedback button implementation exists in code (handleFeedback function at line 611, ThumbsUp/Down icons rendered). Need working cascade to verify no UI errors when clicking feedback buttons."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"

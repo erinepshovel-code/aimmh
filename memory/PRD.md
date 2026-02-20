@@ -53,6 +53,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - API key management with universal key toggle
 - Mobile-optimized dark theme UI with carousel view
 - Synthesis, batch prompting, global context, role assignment
+- Sequential cascade orchestration with customizable order + context window (include last N responses)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

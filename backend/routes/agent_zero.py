@@ -37,6 +37,7 @@ async def get_a0_config(current_user: dict = Depends(get_current_user)):
     if not config:
         return {
             "mode": "local",
+            "local_name": "local-device",
             "local_url": "http://192.168.1.1",
             "local_port": 8787,
             "cloud_url": "",

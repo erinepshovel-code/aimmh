@@ -183,7 +183,7 @@ frontend:
 
   - task: "Cascade tab: cascade-only controls + engine uses Scene properties"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/pages/ChatPage.js"
     stuck_count: 0
     priority: "high"
@@ -195,6 +195,9 @@ frontend:
       - working: false
         agent: "testing"
         comment: "CRITICAL BUG: Cascade does NOT start when clicking 'Start cascade' button. All UI components work (Include last N responses field, seed mode selector, custom seed textarea, model reordering buttons, model include switches). Configuration verified: context count set to 2, seed mode set to Custom, seed text entered, 3 models enabled. However, clicking Start cascade produces NO state change - button text stays 'Start cascade' (should change to 'Running…'), Stop button remains disabled, and 'Cascade stopped' notification appears immediately. No API calls made to backend. Issue likely in handleCascade function (line 803-834) - either selectedModels array is empty causing early return at line 807, or silent exception being swallowed. The cascade never actually executes despite valid configuration."
+      - working: true
+        agent: "testing"
+        comment: "FIXED: Identified and resolved React ref synchronization bug. Root cause: cascadeRunningRef.current was not immediately updated when starting cascade, causing immediate 'Cascade stopped' error. Fix: Added cascadeRunningRef.current = true immediately after setCascadeRunning(true) in handleCascade and Stop button handler. Cascade now starts correctly, button shows 'Running...' state, API calls are made, responses are generated, and Stop button works as expected."
 
   - task: "Settings page: universal switches default ON + show DISABLED state"
     implemented: true

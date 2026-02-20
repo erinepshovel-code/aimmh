@@ -41,10 +41,13 @@ async def chat_stream(
             await db.messages.insert_one(user_msg)
 
         # Pull a bit more history; we filter per-model later depending on context_mode.
-        history = await db.messages.find(
-            {"conversation_id": conversation_id, "user_id": get_user_id(current_user)},
-            {"_id": 0}
-        ).sort("timestamp", 1).limit(30).to_list(30)
+        history_limit = request.history_limit if request.history_limit is not None else 30
+        history = []
+        if history_limit > 0:
+            history = await db.messages.find(
+                {"conversation_id": conversation_id, "user_id": get_user_id(current_user)},
+                {"_id": 0}
+            ).sort("timestamp", 1).limit(history_limit).to_list(history_limit)
 
         for model_spec in request.models:
             try:

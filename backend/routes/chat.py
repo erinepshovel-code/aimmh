@@ -126,12 +126,14 @@ async def chat_stream(
                 elif "perplexity" in model_lower or "sonar" in model_lower:
                     api_key = get_api_key(current_user, "perplexity")
                     if not api_key:
-                        yield {"event": "error", "data": json.dumps({"model": model_spec, "error": "No API key configured"})}
-                        continue
-                    async for chunk in stream_openai_compatible("https://api.perplexity.ai", api_key, model_spec, messages_context):
-                        if chunk:
-                            full_response += chunk
-                            yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
+                        err = "No API key configured"
+                        yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": f"[ERROR] {err}"})}
+                        full_response = f"[ERROR] {err}"
+                    else:
+                        async for chunk in stream_openai_compatible("https://api.perplexity.ai", api_key, model_spec, messages_context):
+                            if chunk:
+                                full_response += chunk
+                                yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 response_time_ms = int((time.time() - t_start) * 1000)
                 assistant_msg = {

@@ -895,7 +895,8 @@ export default function ChatPage() {
               persistUserMessage: persistSeed,
               suppressUserMessage: true,
               suppressPromptHistory: true,
-              historyLimit: 0
+              historyLimit: 0,
+              conversationIdOverride: cascadeConvId
             });
 
             const latest = out?.[model];

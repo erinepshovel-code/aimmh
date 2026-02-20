@@ -266,7 +266,15 @@ export default function ChatPage() {
     );
   };
 
-  const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false) => {
+  const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
+    const {
+      persistUserMessage = true,
+      suppressUserMessage = false,
+      suppressPromptHistory = false,
+      historyLimit = null,
+      skipInputClear = false
+    } = options || {};
+
     let baseMessage = customMessage || input;
     if (!baseMessage.trim() || streaming) return null;
 
@@ -278,7 +286,7 @@ export default function ChatPage() {
       return null;
     }
     
-    if (!customMessage) setInput('');
+    if (!customMessage && !skipInputClear) setInput('');
     setStreaming(true);
     
     // Generate or use existing conversation ID

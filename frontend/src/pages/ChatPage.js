@@ -610,10 +610,15 @@ export default function ChatPage() {
 
   const handleFeedback = async (messageId, feedback) => {
     try {
+      const token = localStorage.getItem('token');
+      const config = token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : undefined;
+
       await axios.post(`${API}/chat/feedback`, {
         message_id: messageId,
         feedback
-      });
+      }, config);
       toast.success('Feedback submitted');
     } catch (error) {
       toast.error('Failed to submit feedback');

@@ -380,18 +380,24 @@ export default function ChatPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
+      const payload = {
+        message: messageToSend,
+        models: modelsToQuery,
+        conversation_id: currentConvId,
+        context_mode: contextMode,
+        per_model_messages: perModelMessages || undefined,
+        persist_user_message: persistUserMessage
+      };
+
+      if (typeof historyLimit === 'number') {
+        payload.history_limit = Math.max(0, historyLimit);
+      }
+
       const response = await fetch(`${API}/chat/stream`, {
         method: 'POST',
         headers: headers,
         credentials: 'include',  // Important for cookie-based auth
-        body: JSON.stringify({
-          message: messageToSend,
-          models: modelsToQuery,
-          conversation_id: currentConvId,
-          context_mode: contextMode,
-          per_model_messages: perModelMessages || undefined,
-          persist_user_message: true
-        })
+        body: JSON.stringify(payload)
       });
 
       const reader = response.body.getReader();

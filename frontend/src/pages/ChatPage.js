@@ -291,8 +291,8 @@ export default function ChatPage() {
     setStreaming(true);
     
     // Generate or use existing conversation ID
-    const currentConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    if (!conversationId) {
+    const currentConvId = conversationIdOverride || conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (conversationId !== currentConvId) {
       setConversationId(currentConvId);
     }
 

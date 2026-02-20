@@ -158,8 +158,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix 'Made with Emergent' floater blocking Send button"
-  stuck_tasks: []
+    - "Universal key default ON behavior and multi-model error handling regression"
+  stuck_tasks:
+    - "Universal key default ON behavior and multi-model error handling regression"
   test_all: false
   test_priority: "high_first"
 

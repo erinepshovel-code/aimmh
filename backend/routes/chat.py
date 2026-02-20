@@ -81,8 +81,11 @@ async def chat_stream(
                         })
 
                 # If we did persist a base user message, replace the last user turn with the model-specific prompt.
-                if request.persist_user_message and messages_context and messages_context[-1]["role"] == "user":
-                    messages_context[-1] = {"role": "user", "content": per_model_prompt}
+                if request.persist_user_message:
+                    if messages_context and messages_context[-1]["role"] == "user":
+                        messages_context[-1] = {"role": "user", "content": per_model_prompt}
+                    else:
+                        messages_context.append({"role": "user", "content": per_model_prompt})
                 # If we did NOT persist, append the prompt just for this call.
                 if not request.persist_user_message:
                     messages_context.append({"role": "user", "content": per_model_prompt})

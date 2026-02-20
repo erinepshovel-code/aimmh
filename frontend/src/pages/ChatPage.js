@@ -827,6 +827,7 @@ export default function ChatPage() {
 
     console.log('[CASCADE] Setting cascadeRunning to true');
     setCascadeRunning(true);
+    cascadeRunningRef.current = true; // FIX: Immediately update ref to prevent immediate "Cascade stopped" error
 
     // Get a stable snapshot of messages before starting
     const initialMessages = messages;

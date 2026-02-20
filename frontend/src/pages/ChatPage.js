@@ -1101,6 +1101,7 @@ export default function ChatPage() {
                     value={cascadeConfig.rounds}
                     onChange={(e) => setCascadeConfig(p => ({ ...p, rounds: Math.max(1, parseInt(e.target.value) || 1) }))}
                     className="h-8 text-xs font-mono"
+                    data-testid="cascade-rounds-input"
                   />
                 </div>
                 <div className="space-y-1">
@@ -1111,8 +1112,21 @@ export default function ChatPage() {
                     value={cascadeConfig.defaultTurnsPerModelPerRound}
                     onChange={(e) => setCascadeConfig(p => ({ ...p, defaultTurnsPerModelPerRound: Math.max(0, parseInt(e.target.value) || 0) }))}
                     className="h-8 text-xs font-mono"
+                    data-testid="cascade-default-turns-input"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Include last N responses</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={cascadeConfig.sequentialContextCount}
+                  onChange={(e) => setCascadeConfig(p => ({ ...p, sequentialContextCount: Math.max(1, parseInt(e.target.value) || 1) }))}
+                  className="h-8 text-xs font-mono"
+                  data-testid="cascade-context-count-input"
+                />
               </div>
 
               <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">

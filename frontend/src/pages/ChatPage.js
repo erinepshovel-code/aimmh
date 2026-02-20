@@ -1136,6 +1136,7 @@ export default function ChatPage() {
                 <Switch
                   checked={cascadeConfig.randomOrderPerRound}
                   onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, randomOrderPerRound: v }))}
+                  data-testid="cascade-random-order-switch"
                 />
               </div>
 

@@ -71,8 +71,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 ## Pending Tasks
 
 ### P1
-- Fix thumbs up/down feedback (reported broken in earlier session — endpoint works, investigate frontend)
-- Complete Auto-Cascade feature (logic partially in ChatPage)
+- Implement shared-room parallel modes (parallel-all + parallel-paired response sharing)
 - Verify Enter key = newline, Ctrl+Enter = send
 - Verify session persistence across reloads
 - Verify export functionality

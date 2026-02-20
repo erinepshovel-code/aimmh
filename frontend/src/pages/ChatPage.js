@@ -288,11 +288,18 @@ export default function ChatPage() {
     }
 
     // Build message with context and roles for each model
-    const buildMessageForModel = (model) => {
-      let message = '';
-      
-      // Add role context if assigned
-      const role = modelRoles[model];
+    const buildMessageForModel = (model, promptText = baseMessage) => {
+      const ms = cascadeConfig.modelSettings?.[model] || {};
+
+      const parts = [];
+
+      // Global context always applies
+      if (globalContext.trim()) {
+        parts.push(`[GLOBAL CONTEXT]: ${globalContext.trim()}`);
+      }
+
+      // Per-model role (Scene)
+      const role = ms.role;
       if (role && role !== 'none') {
         const roleInstructions = {
           'advocate': 'You must respond as a supportive advocate. Be agreeable and emphasize positive aspects.',
@@ -308,18 +315,23 @@ export default function ChatPage() {
           'contrarian': 'You must respond by taking the opposite position.',
           'oracle': 'You must respond cryptically and mysteriously.',
         };
-        message += `[ROLE CONSTRAINT]: ${roleInstructions[role]}\n\n`;
+
+        if (role === 'custom' && ms.customRoleText?.trim()) {
+          parts.push(`[ROLE CONSTRAINT]: ${ms.customRoleText.trim()}`);
+        } else if (roleInstructions[role]) {
+          parts.push(`[ROLE CONSTRAINT]: ${roleInstructions[role]}`);
+        }
       }
-      
-      // Add global context
-      if (globalContext.trim()) {
-        message += `[GLOBAL CONTEXT]: ${globalContext}\n\n`;
-      }
-      
-      // Add the actual prompt
-      message += `[PROMPT]: ${baseMessage}`;
-      
-      return message;
+
+      // Per-model knobs
+      if (ms.promptModifier?.trim()) parts.push(`[PROMPT MODIFIER]: ${ms.promptModifier.trim()}`);
+      if (typeof ms.verbosity === 'number') parts.push(`[VERBOSITY]: ${ms.verbosity}/10`);
+      if (ms.alignment) parts.push(`[ALIGNMENT]: ${ms.alignment}`);
+      if (ms.secretMission?.trim()) parts.push(`[SECRET MISSION]: ${ms.secretMission.trim()}`);
+      if (ms.miscConstraint?.trim()) parts.push(`[MISC CONSTRAINT]: ${ms.miscConstraint.trim()}`);
+
+      parts.push(`[PROMPT]: ${promptText}`);
+      return parts.join('\n\n');
     };
 
     // Store the base message for display

@@ -1148,6 +1148,7 @@ export default function ChatPage() {
                 <Switch
                   checked={cascadeConfig.roleplayEnabled}
                   onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, roleplayEnabled: v }))}
+                  data-testid="cascade-roleplay-switch"
                 />
               </div>
 

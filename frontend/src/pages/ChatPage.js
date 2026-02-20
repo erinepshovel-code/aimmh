@@ -801,18 +801,31 @@ export default function ChatPage() {
   };
 
   const handleCascade = async () => {
+    console.log('[CASCADE] Starting cascade...');
+    console.log('[CASCADE] selectedModels:', selectedModels);
+    console.log('[CASCADE] cascadeConfig.modelSettings:', cascadeConfig.modelSettings);
+    
     const included = selectedModels.filter(model => {
       const ms = cascadeConfig.modelSettings?.[model];
-      return ms?.included !== false;
+      const isIncluded = ms?.included !== false;
+      console.log(`[CASCADE] Model ${model}: ms=${JSON.stringify(ms)}, included=${isIncluded}`);
+      return isIncluded;
     });
 
+    console.log('[CASCADE] Included models:', included);
+
     if (included.length === 0) {
+      console.log('[CASCADE] ERROR: No models included');
       toast.error('Select at least one model for cascade');
       return;
     }
 
-    if (cascadeRunning) return;
+    if (cascadeRunning) {
+      console.log('[CASCADE] Already running, returning');
+      return;
+    }
 
+    console.log('[CASCADE] Setting cascadeRunning to true');
     setCascadeRunning(true);
 
     // Get a stable snapshot of messages before starting

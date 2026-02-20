@@ -21,140 +21,154 @@ The user wants to build a user interface for prompting multiple AI models simult
     -   **Role Assignment:** Assign specific roles to each model.
     -   **Auto-Cascade:** Automatically chain responses between models for a set number of rounds.
     -   **Auto-Export:** A toggle to automatically export the conversation after each interaction.
--   **Agent Zero Integration:**
-    -   The app must communicate with the user's Agent Zero (A0) application running locally on a configurable port (e.g., 8787) and eventually a Google Cloud instance.
-    -   Expose API endpoints to allow A0 to act as a control plane.
-    -   The app should be able to proxy requests to A0 and auto-ingest conversation transcripts to it.
-    -   Display an EDCM dashboard with metrics received from A0: Constraint Mismatch Density, Fixation Coefficient, Escalation Gradient, Context Drift Index, Load Saturation Index.
+-   **Agent Zero (a0) Integration:**
+    -   The app must communicate with the user's Agent Zero (a0) application running locally on a configurable port (e.g., 8787) and eventually a Google Cloud instance.
+    -   Expose API endpoints to allow a0 to act as a control plane.
+    -   The app should be able to proxy requests to a0 and auto-ingest conversation transcripts to it.
+    -   Display an EDCM dashboard with metrics received from a0: Constraint Mismatch Density, Fixation Coefficient, Escalation Gradient, Context Drift Index, Load Saturation Index.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application with a React frontend and a FastAPI backend. The backend has been refactored from a monolithic  into a modular structure with separate directories for routes, models, and services. The Agent Zero (A0) integration is substantially complete for local devices, including backend endpoints, frontend settings UI, and an EDCM dashboard page to display metrics from A0. A critical bug causing chat state to be lost on page navigation and reloads has been fixed by implementing a  backed by . Most of the user's originally requested features are implemented.
+A full-stack React/FastAPI application with a modular backend. Based on user feedback, the UI has been significantly refactored. The previous 'Cascade' and 'Roles' tabs have been removed. A new 'Scene' tab now centrally manages all per-model prompt configurations (roles, modifiers, verbosity, etc.). The main chat interface now includes tabs for 'Chat', 'Cascade', and 'Batch' modes.
+
+Key recent updates include:
+- The Universal Key is now enabled by default for relevant models.
+- The UI consistently uses the lowercase a0 naming convention.
+- The local a0 device name is now configurable in the settings.
+- A bug where models failed silently has been fixed; the UI now displays an error message within an assistant chat bubble.
+- A critical UI bug where a Made with Emergent floater blocked the 'Send' button has been resolved via CSS adjustments.
 
 **Last working item**:
--   **Last item agent was working:** The agent finished updating the A0 Settings UI based on user feedback. It now defaults to manual, per-session entry for the local A0 connection info (IP/port) with an explicit Save button to persist it to the user's profile on the server. It also includes an expandable section that displays the detailed API specifications for how the app and A0 should communicate, with a Copy button. The user confirmed this was a good checkpoint and asked to fork.
--   **Status:** COMPLETED
--   **Agent Testing Done:** Y (Verified UI changes with a screenshot)
--   **Which testing method agent to use?** NA
+-   **Last item agent was working:** The agent completed a major UI and logic overhaul based on direct user feedback. This involved refactoring the chat page to use a tabbed interface ('Chat', 'Scene', 'Cascade', 'Batch'), creating the 'Scene' tab for detailed per-model prompt customization, making the local 'a0' device name configurable, setting the Universal Key to be on by default, and improving backend error propagation so that failed model responses appear as errors in the UI.
+-   **Status:** USER VERIFICATION PENDING
+-   **Agent Testing Done:** Y
+-   **Which testing method agent to use?** Frontend testing agent
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1:** The  feedback button was reported to cause an error. This was never investigated or fixed. (Priority: P1)
+-   **Issue 1:** The  feedback button causes an error. (Priority: P1)
+-   **Issue 2:** User reported a login loop in Chrome with OAuth. (Priority: P2 - User has since stated it works on the deployed app, de-prioritizing the fix).
 
 **Issues Detail:**
 -   **Issue 1: Thumbs up/feedback button error**
-    -   **Attempted fixes:** None. The agent acknowledged the bug but prioritized refactoring and new features, never returning to fix it.
+    -   **Attempted fixes:** None. This issue was carried over from a previous session and not addressed.
     -   **Next debug checklist:**
-        1.  The backend was refactored. The feedback endpoint is now in . Verify its logic.
-        2.  Inspect the  function in  and how it interacts with the new .
-        3.  Check the browser console for errors when the button is clicked post-refactor.
-        4.  Create a test case in  to specifically validate the  endpoint with both JWT and cookie-based auth.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a core feature for rating model responses. Fixing it completes a key part of the UI and provides data for the EDCM dashboard.
+        1.  Inspect the  endpoint logic in .
+        2.  Analyze the  function in  to see how it sends data.
+        3.  Check the browser console for network or script errors when the button is clicked.
+        4.  Add a dedicated test case to  for this endpoint.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a core UI feature for rating model responses and providing data for the EDCM dashboard.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Blocked on other issue:** None
+-   **Issue 2: Chrome OAuth Login Loop**
+    -   **Attempted fixes:** None.
+    -   **Next debug checklist:** If the issue reappears, investigate , , and backend authentication routes for incorrect state handling or redirect loops.
+    -   **Why fix this issue and what will be achieved with the fix?** Ensures a smooth and reliable login experience for all users across different browsers.
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Should Test frontend/backend/both after fix?** Frontend
     -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   **Task 1:** Implement and test the Auto-Cascade feature. (Priority: P1)
+-   **Task 1:** Implement Research Context Orchestration (Sequential Modes) (Priority: P0)
 
 **Task Detail:**
--   **Task 1: Implement and test Auto-Cascade Feature**
-    -   **Where to resume:** Frontend state () was added to  in a previous session but the core logic for chaining API calls is incomplete. Now that  is implemented, this state should be moved there. The backend does not have a dedicated endpoint for this; the logic will likely need to be orchestrated from the frontend by making sequential calls to the  endpoint.
-    -   **What will be achieved with this?** This will complete a key advanced research feature, allowing for automated, multi-turn interactions between models.
+-   **Task 1: Implement Research Context Orchestration (Sequential Modes)**
+    -   **Where to resume:** The frontend UI and backend data models are prepared. The core orchestration logic needs to be implemented within the  function in . This involves creating loops to make sequential calls to the  endpoint, passing the output of one model as the input for the next, and using the  flag for intermediate steps.
+    -   **What will be achieved with this?** This will deliver the advanced, sequential interaction patterns (both compartmented and shared-room) that are central to the user's research goals.
     -   **Status:** IN PROGRESS
     -   **Should Test frontend/backend/both after fix?** Both
     -   **Blocked on something:** None
 
 **Upcoming and Future Tasks**
--   **Agent Zero - Cloud Access (P0):** Implement the Google Cloud connection option for the Agent Zero integration. Currently, it's just a placeholder tab.
--   **Verify Core Functionality (P1):** The following features were fixed in a previous session but were not re-verified after the major refactoring and state management changes. They need a full regression test.
-    -   **Newline Feature:** Verify  creates a newline and  sends the message.
-    -   **Export Functionality:** Test export to JSON, TXT, and PDF.
-    -   **Context Retention:** Confirm long-conversation context is maintained by models.
--   **Integrate Additional Models (P2):** Implement the actual API integrations for Grok, DeepSeek, and Perplexity. Currently, only UI for key storage exists.
+-   **Upcoming Tasks:**
+    -   **Agent Zero - Cloud Access (P1):** Implement the Google Cloud connection option for the a0 integration. It is currently a placeholder UI tab.
+    -   **Full Regression Test (P1):** Verify core features (Newline on Enter, Ctrl+Enter to send, Export to JSON/TXT/PDF) that may have been affected by the recent major UI refactoring.
+-   **Future Tasks:**
+    -   **Integrate Additional Models (P2):** Implement the backend API integrations for Grok, DeepSeek, and Perplexity.
+    -   **Expand API Key Management (P2):** Enhance the settings page to allow users to add and manage keys for new models beyond the initial set.
+    -   **Scene Presets (P3):** Add functionality to save and load default Scene settings based on presets (e.g., pop culture figures), as requested by the user.
 
 **Completed work in this session**
--   **Backend Refactoring:** The entire backend was refactored from a monolithic  into a clean, modular structure (, , ). This was verified with a comprehensive test suite.
--   **Agent Zero (A0) Integration:**
-    -   Created backend endpoints to manage A0 settings () and ingest EDCM metrics ().
-    -   Implemented response time tracking for all model responses, storing  in the database.
-    -   Built the frontend A0Settings component with a toggle for Local vs. Cloud, configurable IP/port/key, and options for routing/ingestion.
-    -   Added a UI section to display endpoint connection info for A0, with a copy button.
-    -   Implemented per-session configuration with an explicit Save to persist settings.
--   **EDCM Dashboard:**
-    -   Created a new  page accessible from the chat menu.
-    -   The dashboard displays stubs for the 5 EDCM metrics, plus live-updating sections for Response Times and Feedback Ratings based on chat data.
--   **Chat State Persistence:**
-    -   Fixed a critical bug where chat state (messages, input, settings) was lost when navigating between pages or reloading.
-    -   Created a  to manage all chat-related state.
-    -   Integrated  with the context to persist state across page reloads and tab changes.
+-   **UI Refactoring for Research Modes:** Replaced the 'Cascade'/'Roles' tabs with a unified 'Scene' tab for all per-model prompt settings. 'Cascade' and 'Batch' are now integrated as modes in the main chat input area.
+-   **Context Semantics:** Implemented the frontend and backend groundwork to support different interaction patterns like shared-room (all models see all messages) and compartmented (models only see the user prompt).
+-   **Universal Key Default:** The Use Universal Key toggle now defaults to ON for OpenAI and Gemini models, simplifying setup.
+-   **Robust Error Handling:** Modified the backend and frontend to ensure that if a model API call fails, a descriptive error message is displayed in the chat UI instead of the request failing silently.
+-   **a0 Configuration:** Updated the UI to use the a0 naming convention and made the local a0 device name a configurable input field.
+-   **UI Bug Fix:** Resolved an issue where the Made by Emergent floater intercepted clicks meant for the 'Send' button by adjusting its  in .
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1: Thumbs up/down feedback button error.** This was reported in a previous session and remains unresolved.
 
 **Known issue recurrence from previous fork**
--   None.
+-   The Thumbs up/down button error has been carried over from the previous session without being addressed.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Frontend:** React, Tailwind CSS, Shadcn UI, Axios, . State management via React Context (, ) backed by  and  for persistence.
--   **Backend:** FastAPI with a modular router-based architecture. MongoDB (via ).  library. JWT and session cookie authentication.
--   **State Persistence:** Hybrid approach. Auth state persists in  (JWT) or HTTP-only cookie (OAuth). Chat state persists in  via . User-specific A0 settings are persisted in the database.
+-   **Frontend:** React, Tailwind CSS, Shadcn UI. The UI now heavily relies on Shadcn  to organize chat interaction modes. State is managed in  and persisted in .
+-   **Backend:** FastAPI with a modular architecture. MongoDB () for the database.  for LLM access.
+-   **State Management:** The  has been expanded to manage the state for the new UI, including the active tab (, ), per-model prompt settings from the 'Scene' tab, and global context.
 
 **key DB schema**
--   **users**:  (a0_config added)
--   **messages**:  (response_time_ms and feedback fields added/clarified)
--   **edcm_metrics**:  (New collection)
+-   **users**: 
+-   **messages**: 
+-   **edcm_metrics**: 
+-   No changes to the schema in this session.
 
 **All files of reference**
--   **/app/frontend/src/contexts/ChatContext.js**: **NEW**. The source of truth for all chat-related state. Essential for understanding how state persists across navigation.
--   **/app/frontend/src/pages/ChatPage.js**: Heavily refactored to be a dumb component that pulls all state and setters from .
--   **/app/frontend/src/pages/Dashboard.js**: **NEW**. The UI for the EDCM dashboard.
--   **/app/frontend/src/components/A0Settings.js**: **NEW**. The UI for configuring the Agent Zero integration.
--   **/app/backend/routes/**: **NEW directory**. Contains all API endpoint logic, broken down by feature (, , , etc.). Replaces the logic from the old .
--   **/app/backend/server.py**: Now a slim file that initializes the FastAPI app and includes the routers from .
--   **/app/backend/tests/test_api.py**: Contains regression tests created by the testing agent.
+-   **/app/frontend/src/pages/ChatPage.js**: **Heavily refactored**. This file now contains the new tabbed layout for Chat, Scene, Cascade, and Batch, and includes the UI elements for configuring per-model prompts.
+-   **/app/frontend/src/contexts/ChatContext.js**: **Updated** to store state for the new UI, including , , , and the active tab.
+-   **/app/frontend/src/components/A0Settings.js**: **Updated** to allow the user to configure the local 'a0' device name.
+-   **/app/frontend/src/index.css**: **Updated** to fix the  of the Emergent floater.
+-   **/app/backend/routes/chat.py**: **Updated** to accept new per-model prompt parameters from the 'Scene' tab and to return structured error messages.
+-   **/app/backend/services/llm.py**: **Updated** to ensure errors during model streaming are caught and yielded in a structured format.
+-   **/app/backend/routes/keys.py**: **Updated** to implement the logic for defaulting to the Universal Key.
 
 **Critical Info for New Agent**
--   The user is highly technical and wants to move fast. Prioritize the remaining features for the Agent Zero integration.
--   The application's state management has fundamentally changed. All chat state is now in . Any work on  must go through this context.
--   The backend is now modular. Do not edit  to add new endpoints. Instead, find the appropriate file in the  directory or create a new one.
--   The user is focused on the Agent Zero (A0) workflow. A0 needs to know the API endpoints of this app to function. The connection info is displayed in the UI under Settings -> A0 Integration.
+-   The user has provided a clear priority order for implementing research modes: **Parallel Compartmented > Parallel Uncompartmented > Sequential Compartmented > Sequential Uncompartmented**. The immediate next task is to build the sequential orchestration.
+-   The UI has been fundamentally redesigned. The Scene tab is the new central location for all per-model prompt settings. Cascade is a mode, not a settings tab.
+-   The user clarified that **Global Context** applies to *all* prompts sent from the UI, not just during cascades.
+-   The user confirmed OAuth is working on their deployed app, making the reported Chrome bug a low priority.
 
 **documents and test reports created in this job**
--   /app/test_reports/iteration_2.json
--   /app/test_reports/iteration_3.json
--   /app/backend/tests/test_api.py
+-   /app/test_result.md (This file was created and updated during the session to track testing progress).
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **user:** what does a0 need to know? - **Status: COMPLETED**. Agent provided a detailed breakdown of the API endpoints, auth, and payloads.
-2.  **user:** its still losing prompts between menus" - **Status: COMPLETED**. This was the bug report that triggered the implementation of `ChatContext` and `sessionStorage` to fix state persistence.
-3.  **user:** "local only right now and in the process of creating cloud access. display the end point connection information when youve got it - **Status: COMPLETED**. Agent implemented this.
-4.  **user:** assume manual entry per session with an option to save - **Status: COMPLETED**. Agent implemented this session-based config with a save button.
-5.  **user:** time to fork? - **Status: PENDING**. This was the user's last message, confirming it's a good time to create a new session.
+1.  **user:**  - Gave approval to proceed with the proposed UI refactor plan.
+2.  **user:**  - Provided feedback on UI mockups, approved the tabbed design, and reported the bug where the Made by Emergent floater was blocking the send button.
+3.  **user:**  - Asked if it was a good time to create a new fork, signaling satisfaction with the work done.
+4.  **user:**  - Stated that OAuth works correctly on the deployed app, effectively de-prioritizing the previously reported login bug.
+5.  **user:**  - Gave a new set of requirements: make local a0 device name configurable, default Universal Key to ON, and clarified that Global Context is for all prompts and the Roles UI should be part of a general per-model settings tab.
+6.  **user:**  - Clarified the different research interaction modes they want to build (parallel, sequential, compartmented, etc.).
+7.  **user:**  - Provided a specific priority order for implementing the research modes.
+8.  **user:**  - Confirmed understanding of the agent's plan and the difference between user authentication (OAuth) and model access (Universal Key).
+9.  **user:**  - Reported a bug where some models failed silently and gave permission to proceed with the implementation.
+10. **user:**  - Chose a UI mockup option presented by the agent.
+11. **user:**  - The final message, confirming satisfaction with the latest progress and readiness to move to a new work session.
 
 **Project Health Check:**
 -   **Broken**:
-    -   The thumbs up/down feedback feature is still non-functional.
+    -   The thumbs up/down feedback feature remains non-functional.
 -   **Mocked**:
+    -   Agent Zero (a0) Google Cloud access tab is a UI placeholder.
     -   Integrations for Grok, DeepSeek, and Perplexity are UI stubs only.
-    -   The Google Cloud tab within the Agent Zero settings is a placeholder.
 
 **3rd Party Integrations**
--   **OpenAI GPT, Claude, Gemini:** Use Emergent LLM Key via .
+-   **OpenAI GPT, Claude, Gemini:** Uses Emergent LLM Key via .
 -   **Emergent-managed Google Auth:** Integrated for user login.
--   **Agent Zero:** (In Progress) A custom integration. The backend is built, and the frontend UI allows configuring and saving a local A0 instance. The cloud instance is a stub.
--   **Grok, DeepSeek, Perplexity:** Not integrated; UI placeholders for API keys exist.
+-   **Agent Zero:** Custom integration for a local user-run application. Backend and frontend UI for configuration are implemented.
+-   **Grok, DeepSeek, Perplexity:** Not yet integrated; API key storage UI exists.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Two separate, extensive test runs were executed (after backend refactor and after A0/EDCM implementation), both with 100% pass rates.
+-   Testing agent used after significant changes: YES
 -   Troubleshoot agent used after agent stuck in loop: NO
--   Test files created:
-    -   
-    -   
-    -   
--   Known regressions: None from this session. Verification is needed for fixes from previous sessions.
+-   Test files created: None.
+-   Known regressions: None identified, but a full regression test is recommended due to major UI changes.
 
 **What agent forgot to execute**
--   The agent never fixed the user-reported bug with the thumbs up button. It was listed as a pending issue in the initial handoff and was ignored throughout this entire work session in favor of the refactoring and Agent Zero features.</analysis>
+-   The agent did not fix the user-reported bug with the thumbs up button, which has been pending since the previous session.</analysis>

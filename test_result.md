@@ -183,7 +183,7 @@ frontend:
 
   - task: "Cascade tab: cascade-only controls + engine uses Scene properties"
     implemented: true
-    working: true
+    working: false
     file: "/app/frontend/src/pages/ChatPage.js"
     stuck_count: 0
     priority: "high"
@@ -192,6 +192,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Cascade UI reduced to cascade-only controls; engine uses globalContext + per-model settings from Scene."
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL BUG: Cascade does NOT start when clicking 'Start cascade' button. All UI components work (Include last N responses field, seed mode selector, custom seed textarea, model reordering buttons, model include switches). Configuration verified: context count set to 2, seed mode set to Custom, seed text entered, 3 models enabled. However, clicking Start cascade produces NO state change - button text stays 'Start cascade' (should change to 'Running…'), Stop button remains disabled, and 'Cascade stopped' notification appears immediately. No API calls made to backend. Issue likely in handleCascade function (line 803-834) - either selectedModels array is empty causing early return at line 807, or silent exception being swallowed. The cascade never actually executes despite valid configuration."
 
   - task: "Settings page: universal switches default ON + show DISABLED state"
     implemented: true

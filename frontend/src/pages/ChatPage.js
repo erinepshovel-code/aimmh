@@ -830,6 +830,7 @@ export default function ChatPage() {
 
       if (!seedText.trim()) {
         toast.error('Cascade needs a seed prompt (send a user prompt first or set a custom seed)');
+        setCascadeRunning(false);
         return;
       }
 

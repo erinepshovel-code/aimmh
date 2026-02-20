@@ -915,10 +915,13 @@ export default function ChatPage() {
               <DropdownMenuItem onClick={() => setActiveTopTab('cascade')}>
                 🔁 Cascade
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTopTab('scene')}>
+                🎛️ Scene
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setActiveTopTab('batch')} disabled={batchRunning}>
                 📋 Batch Prompts
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTopTab('roles')}>
+              <DropdownMenuItem onClick={() => setShowRolesDialog(true)}>
                 🎭 Assign Roles
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleNewChat}>

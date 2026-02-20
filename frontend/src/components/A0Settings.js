@@ -123,7 +123,7 @@ export default function A0Settings() {
 
   const clearSession = () => {
     sessionStorage.removeItem(SESSION_KEY);
-    setConfig({ mode: 'local', local_url: '', local_port: 8787, cloud_url: '', api_key: '', route_via_a0: false, auto_ingest: false });
+    setConfig({ mode: 'local', local_name: 'local-device', local_url: '', local_port: 8787, cloud_url: '', api_key: '', route_via_a0: false, auto_ingest: false });
     setHealth(null);
     toast('Session config cleared');
   };

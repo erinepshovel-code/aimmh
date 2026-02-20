@@ -214,6 +214,8 @@ export default function SettingsPage() {
                           <span className="text-xs font-mono">{keys[provider]}</span>
                         ) : useUniversal[provider] ? (
                           <span className="text-xs text-muted-foreground">Using universal key</span>
+                        ) : keys[provider] === 'DISABLED' ? (
+                          <span className="text-xs text-muted-foreground">Universal key disabled</span>
                         ) : (
                           <span className="text-xs text-muted-foreground">No key configured</span>
                         )}

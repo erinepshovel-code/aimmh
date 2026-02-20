@@ -872,6 +872,16 @@ export default function ChatPage() {
 
   // (Legacy quick-cascade removed; cascade is configured via the Cascade tab)
 
+  // Keep legacy roles dialog in sync with Scene roles (so EDCM ingest stays consistent)
+  useEffect(() => {
+    const rolesFromScene = {};
+    for (const m of selectedModels) {
+      const role = cascadeConfig.modelSettings?.[m]?.role;
+      if (role && role !== 'none') rolesFromScene[m] = role;
+    }
+    setModelRoles(rolesFromScene);
+  }, [selectedModels, cascadeConfig.modelSettings, setModelRoles]);
+
   const handleToggleSelect = (messageId) => {
     setSelectedMessages(prev => 
       prev.includes(messageId)

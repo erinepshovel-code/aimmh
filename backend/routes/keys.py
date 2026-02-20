@@ -20,8 +20,13 @@ async def update_api_key(key_data: APIKeyUpdate, current_user: dict = Depends(ge
     elif key_data.api_key:
         update_data[f"api_keys.{key_data.provider}"] = key_data.api_key
     else:
-        await db.users.update_one(query, {"$unset": {f"api_keys.{key_data.provider}": ""}})
-        return {"message": "API key removed"}
+        # If universal is being turned OFF for emergent-backed providers,
+        # store an explicit sentinel so default-on logic won't re-enable it.
+        if key_data.provider in {"gpt", "claude", "gemini"}:
+            update_data[f"api_keys.{key_data.provider}"] = "DISABLED"
+        else:
+            await db.users.update_one(query, {"$unset": {f"api_keys.{key_data.provider}": ""}})
+            return {"message": "API key removed"}
 
     result = await db.users.update_one(query, {"$set": update_data})
     if result.modified_count == 0:

@@ -851,6 +851,7 @@ export default function ChatPage() {
       }
 
       const responseHistory = [];
+      let seedPersisted = false;
       const contextWindow = Math.max(1, parseInt(cascadeConfig.sequentialContextCount || 1) || 1);
 
       for (let round = 1; round <= cascadeConfig.rounds; round++) {

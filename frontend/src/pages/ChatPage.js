@@ -1173,7 +1173,7 @@ export default function ChatPage() {
                     value={cascadeConfig.seedMode}
                     onValueChange={(v) => setCascadeConfig(p => ({ ...p, seedMode: v }))}
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-8 text-xs" data-testid="cascade-seed-select">
                       <SelectValue placeholder="Seed mode" />
                     </SelectTrigger>
                     <SelectContent>

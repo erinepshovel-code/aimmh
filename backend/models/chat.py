@@ -28,6 +28,8 @@ class ChatRequest(BaseModel):
     per_model_messages: Optional[Dict[str, str]] = None
     # For sequential orchestration: avoid duplicating user messages in DB
     persist_user_message: bool = True
+    # Optional: limit number of history messages pulled for context
+    history_limit: Optional[int] = Field(default=None, ge=0)
 
 
 class MessageFeedback(BaseModel):

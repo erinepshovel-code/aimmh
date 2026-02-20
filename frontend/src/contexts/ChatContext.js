@@ -71,6 +71,10 @@ export const ChatProvider = ({ children }) => {
   // If older sessions stored a removed tab, normalize
   useEffect(() => {
     if (activeTopTab === 'roles') setActiveTopTab('scene');
+  }, [activeTopTab, setActiveTopTab]);
+  // If older sessions stored a removed tab, normalize
+  useEffect(() => {
+    if (activeTopTab === 'roles') setActiveTopTab('scene');
   }, [activeTopTab]);
 
   const [selectedModels, setSelectedModels] = useState(saved?.selectedModels || ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview']);

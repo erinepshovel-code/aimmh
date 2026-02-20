@@ -1734,7 +1734,7 @@ export default function ChatPage() {
               <div className="text-[10px] text-muted-foreground">
                 Cascade: Round {cascadeProgress.round}/{cascadeConfig.rounds} • {cascadeProgress.model || '—'} • Turn {cascadeProgress.turn}/{cascadeProgress.totalTurns}
               </div>
-              <Button size="sm" variant="outline" onClick={() => setCascadeRunning(false)} className="h-7 px-2 text-[10px]">
+              <Button size="sm" variant="outline" onClick={() => setCascadeRunning(false)} className="h-7 px-2 text-[10px]" data-testid="cascade-stop-inline-btn">
                 Stop
               </Button>
             </div>

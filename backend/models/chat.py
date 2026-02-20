@@ -22,6 +22,12 @@ class ChatRequest(BaseModel):
     message: str
     models: List[str]
     conversation_id: Optional[str] = None
+    # Context semantics
+    context_mode: Literal["compartmented", "shared"] = "compartmented"
+    # If provided, use a model-specific message (prompt properties) instead of `message`
+    per_model_messages: Optional[Dict[str, str]] = None
+    # For sequential orchestration: avoid duplicating user messages in DB
+    persist_user_message: bool = True
 
 
 class MessageFeedback(BaseModel):

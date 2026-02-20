@@ -43,6 +43,8 @@ async def get_api_keys(current_user: dict = Depends(get_current_user)):
     for provider, key in api_keys.items():
         if key == "UNIVERSAL":
             masked_keys[provider] = "UNIVERSAL"
+        elif key == "DISABLED":
+            masked_keys[provider] = "DISABLED"
         elif key:
             masked_keys[provider] = f"{key[:8]}...{key[-4:]}"
         else:

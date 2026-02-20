@@ -26,35 +26,63 @@ async def chat_stream(
     async def event_generator():
         conversation_id = request.conversation_id or str(uuid.uuid4())
 
-        user_message_id = str(uuid.uuid4())
-        user_msg = {
-            "id": user_message_id,
-            "conversation_id": conversation_id,
-            "role": "user",
-            "content": request.message,
-            "model": "user",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "user_id": get_user_id(current_user)
-        }
-        await db.messages.insert_one(user_msg)
+        # Persist the *base* user message once (per prompt) unless caller disables it.
+        if request.persist_user_message:
+            user_message_id = str(uuid.uuid4())
+            user_msg = {
+                "id": user_message_id,
+                "conversation_id": conversation_id,
+                "role": "user",
+                "content": request.message,
+                "model": "user",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "user_id": get_user_id(current_user)
+            }
+            await db.messages.insert_one(user_msg)
 
+        # Pull a bit more history; we filter per-model later depending on context_mode.
         history = await db.messages.find(
             {"conversation_id": conversation_id, "user_id": get_user_id(current_user)},
             {"_id": 0}
-        ).sort("timestamp", 1).limit(10).to_list(10)
-
-        messages_context = []
-        for msg in history:
-            messages_context.append({
-                "role": msg["role"],
-                "content": msg["content"]
-            })
+        ).sort("timestamp", 1).limit(30).to_list(30)
 
         for model_spec in request.models:
             try:
                 model_lower = model_spec.lower()
                 message_id = str(uuid.uuid4())
                 t_start = time.time()
+
+                # Build per-model context (compartmented vs shared-room)
+                per_model_prompt = (request.per_model_messages or {}).get(model_spec) or request.message
+
+                messages_context = []
+                # include user messages always; assistant messages depend on context_mode
+                for msg in history[-30:]:
+                    if msg["role"] == "assistant":
+                        if request.context_mode == "compartmented" and msg.get("model") != model_spec:
+                            continue
+                        if request.context_mode == "shared":
+                            messages_context.append({
+                                "role": "assistant",
+                                "content": f"[{msg.get('model', 'unknown')}] {msg.get('content', '')}"
+                            })
+                        else:
+                            messages_context.append({
+                                "role": "assistant",
+                                "content": msg.get("content", "")
+                            })
+                    elif msg["role"] == "user":
+                        messages_context.append({
+                            "role": "user",
+                            "content": msg.get("content", "")
+                        })
+
+                # If we did persist a base user message, replace the last user turn with the model-specific prompt.
+                if request.persist_user_message and messages_context and messages_context[-1]["role"] == "user":
+                    messages_context[-1] = {"role": "user", "content": per_model_prompt}
+                # If we did NOT persist, append the prompt just for this call.
+                if not request.persist_user_message:
+                    messages_context.append({"role": "user", "content": per_model_prompt})
 
                 yield {
                     "event": "start",

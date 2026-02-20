@@ -73,10 +73,14 @@ export default function SettingsPage() {
       const loadedKeys = response.data;
       setKeys(loadedKeys);
       
-      // Set universal flags
+      // Set universal flags (default ON for GPT/Claude/Gemini unless explicitly DISABLED)
       const universalFlags = {};
       Object.entries(loadedKeys).forEach(([provider, key]) => {
-        universalFlags[provider] = key === 'UNIVERSAL';
+        if (API_KEY_GUIDES[provider]?.universal) {
+          universalFlags[provider] = key !== 'DISABLED' && (key === 'UNIVERSAL' || !key);
+        } else {
+          universalFlags[provider] = false;
+        }
       });
       setUseUniversal(universalFlags);
     } catch (error) {

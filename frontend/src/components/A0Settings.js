@@ -170,9 +170,21 @@ export default function A0Settings() {
         {/* Local Device */}
         {config.mode === 'local' && (
           <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border">
-            <Label className="text-xs font-medium flex items-center gap-1">
-              <Smartphone className="h-3 w-3" /> Samsung Galaxy A16u / Local
-            </Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium flex items-center gap-1">
+                <Smartphone className="h-3 w-3" /> Local device
+              </Label>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Device name</Label>
+                <Input
+                  value={config.local_name || ''}
+                  onChange={e => setConfig(p => ({ ...p, local_name: e.target.value }))}
+                  placeholder="e.g., lab-laptop / galaxy-a16u"
+                  className="font-mono text-xs h-8"
+                  data-testid="a0-local-name"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
                 <Label className="text-[10px] text-muted-foreground">Device IP / URL</Label>

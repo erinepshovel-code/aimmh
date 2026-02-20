@@ -272,7 +272,8 @@ export default function ChatPage() {
       suppressUserMessage = false,
       suppressPromptHistory = false,
       historyLimit = null,
-      skipInputClear = false
+      skipInputClear = false,
+      conversationIdOverride = null
     } = options || {};
 
     let baseMessage = customMessage || input;

@@ -829,10 +829,7 @@ export default function ChatPage() {
       }
 
       // Ensure we have a conversation id for cascade messages
-      const currentConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      if (!conversationId) {
-        setConversationId(currentConvId);
-      }
+      const cascadeConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // If using a custom seed, add it as a user message once
       if (cascadeConfig.seedMode === 'custom') {

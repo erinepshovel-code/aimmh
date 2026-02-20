@@ -896,7 +896,7 @@ export default function ChatPage() {
             const base = `[CASCADE]\n[ROUND ${round}/${cascadeConfig.rounds}]\n[MODEL ${model}]\n[TURN ${t}/${turns}]\n\n${recentResponses.length ? 'PREVIOUS RESPONSES:\n' + responseBlock : responseBlock}`;
             const perModelPrompt = buildCascadeMessageForModel(model, base);
 
-            const persistSeed = cascadeConfig.seedMode === 'custom' && responseHistory.length === 0;
+            const persistSeed = cascadeConfig.seedMode === 'custom' && !seedPersisted;
             const out = await handleSend(perModelPrompt, [model], true, true, {
               persistUserMessage: persistSeed,
               suppressUserMessage: true,
@@ -904,6 +904,8 @@ export default function ChatPage() {
               historyLimit: 0,
               conversationIdOverride: cascadeConvId
             });
+
+            if (persistSeed) seedPersisted = true;
 
             const latest = out?.[model];
             if (latest) responseHistory.push({ model, content: latest });

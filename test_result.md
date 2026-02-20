@@ -312,11 +312,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Cascade execution and Stop button"
-    - "Response feedback: thumbs up/down buttons"
+    []
   stuck_tasks:
-    - "Cascade tab: cascade-only controls + engine uses Scene properties"
-    - "Cascade execution and Stop button"
+    []
   test_all: false
   test_priority: "high_first"
 

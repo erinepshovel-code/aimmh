@@ -54,6 +54,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Mobile-optimized dark theme UI with carousel view
 - Synthesis, batch prompting, global context, role assignment
 - Sequential cascade orchestration with customizable order + context window (include last N responses)
+- Feedback submission now supports JWT auth header (thumbs up/down fixed)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

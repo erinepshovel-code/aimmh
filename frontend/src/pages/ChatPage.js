@@ -1200,6 +1200,7 @@ export default function ChatPage() {
                     rows={2}
                     className="text-xs mt-2"
                     placeholder="Seed the cascade with this text..."
+                    data-testid="cascade-seed-textarea"
                   />
                 )}
               </div>

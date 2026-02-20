@@ -942,12 +942,16 @@ export default function ChatPage() {
       }
 
     } catch (error) {
+      console.log('[CASCADE] ERROR caught:', error);
+      console.log('[CASCADE] Error message:', error?.message);
+      console.log('[CASCADE] Error stack:', error?.stack);
       if (String(error?.message || '').includes('Cascade stopped')) {
         toast('Cascade stopped');
       } else {
         toast.error('Cascade interrupted');
       }
     } finally {
+      console.log('[CASCADE] Finally block - setting cascadeRunning to false');
       setCascadeRunning(false);
       setCascadeProgress({ round: 0, model: '', turn: 0, totalTurns: 0 });
     }

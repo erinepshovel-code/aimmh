@@ -728,8 +728,9 @@ export default function ChatPage() {
     if (cascadeConfig.roleplayEnabled && cascadeConfig.roleplayText.trim()) {
       parts.push(`[ROLEPLAY]: ${cascadeConfig.roleplayText.trim()}`);
     }
-    if (cascadeConfig.globalContextEnabled && cascadeConfig.globalContextText.trim()) {
-      parts.push(`[GLOBAL CONTEXT]: ${cascadeConfig.globalContextText.trim()}`);
+    // Global context applies to everything (Scene)
+    if (globalContext.trim()) {
+      parts.push(`[GLOBAL CONTEXT]: ${globalContext.trim()}`);
     }
 
     // Per-model role (reuse existing defaults + allow custom)

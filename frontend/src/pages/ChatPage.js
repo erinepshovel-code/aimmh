@@ -336,9 +336,21 @@ export default function ChatPage() {
     
     setMessages(prev => [...prev, userMsg]);
 
-    // For now, use the first model's context (simplified approach)
-    // In production, you'd want to handle per-model messages differently
-    const messageToSend = skipWrap ? baseMessage : buildMessageForModel(modelsToQuery[0]);
+    // If we are sending to multiple models, we do NOT want to bias the prompt
+    // by using a single model's role constraints. Use only global context.
+    let messageToSend;
+    if (skipWrap) {
+      messageToSend = baseMessage;
+    } else if (modelsToQuery.length > 1) {
+      let m = '';
+      if (globalContext.trim()) {
+        m += `[GLOBAL CONTEXT]: ${globalContext}\n\n`;
+      }
+      m += `[PROMPT]: ${baseMessage}`;
+      messageToSend = m;
+    } else {
+      messageToSend = buildMessageForModel(modelsToQuery[0]);
+    }
 
     try {
       const token = localStorage.getItem('token');

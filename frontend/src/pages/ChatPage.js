@@ -1187,6 +1187,7 @@ export default function ChatPage() {
                     onClick={() => setCascadeConfig(p => ({ ...p, order: selectedModels }))}
                     className="h-8 text-xs"
                     title="Reset order to selected models"
+                    data-testid="cascade-reset-order-btn"
                   >
                     Reset order
                   </Button>

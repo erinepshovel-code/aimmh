@@ -970,9 +970,9 @@ export default function ChatPage() {
         <Tabs value={activeTopTab} onValueChange={setActiveTopTab}>
           <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
+            <TabsTrigger value="scene" className="text-xs">Scene</TabsTrigger>
             <TabsTrigger value="cascade" className="text-xs">Cascade</TabsTrigger>
             <TabsTrigger value="batch" className="text-xs">Batch</TabsTrigger>
-            <TabsTrigger value="roles" className="text-xs">Roles</TabsTrigger>
           </TabsList>
 
           <TabsContent value="chat" className="mt-2">

@@ -153,7 +153,23 @@ async def chat_stream(
 
             except Exception as e:
                 logger.error(f"Error streaming from {model_spec}: {str(e)}")
-                yield {"event": "error", "data": json.dumps({"model": model_spec, "error": str(e)})}
+                yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": f"[ERROR] {str(e)}"})}
+
+                response_time_ms = int((time.time() - t_start) * 1000)
+                assistant_msg = {
+                    "id": message_id,
+                    "conversation_id": conversation_id,
+                    "role": "assistant",
+                    "content": f"[ERROR] {str(e)}",
+                    "model": model_spec,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "user_id": get_user_id(current_user),
+                    "feedback": None,
+                    "response_time_ms": response_time_ms
+                }
+                await db.messages.insert_one(assistant_msg)
+
+                yield {"event": "complete", "data": json.dumps({"model": model_spec, "message_id": message_id, "response_time_ms": response_time_ms})}
 
         await db.conversations.update_one(
             {"id": conversation_id},

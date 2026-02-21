@@ -386,6 +386,8 @@ export default function ChatPage() {
         models: modelsToQuery,
         conversation_id: currentConvId,
         context_mode: contextMode,
+        global_context: globalContext,
+        model_roles: modelRoles,
         per_model_messages: perModelMessages || undefined,
         persist_user_message: persistUserMessage
       };

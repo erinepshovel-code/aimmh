@@ -16,8 +16,31 @@ async def ingest_edcm_metrics(
     current_user: dict = Depends(get_current_user)
 ):
     """Receive EDCM metrics from Agent Zero (stub receiver)"""
+    uid = get_user_id(current_user)
+    conversation = await db.conversations.find_one(
+        {"id": payload.conversation_id, "user_id": uid},
+        {"_id": 0}
+    )
+
+    messages = None
+    if conversation:
+        cursor = db.messages.find(
+            {"conversation_id": payload.conversation_id, "user_id": uid},
+            {"_id": 0}
+        ).sort("timestamp", 1)
+        try:
+            messages = await cursor.to_list(length=None)
+        except TypeError:
+            messages = await cursor.to_list(length=2000)
+
+    context_snapshot = {
+        "global_context": conversation.get("global_context") if conversation else None,
+        "model_roles": conversation.get("model_roles") if conversation else None,
+        "context_mode": conversation.get("context_mode") if conversation else None
+    }
+
     doc = {
-        "user_id": get_user_id(current_user),
+        "user_id": uid,
         "conversation_id": payload.conversation_id,
         "constraint_mismatch_density": payload.metrics.constraint_mismatch_density,
         "fixation_coefficient": payload.metrics.fixation_coefficient,
@@ -28,6 +51,14 @@ async def ingest_edcm_metrics(
         "metadata": payload.metrics.metadata,
         "timestamp": payload.timestamp or datetime.now(timezone.utc).isoformat()
     }
+
+    if messages is not None:
+        doc["conversation_snapshot"] = {
+            "title": conversation.get("title") if conversation else None,
+            "messages": messages,
+            "context": context_snapshot
+        }
+
     await db.edcm_metrics.insert_one(doc)
     return {"message": "EDCM metrics ingested", "conversation_id": payload.conversation_id}
 

@@ -205,13 +205,20 @@ async def chat_stream(
 
                 yield {"event": "complete", "data": json.dumps({"model": model_spec, "message_id": message_id, "response_time_ms": response_time_ms})}
 
+        update_fields = {
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "title": request.message[:50],
+            "context_mode": request.context_mode
+        }
+        if request.global_context is not None:
+            update_fields["global_context"] = request.global_context
+        if request.model_roles is not None:
+            update_fields["model_roles"] = request.model_roles
+
         await db.conversations.update_one(
             {"id": conversation_id},
             {
-                "$set": {
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "title": request.message[:50]
-                },
+                "$set": update_fields,
                 "$setOnInsert": {
                     "id": conversation_id,
                     "user_id": get_user_id(current_user),

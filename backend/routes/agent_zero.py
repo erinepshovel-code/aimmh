@@ -81,18 +81,57 @@ async def ingest_to_agent_zero(
         raise HTTPException(status_code=503, detail="Agent Zero not configured")
 
     try:
+        conversation = await db.conversations.find_one(
+            {"id": request.conversation_id, "user_id": uid},
+            {"_id": 0}
+        )
+
+        messages = None
+        if conversation:
+            cursor = db.messages.find(
+                {"conversation_id": request.conversation_id, "user_id": uid},
+                {"_id": 0}
+            ).sort("timestamp", 1)
+            try:
+                messages = await cursor.to_list(length=None)
+            except TypeError:
+                messages = await cursor.to_list(length=2000)
+
+        if not messages and request.messages:
+            messages = request.messages
+
+        if not messages:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        global_context = request.global_context if request.global_context is not None else (conversation.get("global_context") if conversation else None)
+        model_roles = request.model_roles if request.model_roles is not None else (conversation.get("model_roles") if conversation else None)
+        context_mode = request.context_mode if request.context_mode is not None else (conversation.get("context_mode") if conversation else None)
+        title = request.title or (conversation.get("title") if conversation else "Conversation")
+
+        metadata = request.metadata or {}
+        if conversation:
+            metadata = {
+                **metadata,
+                "conversation_meta": {
+                    "title": conversation.get("title"),
+                    "created_at": conversation.get("created_at"),
+                    "updated_at": conversation.get("updated_at")
+                }
+            }
+
         edcm_payload = {
             "source": "multi-ai-hub",
             "conversation_id": request.conversation_id,
-            "title": request.title,
+            "title": title,
             "user_id": uid,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "messages": request.messages,
+            "messages": messages,
             "constraints": {
-                "global_context": request.global_context,
-                "model_roles": request.model_roles
+                "global_context": global_context,
+                "model_roles": model_roles,
+                "context_mode": context_mode
             },
-            "metadata": request.metadata or {}
+            "metadata": metadata
         }
 
         headers = {"Content-Type": "application/json"}

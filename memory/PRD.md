@@ -55,6 +55,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Synthesis, batch prompting, global context, role assignment
 - Sequential cascade orchestration with customizable order + context window (include last N responses)
 - EDCM ingest now captures full conversation transcript + context (global context, roles, context mode)
+- Rotated Emergent LLM key in backend env (operational update)
 - Feedback submission now supports JWT auth header (thumbs up/down fixed)
 - Auto-export toggle
 - Export to JSON/TXT/PDF

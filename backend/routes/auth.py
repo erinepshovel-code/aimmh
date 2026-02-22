@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Response as FastAPIResponse
 from datetime import datetime, timezone, timedelta
 import uuid
+import os
 import httpx
 import logging
 
@@ -65,10 +66,14 @@ async def process_google_session(request: Request, response: FastAPIResponse):
     if not session_id:
         raise HTTPException(status_code=400, detail="No session ID provided")
 
+    auth_service_url = os.environ.get("AUTH_SERVICE_URL")
+    if not auth_service_url:
+        raise HTTPException(status_code=500, detail="Auth service not configured")
+
     async with httpx.AsyncClient() as client:
         try:
             auth_response = await client.get(
-                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                f"{auth_service_url}/auth/v1/env/oauth/session-data",
                 headers={"X-Session-ID": session_id},
                 timeout=10.0
             )

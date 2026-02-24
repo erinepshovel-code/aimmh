@@ -56,6 +56,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Sequential cascade orchestration with customizable order + context window (include last N responses)
 - EDCM ingest now captures full conversation transcript + context (global context, roles, context mode)
 - Auth service URL moved to AUTH_SERVICE_URL env var for deployment safety
+- Universal key congruency check (live ping + missing key warnings in Settings + Chat banner)
 - Rotated Emergent LLM key in backend env (operational update)
 - Feedback submission now supports JWT auth header (thumbs up/down fixed)
 - Auto-export toggle

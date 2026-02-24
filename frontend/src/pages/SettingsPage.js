@@ -17,6 +17,45 @@ const UNIVERSAL_STATUS_TTL = 10 * 60 * 1000;
 // Configure axios to send cookies for authentication
 axios.defaults.withCredentials = true;
 
+const API_KEY_GUIDES = {
+  gpt: {
+    name: 'OpenAI GPT',
+    url: 'https://platform.openai.com/api-keys',
+    color: '#10A37F',
+    universal: true
+  },
+  claude: {
+    name: 'Anthropic Claude',
+    url: 'https://console.anthropic.com/settings/keys',
+    color: '#D97757',
+    universal: true
+  },
+  gemini: {
+    name: 'Google Gemini',
+    url: 'https://makersuite.google.com/app/apikey',
+    color: '#4285F4',
+    universal: true
+  },
+  grok: {
+    name: 'xAI Grok',
+    url: 'https://console.x.ai/',
+    color: '#FFFFFF',
+    universal: false
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    url: 'https://platform.deepseek.com/',
+    color: '#4D6BFE',
+    universal: false
+  },
+  perplexity: {
+    name: 'Perplexity',
+    url: 'https://www.perplexity.ai/settings/api',
+    color: '#22B8CF',
+    universal: false
+  }
+};
+
 const UNIVERSAL_STATUS_META = {
   valid: { label: 'Valid', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' },
   invalid: { label: 'Invalid', className: 'border-red-500/40 bg-red-500/10 text-red-200' },

@@ -504,6 +504,44 @@ export default function ChatPage() {
     return finalContents;
   };
 
+  const loadUniversalStatus = () => {
+    try {
+      const raw = sessionStorage.getItem(UNIVERSAL_STATUS_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        const checkedAt = cached?.checked_at ? new Date(cached.checked_at).getTime() : 0;
+        if (Date.now() - checkedAt < UNIVERSAL_STATUS_TTL) {
+          setUniversalStatus(cached);
+          return;
+        }
+      }
+    } catch {
+      // ignore and re-check
+    }
+    checkUniversalStatus();
+  };
+
+  const checkUniversalStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/keys/universal/status`);
+      const payload = { ...res.data, checked_at: new Date().toISOString() };
+      setUniversalStatus(payload);
+      sessionStorage.setItem(UNIVERSAL_STATUS_KEY, JSON.stringify(payload));
+    } catch (error) {
+      const payload = {
+        status: 'error',
+        message: error.response?.data?.detail || 'Universal key validation failed',
+        checked_at: new Date().toISOString()
+      };
+      setUniversalStatus(payload);
+      sessionStorage.setItem(UNIVERSAL_STATUS_KEY, JSON.stringify(payload));
+    }
+  };
+
+  useEffect(() => {
+    loadUniversalStatus();
+  }, []);
+
   const handleSynthesis = async () => {
     if (selectedMessages.length === 0) {
       toast.error('Please select at least one response');

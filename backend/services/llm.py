@@ -118,3 +118,48 @@ async def validate_universal_key(provider: str = "openai", model: str = "gpt-4o-
             "provider": provider,
             "model": model
         }
+
+
+async def stream_emergent_model(api_key: str, model: str, provider: str, messages: List[dict], conversation_id: str):
+    """Stream from Emergent-supported models (GPT, Claude, Gemini)"""
+    try:
+        user_messages = [msg for msg in messages if msg["role"] == "user"]
+        if not user_messages:
+            yield "[ERROR] No user messages found"
+            return
+
+        conversation_history = ""
+        if len(messages) > 1:
+            prev_messages = messages[:-1]
+            history_parts = []
+            for msg in prev_messages[-10:]:
+                if msg['role'] == 'user':
+                    history_parts.append(f"User: {msg['content']}")
+                elif msg['role'] == 'assistant':
+                    history_parts.append(f"Assistant: {msg['content']}")
+            if history_parts:
+                conversation_history = "\n".join(history_parts)
+
+        system_msg = "You are a helpful AI assistant."
+        if conversation_history:
+            system_msg = f"You are a helpful AI assistant. Continue this conversation naturally.\n\nPrevious conversation:\n{conversation_history}"
+
+        session_id = f"{conversation_id}-{model}" if conversation_id else str(uuid.uuid4())
+
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message=system_msg
+        ).with_model(provider, model)
+
+        user_msg = UserMessage(text=user_messages[-1]["content"])
+        response = await chat.send_message(user_msg)
+
+        words = response.split()
+        for word in words:
+            yield word + " "
+            await asyncio.sleep(0.05)
+
+    except Exception as e:
+        logger.error(f"Error streaming from {provider}/{model}: {str(e)}")
+        yield f"[ERROR] {str(e)}"

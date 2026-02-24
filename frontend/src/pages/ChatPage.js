@@ -1603,6 +1603,25 @@ export default function ChatPage() {
         </Tabs>
       </div>
 
+      {universalStatus && ['invalid', 'missing', 'error'].includes(universalStatus.status) && (
+        <div className="px-2 pb-2" data-testid="universal-key-warning">
+          <div className="flex items-center justify-between gap-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-[10px] text-red-200">
+            <span>
+              Universal key {universalStatus.status === 'invalid' ? 'invalid' : universalStatus.status === 'missing' ? 'missing' : 'check failed'}. Update in Settings.
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => navigate('/settings')}
+              data-testid="universal-key-settings-btn"
+            >
+              Settings
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex">
         {/* Prompt History Sidebar - Hidden by default on mobile */}

@@ -23,6 +23,8 @@ import { Slider } from '../components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const UNIVERSAL_STATUS_KEY = 'universal_key_status';
+const UNIVERSAL_STATUS_TTL = 10 * 60 * 1000;
 
 // Configure axios to send cookies
 axios.defaults.withCredentials = true;
@@ -234,6 +236,7 @@ export default function ChatPage() {
   const [synthesisModels, setSynthesisModels] = useState([]);
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
   const [showRolesDialog, setShowRolesDialog] = useState(false);
+  const [universalStatus, setUniversalStatus] = useState(null);
 
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   

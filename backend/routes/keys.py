@@ -52,3 +52,8 @@ async def get_api_keys(current_user: dict = Depends(get_current_user)):
             masked_keys[provider] = None
 
     return APIKeysResponse(**masked_keys)
+
+
+@router.get("/keys/universal/status")
+async def get_universal_key_status(current_user: dict = Depends(get_current_user)):
+    return await validate_universal_key()

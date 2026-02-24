@@ -3,7 +3,7 @@ import logging
 
 from db import db
 from models.chat import APIKeyUpdate, APIKeysResponse
-from services.auth import get_current_user, get_user_id
+from services.llm import validate_universal_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["keys"])

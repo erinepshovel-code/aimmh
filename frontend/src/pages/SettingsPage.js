@@ -229,7 +229,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Universal Key Info */}
-        <Card className="mb-6 border-primary/20 bg-card">
+        <Card className="mb-6 border-primary/20 bg-card" data-testid="universal-key-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Key className="h-5 w-5" />
@@ -239,6 +239,39 @@ export default function SettingsPage() {
               Use the Emergent universal key for GPT, Claude, and Gemini models without providing your own API keys.
             </CardDescription>
           </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <div className="text-sm font-medium" data-testid="universal-key-status-text">
+                  {universalStatus ? (UNIVERSAL_STATUS_META[universalStatus.status]?.label || 'Unknown') : 'Not checked'}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={checkUniversalStatus}
+                disabled={checkingUniversal}
+                data-testid="universal-key-check-btn"
+              >
+                {checkingUniversal ? 'Checking…' : 'Check key'}
+              </Button>
+            </div>
+            {universalStatus && (
+              <div
+                className={`rounded border p-2 text-xs ${UNIVERSAL_STATUS_META[universalStatus.status]?.className || 'border-border'}`}
+                data-testid="universal-key-status-banner"
+              >
+                {universalStatus.status === 'valid' && 'Universal key validated successfully.'}
+                {universalStatus.status === 'missing' && 'Universal key missing. Update EMERGENT_LLM_KEY in deployment secrets.'}
+                {universalStatus.status === 'invalid' && 'Universal key invalid. Reset EMERGENT_LLM_KEY and redeploy.'}
+                {universalStatus.status === 'error' && (universalStatus.message || 'Universal key check failed. Try again.')}
+              </div>
+            )}
+            <div className="text-[10px] text-muted-foreground" data-testid="universal-key-help-text">
+              Validation runs a lightweight model ping to confirm the universal key is active.
+            </div>
+          </CardContent>
         </Card>
 
         {/* Agent Zero Integration */}

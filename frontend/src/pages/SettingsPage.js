@@ -11,6 +11,8 @@ import axios from 'axios';
 import A0Settings from '../components/A0Settings';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const UNIVERSAL_STATUS_KEY = 'universal_key_status';
+const UNIVERSAL_STATUS_TTL = 10 * 60 * 1000;
 
 // Configure axios to send cookies for authentication
 axios.defaults.withCredentials = true;
@@ -61,9 +63,12 @@ export default function SettingsPage() {
   const [editingKey, setEditingKey] = useState(null);
   const [keyInput, setKeyInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [universalStatus, setUniversalStatus] = useState(null);
+  const [checkingUniversal, setCheckingUniversal] = useState(false);
 
   useEffect(() => {
     loadKeys();
+    loadUniversalStatus();
   }, []);
 
   const loadKeys = async () => {

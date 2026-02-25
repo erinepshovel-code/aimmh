@@ -58,6 +58,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Auth service URL moved to AUTH_SERVICE_URL env var for deployment safety
 - Universal key congruency check (live ping + missing key warnings in Settings + Chat banner)
 - Rotated Emergent LLM key in backend env (operational update)
+- Re-keyed EMERGENT_LLM_KEY in backend env and validated universal status (Feb 25, 2026)
 - Feedback submission now supports JWT auth header (thumbs up/down fixed)
 - Auto-export toggle
 - Export to JSON/TXT/PDF

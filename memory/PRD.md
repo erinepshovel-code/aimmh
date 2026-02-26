@@ -60,6 +60,13 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Rotated Emergent LLM key in backend env (operational update)
 - Re-keyed EMERGENT_LLM_KEY in backend env and validated universal status (Feb 25, 2026)
 - Feedback submission now supports JWT auth header (thumbs up/down fixed)
+- Per-model header customization button opens model-specific prompt tuning dialog (role/modifier/verbosity/alignment)
+- Endless carousel behavior via looped navigation + swipe gestures on model panel container
+- Markdown/GFM response rendering enabled (lists, tables, links, code blocks)
+- File/image attachment composer with routing controls (send to all models or selected models)
+- Backend attachment-aware chat payload handling (targeted attachments injected per model prompt)
+- Agent Zero non-UI API surface added: options, conversations list, transcript retrieval, non-UI chat stream alias
+- Iteration 4 regression/testing pass completed (backend + frontend feature verification)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -78,15 +85,14 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 
 ### P1
 - Implement shared-room parallel modes (parallel-all + parallel-paired response sharing)
-- Verify Enter key = newline, Ctrl+Enter = send
-- Verify session persistence across reloads
-- Verify export functionality
-- Verify multi-turn context retention
+- Broader regression pass across exports/session/multi-turn retention on production-like data volume
+- Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 
 ### P2
 - Integrate Grok/DeepSeek/Perplexity APIs (currently placeholders)
 - Google Cloud A0 deployment (currently stub)
 - Audio output improvements
+- Thumbs feedback refinements (downgraded priority by user)
 
 ## MOCKED
 - EDCM metrics are stubs — they receive data from Agent Zero but no real A0 is running on this server

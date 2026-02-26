@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sse_starlette.sse import EventSourceResponse
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Any
 import json
 import uuid
 import time
@@ -16,6 +16,64 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
 
 
+def _normalize_attachments(attachments: List[Dict[str, Any]] | None) -> List[Dict[str, Any]]:
+    normalized = []
+    for item in attachments or []:
+        if not isinstance(item, dict):
+            continue
+
+        target_mode = item.get("target_mode", "all")
+        if target_mode not in {"all", "selected"}:
+            target_mode = "all"
+
+        target_models = item.get("target_models") or []
+        if not isinstance(target_models, list):
+            target_models = []
+
+        normalized.append({
+            "id": item.get("id") or str(uuid.uuid4()),
+            "name": item.get("name") or "attachment",
+            "mime_type": item.get("mime_type") or "application/octet-stream",
+            "kind": item.get("kind") or "file",
+            "size": item.get("size") or 0,
+            "content": (item.get("content") or "")[:12000],
+            "target_mode": target_mode,
+            "target_models": [m for m in target_models if isinstance(m, str)],
+        })
+
+    return normalized
+
+
+def _attachment_matches_model(attachment: Dict[str, Any], model: str) -> bool:
+    if attachment.get("target_mode") == "all":
+        return True
+    return model in (attachment.get("target_models") or [])
+
+
+def _build_attachment_context(attachments: List[Dict[str, Any]], model: str) -> str:
+    chunks = []
+    for att in attachments:
+        if not _attachment_matches_model(att, model):
+            continue
+
+        name = att.get("name", "attachment")
+        kind = att.get("kind", "file")
+        mime_type = att.get("mime_type", "application/octet-stream")
+        size = att.get("size", 0)
+        content = (att.get("content") or "").strip()
+        snippet = content[:3000]
+
+        if snippet:
+            chunks.append(
+                f"- {name} ({kind}, {mime_type}, {size} bytes)\n"
+                f"  Content excerpt:\n{snippet}"
+            )
+        else:
+            chunks.append(f"- {name} ({kind}, {mime_type}, {size} bytes)")
+
+    return "\n\n".join(chunks)
+
+
 @router.post("/chat/stream")
 async def chat_stream(
     request: ChatRequest,
@@ -25,6 +83,7 @@ async def chat_stream(
 
     async def event_generator():
         conversation_id = request.conversation_id or str(uuid.uuid4())
+        normalized_attachments = _normalize_attachments(request.attachments)
 
         # Persist the *base* user message once (per prompt) unless caller disables it.
         if request.persist_user_message:
@@ -38,6 +97,8 @@ async def chat_stream(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "user_id": get_user_id(current_user)
             }
+            if normalized_attachments:
+                user_msg["attachments"] = normalized_attachments
             await db.messages.insert_one(user_msg)
 
         # Pull a bit more history; we filter per-model later depending on context_mode.
@@ -57,6 +118,9 @@ async def chat_stream(
 
                 # Build per-model context (compartmented vs shared-room)
                 per_model_prompt = (request.per_model_messages or {}).get(model_spec) or request.message
+                attachment_context = _build_attachment_context(normalized_attachments, model_spec)
+                if attachment_context:
+                    per_model_prompt = f"{per_model_prompt}\n\n[ATTACHMENTS]\n{attachment_context}"
 
                 messages_context = []
                 # include user messages always; assistant messages depend on context_mode

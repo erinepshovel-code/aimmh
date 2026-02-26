@@ -61,6 +61,65 @@ const getModelType = (model) => {
   return 'unknown';
 };
 
+const MAX_ATTACHMENT_CHARS = 12000;
+
+const formatBytes = (bytes = 0) => {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / (1024 ** index);
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+};
+
+const isTextLikeFile = (file) => {
+  if (file.type.startsWith('text/')) return true;
+  return ['application/json', 'application/xml', 'application/javascript', 'application/x-python-code'].includes(file.type)
+    || /\.(txt|md|csv|json|xml|js|jsx|ts|tsx|py|html|css)$/i.test(file.name);
+};
+
+const readFileAsText = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = reject;
+  reader.readAsText(file);
+});
+
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
+const attachmentTargetsModel = (attachment, model) => {
+  if (attachment.targetMode === 'all') return true;
+  return (attachment.targetModels || []).includes(model);
+};
+
+const buildAttachmentPromptBlock = (attachments, model) => {
+  const targeted = attachments.filter(att => attachmentTargetsModel(att, model));
+  if (targeted.length === 0) return '';
+
+  const blocks = targeted.map((att) => {
+    const header = `- ${att.name} (${att.kind}, ${att.mimeType || 'unknown'}, ${formatBytes(att.size)})`;
+    if (!att.content) return header;
+    return `${header}\n  Content excerpt:\n${att.content.slice(0, 3000)}`;
+  });
+
+  return `[ATTACHMENTS]\n${blocks.join('\n\n')}`;
+};
+
+const normalizeAttachmentForTransport = (attachment) => ({
+  id: attachment.id,
+  name: attachment.name,
+  mime_type: attachment.mimeType,
+  kind: attachment.kind,
+  size: attachment.size,
+  content: (attachment.content || '').slice(0, MAX_ATTACHMENT_CHARS),
+  target_mode: attachment.targetMode,
+  target_models: attachment.targetModels || []
+});
+
 const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread }) => {
   const scrollRef = useRef(null);
   const color = getModelColor(model);

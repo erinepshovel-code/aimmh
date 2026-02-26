@@ -584,6 +584,13 @@ export default function ChatPage() {
     const currentConvId = conversationIdOverride || conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     if (conversationId !== currentConvId) {
       setConversationId(currentConvId);
+      try {
+        const raw = localStorage.getItem('multi_ai_hub_chat');
+        const parsed = raw ? JSON.parse(raw) : {};
+        localStorage.setItem('multi_ai_hub_chat', JSON.stringify({ ...parsed, conversationId: currentConvId }));
+      } catch {
+        // storage write best-effort only
+      }
     }
 
     // Build message with context and roles for each model

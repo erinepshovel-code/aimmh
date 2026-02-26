@@ -120,7 +120,7 @@ const normalizeAttachmentForTransport = (attachment) => ({
   target_models: attachment.targetModels || []
 });
 
-const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread }) => {
+const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread, onOpenPromptSettings }) => {
   const scrollRef = useRef(null);
   const color = getModelColor(model);
   const modelType = getModelType(model);
@@ -147,15 +147,27 @@ const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, 
         >
           {model}
         </Badge>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onTogglePause}
-          className="h-7 w-7 p-0"
-          data-testid={`pause-btn-${model}`}
-        >
-          {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onOpenPromptSettings(model)}
+            className="h-7 w-7 p-0"
+            title="Customize this model"
+            data-testid={`model-prompt-settings-btn-${model}`}
+          >
+            <SlidersHorizontal className="h-3 w-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onTogglePause}
+            className="h-7 w-7 p-0"
+            data-testid={`pause-btn-${model}`}
+          >
+            {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -185,8 +197,31 @@ const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, 
                           #{msgIndex}
                         </Badge>
                       </div>
-                      <div className="prose prose-invert max-w-none text-sm leading-relaxed">
-                        {msg.content}
+                      <div className="prose prose-invert max-w-none text-sm leading-relaxed break-words" data-testid={`message-content-${msg.id || idx}`}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({ children }) => <p className="my-2 leading-relaxed">{children}</p>,
+                            code: ({ inline, className, children, ...props }) =>
+                              inline ? (
+                                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs" {...props}>{children}</code>
+                              ) : (
+                                <pre className="rounded-md bg-black/40 p-3 overflow-x-auto my-2">
+                                  <code className={`font-mono text-xs ${className || ''}`} {...props}>{children}</code>
+                                </pre>
+                              ),
+                            table: ({ children }) => <table className="w-full border-collapse text-xs my-2">{children}</table>,
+                            th: ({ children }) => <th className="border border-border px-2 py-1 text-left">{children}</th>,
+                            td: ({ children }) => <td className="border border-border px-2 py-1 align-top">{children}</td>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 my-2">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 my-2">{children}</ol>,
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noreferrer" className="text-cyan-300 underline break-all">{children}</a>
+                            )
+                          }}
+                        >
+                          {msg.content || ''}
+                        </ReactMarkdown>
                         {msg.streaming && <span className="streaming-cursor" />}
                       </div>
                     </div>

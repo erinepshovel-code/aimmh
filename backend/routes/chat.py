@@ -179,6 +179,18 @@ async def chat_stream(
                 }
 
                 full_response = ""
+                await db.messages.insert_one({
+                    "id": message_id,
+                    "conversation_id": conversation_id,
+                    "role": "assistant",
+                    "content": "",
+                    "model": model_spec,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "user_id": get_user_id(current_user),
+                    "feedback": None,
+                    "response_time_ms": None,
+                    "streaming": True
+                })
 
                 if "gpt" in model_lower or model_lower.startswith("o"):
                     api_key = get_api_key(current_user, "gpt")
@@ -190,6 +202,10 @@ async def chat_stream(
                         async for chunk in stream_emergent_model(api_key, model_spec, "openai", messages_context, conversation_id):
                             if chunk:
                                 full_response += chunk
+                                await db.messages.update_one(
+                                    {"id": message_id, "user_id": get_user_id(current_user)},
+                                    {"$set": {"content": full_response, "streaming": True}}
+                                )
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 elif "claude" in model_lower:
@@ -202,6 +218,10 @@ async def chat_stream(
                         async for chunk in stream_emergent_model(api_key, model_spec, "anthropic", messages_context, conversation_id):
                             if chunk:
                                 full_response += chunk
+                                await db.messages.update_one(
+                                    {"id": message_id, "user_id": get_user_id(current_user)},
+                                    {"$set": {"content": full_response, "streaming": True}}
+                                )
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 elif "gemini" in model_lower:
@@ -214,6 +234,10 @@ async def chat_stream(
                         async for chunk in stream_emergent_model(api_key, model_spec, "gemini", messages_context, conversation_id):
                             if chunk:
                                 full_response += chunk
+                                await db.messages.update_one(
+                                    {"id": message_id, "user_id": get_user_id(current_user)},
+                                    {"$set": {"content": full_response, "streaming": True}}
+                                )
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 elif "grok" in model_lower:
@@ -226,6 +250,10 @@ async def chat_stream(
                         async for chunk in stream_openai_compatible("https://api.x.ai/v1", api_key, model_spec, messages_context):
                             if chunk:
                                 full_response += chunk
+                                await db.messages.update_one(
+                                    {"id": message_id, "user_id": get_user_id(current_user)},
+                                    {"$set": {"content": full_response, "streaming": True}}
+                                )
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 elif "deepseek" in model_lower:
@@ -238,6 +266,10 @@ async def chat_stream(
                         async for chunk in stream_openai_compatible("https://api.deepseek.com", api_key, model_spec, messages_context):
                             if chunk:
                                 full_response += chunk
+                                await db.messages.update_one(
+                                    {"id": message_id, "user_id": get_user_id(current_user)},
+                                    {"$set": {"content": full_response, "streaming": True}}
+                                )
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 elif "perplexity" in model_lower or "sonar" in model_lower:
@@ -250,21 +282,24 @@ async def chat_stream(
                         async for chunk in stream_openai_compatible("https://api.perplexity.ai", api_key, model_spec, messages_context):
                             if chunk:
                                 full_response += chunk
+                                await db.messages.update_one(
+                                    {"id": message_id, "user_id": get_user_id(current_user)},
+                                    {"$set": {"content": full_response, "streaming": True}}
+                                )
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 response_time_ms = int((time.time() - t_start) * 1000)
-                assistant_msg = {
-                    "id": message_id,
-                    "conversation_id": conversation_id,
-                    "role": "assistant",
-                    "content": full_response,
-                    "model": model_spec,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "user_id": get_user_id(current_user),
-                    "feedback": None,
-                    "response_time_ms": response_time_ms
-                }
-                await db.messages.insert_one(assistant_msg)
+                await db.messages.update_one(
+                    {"id": message_id, "user_id": get_user_id(current_user)},
+                    {
+                        "$set": {
+                            "content": full_response,
+                            "response_time_ms": response_time_ms,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "streaming": False
+                        }
+                    }
+                )
 
                 yield {"event": "complete", "data": json.dumps({"model": model_spec, "message_id": message_id, "response_time_ms": response_time_ms})}
 
@@ -273,18 +308,26 @@ async def chat_stream(
                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": f"[ERROR] {str(e)}"})}
 
                 response_time_ms = int((time.time() - t_start) * 1000)
-                assistant_msg = {
-                    "id": message_id,
-                    "conversation_id": conversation_id,
-                    "role": "assistant",
-                    "content": f"[ERROR] {str(e)}",
-                    "model": model_spec,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "user_id": get_user_id(current_user),
-                    "feedback": None,
-                    "response_time_ms": response_time_ms
-                }
-                await db.messages.insert_one(assistant_msg)
+                await db.messages.update_one(
+                    {"id": message_id, "user_id": get_user_id(current_user)},
+                    {
+                        "$set": {
+                            "conversation_id": conversation_id,
+                            "role": "assistant",
+                            "content": f"[ERROR] {str(e)}",
+                            "model": model_spec,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "feedback": None,
+                            "response_time_ms": response_time_ms,
+                            "streaming": False
+                        },
+                        "$setOnInsert": {
+                            "id": message_id,
+                            "user_id": get_user_id(current_user)
+                        }
+                    },
+                    upsert=True
+                )
 
                 yield {"event": "complete", "data": json.dumps({"model": model_spec, "message_id": message_id, "response_time_ms": response_time_ms})}
 

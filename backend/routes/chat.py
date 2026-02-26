@@ -74,6 +74,19 @@ def _build_attachment_context(attachments: List[Dict[str, Any]], model: str) -> 
     return "\n\n".join(chunks)
 
 
+def _normalize_shared_pairs(shared_pairs: Dict[str, List[str]] | None, models: List[str]) -> Dict[str, List[str]]:
+    normalized: Dict[str, List[str]] = {model: [] for model in models}
+    if not isinstance(shared_pairs, dict):
+        return normalized
+
+    valid_models = set(models)
+    for model, peers in shared_pairs.items():
+        if model not in valid_models or not isinstance(peers, list):
+            continue
+        normalized[model] = [peer for peer in peers if isinstance(peer, str) and peer in valid_models and peer != model]
+    return normalized
+
+
 @router.post("/chat/stream")
 async def chat_stream(
     request: ChatRequest,
@@ -84,6 +97,7 @@ async def chat_stream(
     async def event_generator():
         conversation_id = request.conversation_id or str(uuid.uuid4())
         normalized_attachments = _normalize_attachments(request.attachments)
+        shared_pairs = _normalize_shared_pairs(request.shared_pairs, request.models)
 
         # Persist the *base* user message once (per prompt) unless caller disables it.
         if request.persist_user_message:
@@ -129,6 +143,11 @@ async def chat_stream(
                         if request.context_mode == "compartmented" and msg.get("model") != model_spec:
                             continue
                         if request.context_mode == "shared":
+                            if request.shared_room_mode == "parallel_paired":
+                                allowed_models = set(shared_pairs.get(model_spec, []))
+                                allowed_models.add(model_spec)
+                                if msg.get("model") not in allowed_models:
+                                    continue
                             messages_context.append({
                                 "role": "assistant",
                                 "content": f"[{msg.get('model', 'unknown')}] {msg.get('content', '')}"
@@ -272,8 +291,11 @@ async def chat_stream(
         update_fields = {
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "title": request.message[:50],
-            "context_mode": request.context_mode
+            "context_mode": request.context_mode,
+            "shared_room_mode": request.shared_room_mode
         }
+        if request.shared_pairs is not None:
+            update_fields["shared_pairs"] = shared_pairs
         if request.global_context is not None:
             update_fields["global_context"] = request.global_context
         if request.model_roles is not None:

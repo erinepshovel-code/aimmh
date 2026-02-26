@@ -2110,6 +2110,189 @@ export default function ChatPage() {
             </div>
           </div>
         )}
+
+      <Dialog
+        open={modelPromptDialog.open}
+        onOpenChange={(open) => setModelPromptDialog(prev => ({ ...prev, open }))}
+      >
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto" data-testid="model-prompt-customization-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-base">Model Prompt Customization</DialogTitle>
+            <DialogDescription>
+              Fine-tune prompt behavior for <span className="font-mono">{modelPromptDialog.model || 'model'}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Role</Label>
+              <Select
+                value={activeModelSettings.role || 'none'}
+                onValueChange={(value) => updateModelSetting(modelPromptDialog.model, { role: value })}
+              >
+                <SelectTrigger className="h-8 text-xs" data-testid="model-prompt-role-select">
+                  <SelectValue placeholder="Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="advocate">Advocate</SelectItem>
+                  <SelectItem value="adversarial">Adversarial</SelectItem>
+                  <SelectItem value="skeptic">Skeptic</SelectItem>
+                  <SelectItem value="neutral">Neutral</SelectItem>
+                  <SelectItem value="optimist">Optimist</SelectItem>
+                  <SelectItem value="pessimist">Pessimist</SelectItem>
+                  <SelectItem value="technical">Technical</SelectItem>
+                  <SelectItem value="creative">Creative</SelectItem>
+                  <SelectItem value="socratic">Socratic</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {activeModelSettings.role === 'custom' && (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Custom role text</Label>
+                <Textarea
+                  value={activeModelSettings.customRoleText || ''}
+                  onChange={(e) => updateModelSetting(modelPromptDialog.model, { customRoleText: e.target.value })}
+                  rows={2}
+                  className="text-xs"
+                  data-testid="model-prompt-custom-role-textarea"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Prompt modifier</Label>
+              <Input
+                value={activeModelSettings.promptModifier || ''}
+                onChange={(e) => updateModelSetting(modelPromptDialog.model, { promptModifier: e.target.value })}
+                className="h-8 text-xs"
+                placeholder="e.g., prioritize concise bullets"
+                data-testid="model-prompt-modifier-input"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Verbosity: {activeModelSettings.verbosity ?? 5}/10</Label>
+              <Slider
+                value={[activeModelSettings.verbosity ?? 5]}
+                min={1}
+                max={10}
+                step={1}
+                onValueChange={(vals) => updateModelSetting(modelPromptDialog.model, { verbosity: vals?.[0] ?? 5 })}
+                data-testid="model-prompt-verbosity-slider"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Alignment</Label>
+              <Select
+                value={activeModelSettings.alignment || 'true_neutral'}
+                onValueChange={(value) => updateModelSetting(modelPromptDialog.model, { alignment: value })}
+              >
+                <SelectTrigger className="h-8 text-xs" data-testid="model-prompt-alignment-select">
+                  <SelectValue placeholder="Alignment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lawful_good">Lawful Good</SelectItem>
+                  <SelectItem value="neutral_good">Neutral Good</SelectItem>
+                  <SelectItem value="true_neutral">True Neutral</SelectItem>
+                  <SelectItem value="chaotic_neutral">Chaotic Neutral</SelectItem>
+                  <SelectItem value="neutral_evil">Neutral Evil</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setModelPromptDialog({ open: false, model: '' })}
+              data-testid="model-prompt-dialog-close-btn"
+            >
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={attachmentDialogOpen} onOpenChange={setAttachmentDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto" data-testid="attachment-routing-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-base">Attachment Routing</DialogTitle>
+            <DialogDescription>
+              Choose whether each file/image goes to all selected models or specific ones.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {attachments.length === 0 ? (
+              <div className="text-sm text-muted-foreground" data-testid="attachment-empty-state">
+                No attachments selected.
+              </div>
+            ) : (
+              attachments.map(att => (
+                <div key={att.id} className="rounded border border-border bg-muted/20 p-2 space-y-2" data-testid={`attachment-routing-item-${att.id}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate">{att.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{att.mimeType || 'unknown'} • {formatBytes(att.size)}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={() => removeAttachment(att.id)}
+                      data-testid={`attachment-routing-remove-${att.id}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  <Select value={att.targetMode} onValueChange={(value) => updateAttachmentTargetMode(att.id, value)}>
+                    <SelectTrigger className="h-8 text-xs" data-testid={`attachment-target-mode-${att.id}`}>
+                      <SelectValue placeholder="Target mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Send to all selected models</SelectItem>
+                      <SelectItem value="selected">Send only to chosen models</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {att.targetMode === 'selected' && (
+                    <div className="space-y-1" data-testid={`attachment-model-selector-${att.id}`}>
+                      {selectedModels.map(model => (
+                        <label key={`${att.id}-${model}`} className="flex items-center gap-2 text-xs">
+                          <Checkbox
+                            checked={att.targetModels.includes(model)}
+                            onCheckedChange={() => toggleAttachmentModel(att.id, model)}
+                            data-testid={`attachment-target-model-${att.id}-${model}`}
+                          />
+                          <span className="truncate">{model}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setAttachments([])}
+                disabled={attachments.length === 0}
+                data-testid="attachment-clear-all-btn"
+              >
+                Clear all
+              </Button>
+              <Button onClick={() => setAttachmentDialogOpen(false)} data-testid="attachment-dialog-done-btn">
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       </div>
 
       {/* Synthesis Dialog */}

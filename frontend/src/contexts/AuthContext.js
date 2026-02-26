@@ -96,6 +96,7 @@ export const AuthProvider = ({ children }) => {
     }
     
     localStorage.removeItem('token');
+    localStorage.removeItem('multi_ai_hub_chat');
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);

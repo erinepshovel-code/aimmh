@@ -6,8 +6,10 @@ import logging
 
 from db import db
 from models.agent_zero import A0IngestRequest, A0RouteRequest
+from models.chat import ChatRequest
 from models.edcm import A0Config
 from services.auth import get_current_user, get_user_id
+from routes.chat import chat_stream
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/a0", tags=["agent_zero"])
@@ -213,3 +215,89 @@ async def check_agent_zero_health(current_user: dict = Depends(get_current_user)
             "a0_url": conn["url"],
             "error": str(e)
         }
+
+
+@router.get("/non-ui/options")
+async def get_non_ui_options(current_user: dict = Depends(get_current_user)):
+    """Expose all prompt/response options for Agent Zero non-UI orchestration."""
+    return {
+        "input_options": {
+            "context_mode": ["compartmented", "shared"],
+            "supports_global_context": True,
+            "supports_model_roles": True,
+            "supports_per_model_messages": True,
+            "supports_attachments": True,
+            "supports_persist_user_message_toggle": True,
+            "supports_history_limit": True,
+            "attachment_target_modes": ["all", "selected"]
+        },
+        "output_options": {
+            "streaming": "SSE",
+            "conversation_transcript": True,
+            "response_time_ms": True,
+            "edcm_dashboard": True,
+            "export_formats": ["json", "txt", "pdf"]
+        },
+        "available_models": {
+            "gpt": ["gpt-5.2", "gpt-5.1", "gpt-4o", "o3", "o3-pro", "o4-mini"],
+            "claude": ["claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101", "claude-haiku-4-5-20251001", "claude-4-sonnet-20250514"],
+            "gemini": ["gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-2.5-pro", "gemini-2.5-flash"],
+            "grok": ["grok-3", "grok-4", "grok-2-latest"],
+            "deepseek": ["deepseek-chat", "deepseek-reasoner"],
+            "perplexity": ["sonar-pro", "sonar-deep-research"]
+        },
+        "non_ui_endpoints": {
+            "chat_stream": "/api/a0/non-ui/chat/stream",
+            "options": "/api/a0/non-ui/options",
+            "transcript": "/api/a0/non-ui/transcript/{conversation_id}",
+            "conversations": "/api/a0/non-ui/conversations"
+        }
+    }
+
+
+@router.post("/non-ui/chat/stream")
+async def a0_non_ui_chat_stream(
+    request: ChatRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Non-UI alias for full chat streaming, accessible by Agent Zero."""
+    return await chat_stream(request=request, current_user=current_user)
+
+
+@router.get("/non-ui/conversations")
+async def get_non_ui_conversations(current_user: dict = Depends(get_current_user)):
+    """List user conversations for Agent Zero programmatic access."""
+    uid = get_user_id(current_user)
+    conversations = await db.conversations.find(
+        {"user_id": uid},
+        {"_id": 0}
+    ).sort("updated_at", -1).limit(100).to_list(100)
+
+    return {"conversations": conversations}
+
+
+@router.get("/non-ui/transcript/{conversation_id}")
+async def get_non_ui_transcript(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Return full transcript and metadata for Agent Zero non-UI ingestion."""
+    uid = get_user_id(current_user)
+
+    conversation = await db.conversations.find_one(
+        {"id": conversation_id, "user_id": uid},
+        {"_id": 0}
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    messages = await db.messages.find(
+        {"conversation_id": conversation_id, "user_id": uid},
+        {"_id": 0}
+    ).sort("timestamp", 1).to_list(5000)
+
+    return {
+        "conversation": conversation,
+        "messages": messages,
+        "message_count": len(messages)
+    }

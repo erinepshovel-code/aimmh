@@ -33,6 +33,8 @@ class ChatRequest(BaseModel):
     persist_user_message: bool = True
     # Optional: limit number of history messages pulled for context
     history_limit: Optional[int] = Field(default=None, ge=0)
+    # Optional file/image attachments with targeting controls
+    attachments: Optional[List[Dict[str, Any]]] = None
 
 
 class MessageFeedback(BaseModel):

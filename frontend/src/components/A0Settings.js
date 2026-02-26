@@ -146,7 +146,7 @@ export default function A0Settings() {
           </Badge>
         </CardTitle>
         <CardDescription className="text-xs">
-          Manual entry per session &middot; {hasSaved ? 'Saved config loaded' : 'Not saved'}
+          Manual entry per session &middot; {hasSaved ? 'Saved config loaded' : 'Not saved'} &middot; Non-UI I/O API enabled
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 space-y-4">

@@ -11,7 +11,7 @@ export const useChat = () => {
 
 function loadFromStorage() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -95,6 +95,7 @@ export const ChatProvider = ({ children }) => {
 
 
   const [contextMode, setContextMode] = useState(saved?.contextMode || 'compartmented');
+  const [sharedRoomMode, setSharedRoomMode] = useState(saved?.sharedRoomMode || 'parallel_all');
 
   const [cascadeConfig, setCascadeConfig] = useState(
     buildDefaultCascadeConfig(saved?.selectedModels || ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview'], saved?.cascadeConfig)
@@ -129,14 +130,14 @@ export const ChatProvider = ({ children }) => {
       conversationId, selectedMessages, pausedModels,
       promptHistory, messageIndexMap, nextIndex,
       globalContext, autoExport, modelRoles,
-      contextMode,
+      contextMode, sharedRoomMode,
       cascadeConfig, cascadeRunning, cascadeProgress,
     };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [activeTopTab, selectedModels, visibleModelIndex, input, messages, conversationId,
       selectedMessages, pausedModels, promptHistory, messageIndexMap,
       nextIndex, globalContext, autoExport, modelRoles,
-      contextMode,
+      contextMode, sharedRoomMode,
       cascadeConfig, cascadeRunning, cascadeProgress]);
 
   const resetChat = useCallback(() => {
@@ -148,7 +149,7 @@ export const ChatProvider = ({ children }) => {
     setNextIndex(1);
     setCascadeRunning(false);
     setCascadeProgress({ round: 0, model: '', turn: 0, totalTurns: 0 });
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   return (
@@ -170,6 +171,7 @@ export const ChatProvider = ({ children }) => {
       autoExport, setAutoExport,
       modelRoles, setModelRoles,
       contextMode, setContextMode,
+      sharedRoomMode, setSharedRoomMode,
       cascadeConfig, setCascadeConfig,
       cascadeRunning, setCascadeRunning,
       cascadeProgress, setCascadeProgress,

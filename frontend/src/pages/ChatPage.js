@@ -337,6 +337,7 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState([]);
   const [modelPromptDialog, setModelPromptDialog] = useState({ open: false, model: '' });
   const fileInputRef = useRef(null);
+  const swipeStartXRef = useRef(null);
 
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   

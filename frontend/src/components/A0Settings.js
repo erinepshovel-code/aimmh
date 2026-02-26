@@ -308,10 +308,13 @@ export default function A0Settings() {
 
         {/* Endpoint Connection Info */}
         <div className="border border-border rounded-lg overflow-hidden">
-          <button
+          <div
             onClick={() => setShowEndpoints(!showEndpoints)}
-            className="w-full flex items-center justify-between p-3 text-xs font-medium hover:bg-muted/30 transition-colors"
+            className="w-full flex items-center justify-between p-3 text-xs font-medium hover:bg-muted/30 transition-colors cursor-pointer"
             data-testid="a0-endpoints-toggle"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowEndpoints(!showEndpoints); }}
           >
             <span>Endpoint Connection Info</span>
             <div className="flex items-center gap-2">
@@ -326,7 +329,7 @@ export default function A0Settings() {
               </Button>
               {showEndpoints ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </div>
-          </button>
+          </div>
 
           {showEndpoints && (
             <div className="p-3 pt-0 space-y-3">

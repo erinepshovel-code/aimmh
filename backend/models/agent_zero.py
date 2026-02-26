@@ -9,6 +9,8 @@ class A0IngestRequest(BaseModel):
     global_context: Optional[str] = None
     model_roles: Optional[Dict[str, str]] = None
     context_mode: Optional[str] = None
+    shared_room_mode: Optional[str] = None
+    shared_pairs: Optional[Dict[str, List[str]]] = None
     metadata: Optional[Dict[str, Any]] = None
 
 

@@ -1896,7 +1896,12 @@ export default function ChatPage() {
         )}
 
         {/* Response Panels with Carousel */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div
+          className="flex-1 overflow-hidden flex flex-col"
+          onTouchStart={handleSwipeStart}
+          onTouchEnd={handleSwipeEnd}
+          data-testid="model-carousel-container"
+        >
           {selectedModels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-muted-foreground">
               Please select at least one AI model
@@ -1914,7 +1919,7 @@ export default function ChatPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-muted-foreground" data-testid="carousel-position-indicator">
                     Viewing {visibleModelIndex + 1}-{Math.min(visibleModelIndex + 2, selectedModels.length)} of {selectedModels.length}
                   </span>
                   <Button

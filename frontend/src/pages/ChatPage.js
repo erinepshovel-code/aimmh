@@ -1159,7 +1159,8 @@ export default function ChatPage() {
               suppressUserMessage: true,
               suppressPromptHistory: true,
               historyLimit: 0,
-              conversationIdOverride: cascadeConvId
+              conversationIdOverride: cascadeConvId,
+              includeAttachments: false
             });
 
             if (persistSeed) seedPersisted = true;

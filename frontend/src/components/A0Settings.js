@@ -15,6 +15,10 @@ const SESSION_KEY = 'a0_session_config';
 axios.defaults.withCredentials = true;
 
 const ENDPOINTS = [
+  { method: 'GET', path: '/api/a0/non-ui/options', desc: 'Discover all non-UI input/output options' },
+  { method: 'POST', path: '/api/a0/non-ui/chat/stream', desc: 'Programmatic chat stream with full options (SSE)' },
+  { method: 'GET', path: '/api/a0/non-ui/conversations', desc: 'List all conversations for automation' },
+  { method: 'GET', path: '/api/a0/non-ui/transcript/{id}', desc: 'Fetch full transcript + metadata' },
   { method: 'POST', path: '/api/edcm/ingest', desc: 'Push EDCM metrics (5 indices)' },
   { method: 'POST', path: '/api/a0/route', desc: 'Send prompts through hub' },
   { method: 'POST', path: '/api/chat/stream', desc: 'Stream multi-model responses (SSE)' },

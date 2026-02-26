@@ -464,6 +464,27 @@ export default function ChatPage() {
     }));
   };
 
+  const handleSwipeStart = (event) => {
+    swipeStartXRef.current = event.changedTouches?.[0]?.clientX ?? null;
+  };
+
+  const handleSwipeEnd = (event) => {
+    if (selectedModels.length <= 2 || swipeStartXRef.current === null) return;
+    const endX = event.changedTouches?.[0]?.clientX ?? swipeStartXRef.current;
+    const delta = endX - swipeStartXRef.current;
+    const threshold = 40;
+
+    if (Math.abs(delta) >= threshold) {
+      if (delta > 0) {
+        handlePrevModel();
+      } else {
+        handleNextModel();
+      }
+    }
+
+    swipeStartXRef.current = null;
+  };
+
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
     const {
       persistUserMessage = true,

@@ -108,6 +108,8 @@ async def ingest_to_agent_zero(
         global_context = request.global_context if request.global_context is not None else (conversation.get("global_context") if conversation else None)
         model_roles = request.model_roles if request.model_roles is not None else (conversation.get("model_roles") if conversation else None)
         context_mode = request.context_mode if request.context_mode is not None else (conversation.get("context_mode") if conversation else None)
+        shared_room_mode = request.shared_room_mode if request.shared_room_mode is not None else (conversation.get("shared_room_mode") if conversation else None)
+        shared_pairs = request.shared_pairs if request.shared_pairs is not None else (conversation.get("shared_pairs") if conversation else None)
         title = request.title or (conversation.get("title") if conversation else "Conversation")
 
         metadata = request.metadata or {}
@@ -131,7 +133,9 @@ async def ingest_to_agent_zero(
             "constraints": {
                 "global_context": global_context,
                 "model_roles": model_roles,
-                "context_mode": context_mode
+                "context_mode": context_mode,
+                "shared_room_mode": shared_room_mode,
+                "shared_pairs": shared_pairs
             },
             "metadata": metadata
         }
@@ -223,10 +227,12 @@ async def get_non_ui_options(current_user: dict = Depends(get_current_user)):
     return {
         "input_options": {
             "context_mode": ["compartmented", "shared"],
+            "shared_room_modes": ["parallel_all", "parallel_paired"],
             "supports_global_context": True,
             "supports_model_roles": True,
             "supports_per_model_messages": True,
             "supports_attachments": True,
+            "supports_shared_pairs": True,
             "supports_persist_user_message_toggle": True,
             "supports_history_limit": True,
             "attachment_target_modes": ["all", "selected"]

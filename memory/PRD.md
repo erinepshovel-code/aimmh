@@ -67,6 +67,12 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Backend attachment-aware chat payload handling (targeted attachments injected per model prompt)
 - Agent Zero non-UI API surface added: options, conversations list, transcript retrieval, non-UI chat stream alias
 - Iteration 4 regression/testing pass completed (backend + frontend feature verification)
+- Shared-room orchestration modes added: `parallel_all` and `parallel_paired` (Scene tab + backend context routing)
+- Shared-room auto pair map preview added in Scene tab for paired mode
+- Reload resilience fix: assistant responses are now progressively persisted during streaming in backend
+- Conversation re-sync on reload added in frontend to recover latest server-side transcript
+- Chat persistence storage moved to localStorage for stronger cross-reload/cross-tab continuity until logout
+- Iteration 5 regression/testing pass completed (shared-room + reload persistence verification)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -84,12 +90,12 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 ## Pending Tasks
 
 ### P1
-- Implement shared-room parallel modes (parallel-all + parallel-paired response sharing)
 - Broader regression pass across exports/session/multi-turn retention on production-like data volume
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 
 ### P2
-- Integrate Grok/DeepSeek/Perplexity APIs (currently placeholders)
+- Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)
+- Integrate DeepSeek/Perplexity APIs (still key-blocked in current environment)
 - Google Cloud A0 deployment (currently stub)
 - Audio output improvements
 - Thumbs feedback refinements (downgraded priority by user)
@@ -97,4 +103,4 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 ## MOCKED
 - EDCM metrics are stubs — they receive data from Agent Zero but no real A0 is running on this server
 - Google Cloud A0 connection is a stub placeholder
-- Grok/DeepSeek/Perplexity: UI placeholders only, no actual API integration
+- DeepSeek/Perplexity: API integration remains key-blocked in this environment

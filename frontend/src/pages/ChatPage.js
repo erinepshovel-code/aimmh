@@ -316,6 +316,7 @@ export default function ChatPage() {
     autoExport, setAutoExport,
     modelRoles, setModelRoles,
     contextMode, setContextMode,
+    sharedRoomMode, setSharedRoomMode,
     cascadeConfig, setCascadeConfig,
     cascadeRunning, setCascadeRunning,
     cascadeProgress, setCascadeProgress,
@@ -488,6 +489,62 @@ export default function ChatPage() {
     swipeStartXRef.current = null;
   };
 
+  const buildSharedPairs = (models = []) => {
+    const pairMap = {};
+    models.forEach(model => {
+      pairMap[model] = [];
+    });
+
+    for (let index = 0; index < models.length; index += 2) {
+      const first = models[index];
+      const second = models[index + 1];
+
+      if (first && second) {
+        pairMap[first] = [second];
+        pairMap[second] = [first];
+      } else if (first && index > 0) {
+        const fallback = models[index - 1];
+        pairMap[first] = [fallback];
+        pairMap[fallback] = Array.from(new Set([...(pairMap[fallback] || []), first]));
+      }
+    }
+
+    return pairMap;
+  };
+
+  const getSharedRoomPairsForPayload = (models) => {
+    if (contextMode !== 'shared' || sharedRoomMode !== 'parallel_paired') {
+      return undefined;
+    }
+    return buildSharedPairs(models);
+  };
+
+  const syncConversationMessages = async (convId, silent = true) => {
+    if (!convId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+      const response = await axios.get(`${API}/conversations/${convId}/messages`, config);
+      const serverMessages = Array.isArray(response.data)
+        ? response.data.map(msg => ({ ...msg, streaming: false }))
+        : [];
+
+      if (serverMessages.length > 0) {
+        setMessages(serverMessages);
+      }
+    } catch (error) {
+      if (!silent) {
+        toast.error('Unable to refresh conversation from server');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (conversationId && !streaming) {
+      syncConversationMessages(conversationId, true);
+    }
+  }, [conversationId]);
+
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
     const {
       persistUserMessage = true,
@@ -626,6 +683,8 @@ export default function ChatPage() {
         models: modelsToQuery,
         conversation_id: currentConvId,
         context_mode: contextMode,
+        shared_room_mode: contextMode === 'shared' ? sharedRoomMode : undefined,
+        shared_pairs: getSharedRoomPairsForPayload(modelsToQuery),
         global_context: globalContext,
         model_roles: modelRoles,
         per_model_messages: perModelMessages || undefined,
@@ -729,6 +788,8 @@ export default function ChatPage() {
       if (includeAttachments && pendingAttachments.length > 0) {
         setAttachments([]);
       }
+
+      await syncConversationMessages(currentConvId, true);
       
       // Auto-export if enabled
       if (autoExport && !skipAutoExport && conversationId) {
@@ -1632,7 +1693,7 @@ export default function ChatPage() {
                   <p className="text-[10px] text-muted-foreground">Compartmented vs shared room</p>
                 </div>
                 <Select value={contextMode} onValueChange={setContextMode}>
-                  <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectTrigger className="h-8 w-40 text-xs" data-testid="scene-context-mode-select">
                     <SelectValue placeholder="Context mode" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1641,6 +1702,40 @@ export default function ChatPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {contextMode === 'shared' && (
+                <div className="space-y-2 rounded border border-border bg-muted/20 p-2" data-testid="shared-room-mode-card">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-xs">Shared room mode</Label>
+                      <p className="text-[10px] text-muted-foreground">Control which model responses become visible context</p>
+                    </div>
+                    <Select value={sharedRoomMode} onValueChange={setSharedRoomMode}>
+                      <SelectTrigger className="h-8 w-44 text-xs" data-testid="shared-room-mode-select">
+                        <SelectValue placeholder="Shared mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="parallel_all">Parallel all (everyone sees all)</SelectItem>
+                        <SelectItem value="parallel_paired">Parallel paired (pair-only sharing)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {sharedRoomMode === 'parallel_paired' && (
+                    <div className="space-y-1" data-testid="shared-room-pair-preview">
+                      <Label className="text-[10px] text-muted-foreground">Auto pairing preview</Label>
+                      <div className="space-y-1">
+                        {Object.entries(buildSharedPairs(selectedModels)).map(([model, peers]) => (
+                          <div key={`pair-${model}`} className="flex items-center justify-between rounded border border-border/70 bg-background px-2 py-1 text-[10px]" data-testid={`shared-pair-row-${model.replace(/[^a-z0-9]+/gi, '-')}`}>
+                            <span className="truncate max-w-[55%]">{model}</span>
+                            <span className="text-muted-foreground truncate max-w-[40%]">{peers.length > 0 ? peers.join(', ') : 'No pair'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">Global context (applies to all prompts)</Label>

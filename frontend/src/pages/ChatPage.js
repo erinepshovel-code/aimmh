@@ -369,6 +369,100 @@ export default function ChatPage() {
     );
   };
 
+  const openModelPromptDialog = (model) => {
+    setModelPromptDialog({ open: true, model });
+    setActiveTopTab('scene');
+  };
+
+  const updateModelSetting = (model, updates) => {
+    setCascadeConfig(prev => ({
+      ...prev,
+      modelSettings: {
+        ...(prev.modelSettings || {}),
+        [model]: {
+          ...(prev.modelSettings?.[model] || {}),
+          ...updates
+        }
+      }
+    }));
+  };
+
+  const handleAttachmentButton = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAddAttachments = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const parsed = [];
+    for (const file of files) {
+      try {
+        let content = '';
+        let kind = 'file';
+
+        if (file.type.startsWith('image/')) {
+          kind = 'image';
+          const dataUrl = await readFileAsDataUrl(file);
+          content = dataUrl.slice(0, MAX_ATTACHMENT_CHARS);
+        } else if (isTextLikeFile(file)) {
+          kind = 'text';
+          const text = await readFileAsText(file);
+          content = text.slice(0, MAX_ATTACHMENT_CHARS);
+        }
+
+        parsed.push({
+          id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          kind,
+          content,
+          targetMode: 'all',
+          targetModels: []
+        });
+      } catch {
+        toast.error(`Could not read ${file.name}`);
+      }
+    }
+
+    if (parsed.length > 0) {
+      setAttachments(prev => [...prev, ...parsed]);
+      setAttachmentDialogOpen(true);
+      toast.success(`${parsed.length} attachment(s) added`);
+    }
+
+    event.target.value = '';
+  };
+
+  const removeAttachment = (attachmentId) => {
+    setAttachments(prev => prev.filter(att => att.id !== attachmentId));
+  };
+
+  const updateAttachmentTargetMode = (attachmentId, targetMode) => {
+    setAttachments(prev => prev.map(att => {
+      if (att.id !== attachmentId) return att;
+      return {
+        ...att,
+        targetMode,
+        targetModels: targetMode === 'all' ? [] : att.targetModels
+      };
+    }));
+  };
+
+  const toggleAttachmentModel = (attachmentId, model) => {
+    setAttachments(prev => prev.map(att => {
+      if (att.id !== attachmentId) return att;
+      const exists = att.targetModels.includes(model);
+      return {
+        ...att,
+        targetModels: exists
+          ? att.targetModels.filter(m => m !== model)
+          : [...att.targetModels, model]
+      };
+    }));
+  };
+
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
     const {
       persistUserMessage = true,

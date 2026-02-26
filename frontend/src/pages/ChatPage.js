@@ -410,6 +410,9 @@ export default function ChatPage() {
           kind = 'text';
           const text = await readFileAsText(file);
           content = text.slice(0, MAX_ATTACHMENT_CHARS);
+        } else {
+          const dataUrl = await readFileAsDataUrl(file);
+          content = dataUrl.slice(0, MAX_ATTACHMENT_CHARS);
         }
 
         parsed.push({

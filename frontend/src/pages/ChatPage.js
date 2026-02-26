@@ -333,6 +333,10 @@ export default function ChatPage() {
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
   const [showRolesDialog, setShowRolesDialog] = useState(false);
   const [universalStatus, setUniversalStatus] = useState(null);
+  const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [modelPromptDialog, setModelPromptDialog] = useState({ open: false, model: '' });
+  const fileInputRef = useRef(null);
 
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   

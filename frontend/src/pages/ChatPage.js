@@ -470,7 +470,8 @@ export default function ChatPage() {
       suppressPromptHistory = false,
       historyLimit = null,
       skipInputClear = false,
-      conversationIdOverride = null
+      conversationIdOverride = null,
+      includeAttachments = true
     } = options || {};
 
     let baseMessage = customMessage || input;
@@ -486,6 +487,7 @@ export default function ChatPage() {
     
     if (!customMessage && !skipInputClear) setInput('');
     setStreaming(true);
+    const pendingAttachments = includeAttachments ? [...attachments] : [];
     
     // Generate or use existing conversation ID
     const currentConvId = conversationIdOverride || conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -535,6 +537,13 @@ export default function ChatPage() {
       if (ms.alignment) parts.push(`[ALIGNMENT]: ${ms.alignment}`);
       if (ms.secretMission?.trim()) parts.push(`[SECRET MISSION]: ${ms.secretMission.trim()}`);
       if (ms.miscConstraint?.trim()) parts.push(`[MISC CONSTRAINT]: ${ms.miscConstraint.trim()}`);
+
+      if (pendingAttachments.length > 0) {
+        const attachmentBlock = buildAttachmentPromptBlock(pendingAttachments, model);
+        if (attachmentBlock) {
+          parts.push(attachmentBlock);
+        }
+      }
 
       parts.push(`[PROMPT]: ${promptText}`);
       return parts.join('\n\n');
@@ -586,7 +595,8 @@ export default function ChatPage() {
         global_context: globalContext,
         model_roles: modelRoles,
         per_model_messages: perModelMessages || undefined,
-        persist_user_message: persistUserMessage
+        persist_user_message: persistUserMessage,
+        attachments: pendingAttachments.map(normalizeAttachmentForTransport)
       };
 
       if (typeof historyLimit === 'number') {
@@ -681,6 +691,10 @@ export default function ChatPage() {
         }
       }
       // Note: prompt indices allocated incrementally via allocPromptIndex()
+
+      if (includeAttachments && pendingAttachments.length > 0) {
+        setAttachments([]);
+      }
       
       // Auto-export if enabled
       if (autoExport && !skipAutoExport && conversationId) {

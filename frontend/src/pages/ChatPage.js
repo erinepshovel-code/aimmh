@@ -1239,6 +1239,9 @@ export default function ChatPage() {
   };
 
   const visibleModels = getVisibleModels();
+  const activeModelSettings = modelPromptDialog.model
+    ? (cascadeConfig.modelSettings?.[modelPromptDialog.model] || {})
+    : {};
 
   return (
     <div className="h-screen flex flex-col bg-background">

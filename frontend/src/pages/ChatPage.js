@@ -1948,6 +1948,7 @@ export default function ChatPage() {
                   onTogglePause={() => handleTogglePause(visibleModels[0])}
                   messageIndexMap={messageIndexMap}
                   onSaveThread={handleSaveThread}
+                  onOpenPromptSettings={openModelPromptDialog}
                 />
               ) : (
                 <PanelGroup direction="vertical" className="flex-1">
@@ -1965,6 +1966,7 @@ export default function ChatPage() {
                       onTogglePause={() => handleTogglePause(visibleModels[0])}
                       messageIndexMap={messageIndexMap}
                       onSaveThread={handleSaveThread}
+                      onOpenPromptSettings={openModelPromptDialog}
                     />
                   </Panel>
                   <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" />
@@ -1982,6 +1984,7 @@ export default function ChatPage() {
                       onTogglePause={() => handleTogglePause(visibleModels[1])}
                       messageIndexMap={messageIndexMap}
                       onSaveThread={handleSaveThread}
+                      onOpenPromptSettings={openModelPromptDialog}
                     />
                   </Panel>
                 </PanelGroup>

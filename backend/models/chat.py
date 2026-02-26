@@ -24,6 +24,8 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     # Context semantics
     context_mode: Literal["compartmented", "shared"] = "compartmented"
+    shared_room_mode: Literal["parallel_all", "parallel_paired"] = "parallel_all"
+    shared_pairs: Optional[Dict[str, List[str]]] = None
     # Context metadata for EDCM/a0
     global_context: Optional[str] = None
     model_roles: Optional[Dict[str, str]] = None

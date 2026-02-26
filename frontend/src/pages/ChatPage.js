@@ -508,8 +508,17 @@ export default function ChatPage() {
     }
     
     if (!customMessage && !skipInputClear) setInput('');
-    setStreaming(true);
     const pendingAttachments = includeAttachments ? [...attachments] : [];
+
+    const unroutedAttachments = pendingAttachments.filter(
+      att => att.targetMode === 'selected' && (!att.targetModels || att.targetModels.length === 0)
+    );
+    if (unroutedAttachments.length > 0) {
+      toast.error('Choose at least one model for selected-only attachments');
+      return null;
+    }
+
+    setStreaming(true);
     
     // Generate or use existing conversation ID
     const currentConvId = conversationIdOverride || conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

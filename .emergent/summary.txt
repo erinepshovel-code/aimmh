@@ -1,254 +1,173 @@
 <analysis>**original_problem_statement:**
 The user wants to build a user interface for prompting multiple AI models simultaneously.
 
-**PRODUCT REQUIREMENTS:**
+**PRODUCT REQUIREMENTS (as of last user interaction):**
 -   **Models:** Support GPT, Gemini, Claude (using a universal key), Grok, DeepSeek, and Perplexity (with user-provided keys).
 -   **UI:**
     -   Minimalist dark theme, optimized for mobile phone screens.
-    -   Display multiple model responses at once in a vertically stacked, carousel-like view.
+    -   Display multiple model responses at once in a vertically stacked, carousel-like view. **New:** The carousel should support endless scroll on swipe.
     -   Collapsible sidebar for prompt history.
     -   Enter key should create a new line; Ctrl+Enter should send the prompt. A dedicated Enter button for mobile.
+    -   **New:** Carousel headers for each AI model should have a button for individual prompt customization (e.g., role, system prompt).
+    -   **New:** Suspected text formatting issues (Markdown, code blocks) need to be fixed.
 -   **Authentication:** Secure user/password (JWT) and Google OAuth login.
 -   **Core Features:**
     -   Settings page to manage API keys.
     -   Session state must persist across window/tab changes until manual logout.
     -   Export conversation history to JSON, TXT, and PDF.
-    -   Copy, thumbs up/down, audio output, and share buttons for each individual AI response.
+    -   Copy, audio output, and share buttons for each individual AI response. Thumbs up/down is deprioritized.
+    -   **New:** A button to upload pictures and files, with the ability to send them to all selected models or only specific ones.
 -   **Advanced Research Features (for EDCM):**
     -   **Synthesis:** Send one or more model responses to other models as a new prompt.
     -   **Batch Prompting:** Sequentially send a list of prompts to the selected models.
     -   **Context Control:** A Global Context box to prepend text to all prompts.
     -   **Role Assignment:** Assign specific roles to each model.
     -   **Auto-Cascade:** Automatically chain responses between models for a set number of rounds.
-    -   **Auto-Export:** A toggle to automatically export the conversation after each interaction.
 -   **Agent Zero (a0) Integration:**
-    -   The app must communicate with the user's Agent Zero (a0) application.
-    -   Proxy requests to a0 and auto-ingest conversation transcripts.
-    -   Display an EDCM dashboard with metrics from a0.
+    -   **New:** The app must provide non-UI access for  to every input and output option available, including orchestration and control endpoints.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack React/FastAPI application. In this session, the agent addressed the user's request to refactor and rekey with new universal key. This involved removing the insecure and flawed auto-sync feature where the frontend fetched the universal key and sent it back to the backend. The new implementation simplifies the logic so the backend reads the  directly from its own environment variables when needed.
+A full-stack React/FastAPI application. The previous session refactored the universal API key handling to be more secure, with the backend now reading the  from its environment. This change has not been tested.
 
-After this refactoring, the user reported a deployment failure. The agent analyzed the provided deployment logs and concluded that they did not contain any errors indicating a code-level problem; all build steps, health checks, and migrations appeared successful. The agent has communicated this finding to the user and is awaiting further information.
+In the current session, the user provided a significant number of new feature requests and changed priorities. The agent created a new, user-approved plan to address these but did not execute any implementation before the session ended. No code has been modified in this session.
 
 **Last working item**:
--   **Last item agent was working:** Analyzing deployment logs provided by the user. The user reported a deployment failure, but the agent's analysis (via ) found no errors in the logs that would require code changes.
--   **Status:** USER VERIFICATION PENDING
+-   **Last item agent was working:** Formulating a new development plan based on user requests. The first task in the approved plan is to add per-AI carousel header controls for individual prompt customization.
+-   **Status:** NOT STARTED
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** N/A. The agent is waiting for the user to either confirm the deployment issue is resolved or provide new logs showing a specific error.
+-   **Which testing method agent to use?** both
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0):** LLM API calls are failing.
--   **Issue 2 (P1):** User is experiencing a deployment failure.
--   **Issue 3 (P2):** The  feedback button causes an error.
--   **Issue 4 (P3):** User reported a login loop in Chrome with OAuth.
+-   **Issue 1 (P0):** User is experiencing a deployment failure.
+-   **Issue 2 (P0):** Core LLM API calls are failing or unverified after the universal key refactor.
+-   **Issue 3 (P1):** Text formatting protocols are not enabled or working correctly (e.g., Markdown, code blocks).
+-   **Issue 4 (P3):** The  feedback button causes an error.
 
 **Issues Detail:**
--   **Issue 1: LLM API calls are failing**
-    -   **Attempted fixes:** The agent refactored the entire universal key handling mechanism. The insecure  endpoint was removed, and the backend was modified to pull the key directly from its environment. This was intended to fix the API key-related failures.
+-   **Issue 1: User is experiencing a deployment failure**
+    -   **Attempted fixes:** In a previous session, the agent analyzed user-provided deployment logs and found no errors.
     -   **Next debug checklist:**
-        1.  After the deployment issue is resolved, perform an end-to-end test by sending a chat message from the frontend.
-        2.  Verify the chat stream works correctly for a model using the universal key (e.g., Claude).
-        3.  Check the backend logs () for any errors during the API call to the LLM provider.
-    -   **Why fix this issue and what will be achieved with the fix?** This is the core functionality of the application. Fixing it is the highest priority.
-    -   **Status:** TESTING PENDING
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on other issue:** Issue 2: User is experiencing a deployment failure.
-
--   **Issue 2: User is experiencing a deployment failure**
-    -   **Attempted fixes:** The agent analyzed the user-provided deployment logs and found no identifiable errors. Health checks, builds, and migrations were all reported as successful in the logs.
-    -   **Next debug checklist:**
-        1.  Ask the user if the deployment issue is still occurring.
-        2.  If it is, request new, more complete logs that show the actual failure or error message. The previous logs were all successful.
-    -   **Why fix this issue and what will be achieved with the fix?** The application cannot be tested or used if it cannot be deployed successfully.
-    -   **Status:** BLOCKED (waiting for user input)
+        1.  Confirm with the user if the deployment issue is still occurring.
+        2.  If it is, request new, complete logs that show the actual failure or error message, as previous logs showed a successful deployment.
+    -   **Why fix this issue and what will be achieved with the fix?** The application cannot be tested or used until it can be deployed successfully. This is a top-priority blocker.
+    -   **Status:** BLOCKED (waiting on user input)
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?** N/A
     -   **Blocked on other issue:** None
 
--   **Issue 3: Thumbs up/feedback button error**
-    -   **Attempted fixes:** None in this session.
+-   **Issue 2: Core LLM API calls are failing or unverified**
+    -   **Attempted fixes:** The insecure  endpoint was removed, and the backend was modified to pull the key directly from its environment. This fix has not been tested.
+    -   **Next debug checklist:**
+        1.  Once the deployment issue is resolved, perform an end-to-end test by sending a chat message from the frontend.
+        2.  Verify the chat stream works for a model using the universal key (e.g., Claude).
+        3.  Check backend logs () for errors during the API call.
+    -   **Why fix this issue and what will be achieved with the fix?** This is the core functionality of the application.
+    -   **Status:** TESTING PENDING
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Blocked on other issue:** Issue 1: User is experiencing a deployment failure.
+
+-   **Issue 3: Text formatting protocols are not enabled or working correctly**
+    -   **Attempted fixes:** None. This was newly reported by the user in this session.
+    -   **Next debug checklist:**
+        1.  Send a prompt to an LLM that should return a Markdown formatted response (e.g., a code block or a list).
+        2.  Inspect the frontend component responsible for rendering chat messages ( or similar).
+        3.  Ensure a library like  is being used to render the content.
+        4.  Verify CSS is not interfering with the formatting.
+    -   **Why fix this issue and what will be achieved with the fix?** To ensure AI responses are displayed correctly and legibly.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Frontend
+    -   **Blocked on other issue:** Issue 1, Issue 2
+
+-   **Issue 4: The  feedback button causes an error**
+    -   **Attempted fixes:** None. The user has downgraded the priority of this issue.
     -   **Next debug checklist:**
         1.  Inspect the  endpoint logic in .
         2.  Analyze the  function in .
-        3.  Check the browser console for network or script errors when the button is clicked.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a core UI feature for rating model responses.
+    -   **Why fix this issue and what will be achieved with the fix?** A minor UI feature for rating model responses.
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** Both
     -   **Blocked on other issue:** None
 
--   **Issue 4: Chrome OAuth Login Loop**
-    -   **Attempted fixes:** None. The user has stated this is low priority.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Frontend
-
 **In progress Task List**:
--   **Task 1: Implement Research Context Orchestration (Sequential Modes)**
-    -   **Where to resume:** Review the detailed user requirements for the Cascade feature. The logic will need to be built in  and potentially new backend endpoints.
-    -   **What will be achieved with this?** This will deliver the advanced, sequential interaction patterns central to the user's research goals.
-    -   **Status:** BLOCKED
-    -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on something:** Blocked on **Issue 1** and **Issue 2**. The core chat and deployment must be working first.
+-   None. No implementation was started in this session.
 
 **Upcoming and Future Tasks**
--   **Upcoming Tasks:**
-    -   **Full Regression Test (P1):** Verify core features (Newline on Enter, Ctrl+Enter to send, Export, etc.) that may have been affected by recent changes.
-    -   **Agent Zero - Cloud Access (P2):** Implement the Google Cloud connection option for the a0 integration.
--   **Future Tasks:**
-    -   **Integrate Additional Models (P2):** Grok, DeepSeek, and Perplexity.
-    -   **Expand API Key Management (P2):** Enhance the settings page for new models.
-    -   **Scene Presets (P3):** Add functionality to save and load default Scene settings.
+-   **Upcoming Tasks (P0, after blockers are resolved):**
+    1.  **Per-AI Carousel Header Controls:** Add a button in each model’s carousel header for individual prompt customization.
+    2.  **Endless Swipe Carousel:** Implement infinite-loop swipe behavior for model cards.
+    3.  **Image/File Dispatch Controls:** Add a UI button for file/image upload with targeting options (send to all/selected models).
+    4.  **Agent Zero (a0) Non-UI Full Access:** Create and expose endpoints for  to access all input/output options programmatically.
+-   **Upcoming Tasks (P1):**
+    1.  **Full Regression Test:** Verify core features (Newline on Enter, Ctrl+Enter to send, Export, etc.) after P0 tasks are complete.
+-   **Future Tasks (P2/P3):**
+    -   Advanced research features (Cascade, Batch Prompting).
+    -   Integrate additional models (Grok, DeepSeek, Perplexity).
+    -   Scene Presets to save/load settings.
+    -   Fix  feedback bug (P3).
 
 **Completed work in this session**
--   **Refactored Universal Key Handling:** Reworked the entire feature. Removed the insecure frontend-to-backend key passing logic and the  endpoint. The backend now securely reads the  from its own environment. (Status: ).
--   **Deployment Log Analysis:** Analyzed user-provided deployment logs and determined there were no code-level blockers shown.
--   **User Support:** Guided the user on how to use the platform's GitHub integration instead of raw usage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]
-           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]
-           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--bare]
-           [--git-dir=<path>] [--work-tree=<path>] [--namespace=<name>]
-           [--super-prefix=<path>] [--config-env=<name>=<envvar>]
-           <command> [<args>]
-
-These are common Git commands used in various situations:
-
-start a working area (see also: git help tutorial)
-   clone     Clone a repository into a new directory
-   init      Create an empty Git repository or reinitialize an existing one
-
-work on the current change (see also: git help everyday)
-   add       Add file contents to the index
-   mv        Move or rename a file, a directory, or a symlink
-   restore   Restore working tree files
-   rm        Remove files from the working tree and from the index
-
-examine the history and state (see also: git help revisions)
-   bisect    Use binary search to find the commit that introduced a bug
-   diff      Show changes between commits, commit and working tree, etc
-   grep      Print lines matching a pattern
-   log       Show commit logs
-   show      Show various types of objects
-   status    Show the working tree status
-
-grow, mark and tweak your common history
-   branch    List, create, or delete branches
-   commit    Record changes to the repository
-   merge     Join two or more development histories together
-   rebase    Reapply commits on top of another base tip
-   reset     Reset current HEAD to the specified state
-   switch    Switch branches
-   tag       Create, list, delete or verify a tag object signed with GPG
-
-collaborate (see also: git help workflows)
-   fetch     Download objects and refs from another repository
-   pull      Fetch from and integrate with another repository or a local branch
-   push      Update remote refs along with associated objects
-
-'git help -a' and 'git help -g' list available subcommands and some
-concept guides. See 'git help <command>' or 'git help <concept>'
-to read about a specific subcommand or concept.
-See 'git help git' for an overview of the system. commands.
+-   Analyzed user's new feature requests and priority changes.
+-   Created a new, user-approved development plan.
+-   Removed OAuth troubleshooting from the task list as requested by the user.
+-   **Note:** No code was modified or implemented in this session.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1:** The  feedback button error remains unresolved from a previous session.
+-   **Issue 1:** The  feedback button error remains unresolved from a previous session, though it has been deprioritized by the user.
 
 **Known issue recurrence from previous fork**
--   The Thumbs up/down button error has been carried over again without being addressed.
+-   **Issue recurrence in previous fork:** Thumbs up/down button error.
+-   **Recurrence count:** 2+
+-   **Status:** NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Frontend:** React, Tailwind CSS, Shadcn UI, Context API for state management.
+-   **Frontend:** React, Tailwind CSS, Shadcn UI, Context API.
 -   **Backend:** FastAPI, MongoDB (motor).
--   **API Key Management:** The architecture was refactored to a more secure model where the backend is the sole manager of its own environment keys.
+-   **API Key Management:** Backend-managed environment variables for universal keys.
 
 **key DB schema**
--   No changes to the schema in this session.
+-   No changes to the schema.
 
 **All files of reference**
--   **/app/backend/routes/keys.py**: **Modified** to remove the  endpoint.
--   **/app/backend/models/chat.py**: **Modified** to remove  from the  model.
--   **/app/backend/routes/chat.py**: **Modified** to no longer expect the universal key from the request body and instead use the environment variable.
--   **/app/frontend/src/contexts/AuthContext.js**: **Modified** to remove the fetch call for the universal API key on application load.
--   **/app/frontend/src/pages/ChatPage.js**: **Modified** to remove the logic that passed the universal key to the backend in chat requests.
+-   No files were modified in this session. All file references from the previous handoff remain relevant to the last code change.
 
 **Areas that need refactoring**:
--   The primary insecure refactoring target (universal key handling) was addressed in this session. No new areas were identified.
+-   None identified in this session.
 
 **key api endpoints**
--   : Main endpoint for sending prompts. Status is pending testing after the deployment issue is resolved.
--   : **Removed**.
+-   : Main endpoint for sending prompts. Status is pending testing.
+-   : **Removed** in a previous session.
 
 **Critical Info for New Agent**
--   Your first priority is to resolve the user's reported deployment failure. The previous agent found no errors in the logs. You must communicate with the user to get more information (e.g., new logs showing the actual error) or confirm if the issue has resolved itself.
--   Once the app is deployed successfully, your second and equally critical priority (P0) is to test the core chat functionality. The recent refactoring of the universal key was done to fix failing LLM calls, but this fix has not been verified.
--   Do not proceed with any new features (like the Cascade mode) until deployment is stable and the core chat functionality is confirmed to be working.
+1.  **Start with Blockers:** Your first priority is to resolve the two P0 blockers from the previous session: **Deployment Failure** and **Unverified Core Chat Functionality**. First, ask the user if the deployment is still failing and request new logs if it is. Only after the app is deployed and core chat works should you begin new features.
+2.  **Execute the New Plan:** A new feature plan was approved by the user but **zero implementation has occurred**. Once blockers are clear, start with the first P0 task: Per-AI Carousel Header Controls.
+3.  **User Communication:** The user has requested that you include hmmm at the start of every response. Adhere to this.
+4.  **New Requirements:** Be fully aware of the new P0 features requested by the user: per-model customization buttons, endless carousel, file uploads, and programmatic  access. These are the top development priorities after the blockers are resolved.
+5.  **Deprioritized Items:** The user confirmed OAuth is working and has downgraded the priority of the thumbs up/down button bug. Do not work on these unless asked.
 
 **documents and test reports created in this job**
 -   None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Pending):** Sent deployment logs with a request to debug the failure.
-2.  **Agent:** Responded that the logs show no deployment errors.
-3.  **User:** 
-4.  **Agent:** Explained usage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]
-           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]
-           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--bare]
-           [--git-dir=<path>] [--work-tree=<path>] [--namespace=<name>]
-           [--super-prefix=<path>] [--config-env=<name>=<envvar>]
-           <command> [<args>]
-
-These are common Git commands used in various situations:
-
-start a working area (see also: git help tutorial)
-   clone     Clone a repository into a new directory
-   init      Create an empty Git repository or reinitialize an existing one
-
-work on the current change (see also: git help everyday)
-   add       Add file contents to the index
-   mv        Move or rename a file, a directory, or a symlink
-   restore   Restore working tree files
-   rm        Remove files from the working tree and from the index
-
-examine the history and state (see also: git help revisions)
-   bisect    Use binary search to find the commit that introduced a bug
-   diff      Show changes between commits, commit and working tree, etc
-   grep      Print lines matching a pattern
-   log       Show commit logs
-   show      Show various types of objects
-   status    Show the working tree status
-
-grow, mark and tweak your common history
-   branch    List, create, or delete branches
-   commit    Record changes to the repository
-   merge     Join two or more development histories together
-   rebase    Reapply commits on top of another base tip
-   reset     Reset current HEAD to the specified state
-   switch    Switch branches
-   tag       Create, list, delete or verify a tag object signed with GPG
-
-collaborate (see also: git help workflows)
-   fetch     Download objects and refs from another repository
-   pull      Fetch from and integrate with another repository or a local branch
-   push      Update remote refs along with associated objects
-
-'git help -a' and 'git help -g' list available subcommands and some
-concept guides. See 'git help <command>' or 'git help <concept>'
-to read about a specific subcommand or concept.
-See 'git help git' for an overview of the system. is not used directly and provided instructions for Emergent's GitHub feature.
-5.  **User:** 
+1.  **User:**  (approving the agent's new plan).
+2.  **Agent:** Replied with a new, prioritized task list based on the user's latest requests, asking for confirmation to proceed.
+3.  **User:** Provided a list of new feature requests (carousel controls, endless scroll, file uploads, a0 access), reported a new bug (text formatting), and changed priorities (removed OAuth issue, downgraded thumbs-up bug). Requested an updated task list and that the agent include hmmm in responses.
+4.  **System:** 
 
 **Project Health Check:**
 -   **Broken**:
-    -   Core chat functionality (pending verification after refactor and deployment fix).
+    -   Deployment (reported by user, but logs were clean).
+    -   Core chat functionality (pending verification).
+    -   Text formatting (reported by user).
     -   Thumbs up/down feedback button.
-    -   Deployment (as reported by user, despite clean logs).
 -   **Mocked**:
     -   Agent Zero (a0) Google Cloud access tab.
     -   Integrations for Grok, DeepSeek, and Perplexity.
@@ -262,11 +181,11 @@ See 'git help git' for an overview of the system. is not used directly and provi
 -   Testing agent used after significant changes: NO
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: None
--   Known regressions: Core chat functionality was broken; status after refactoring is unverified. Deployment is reportedly failing.
+-   Known regressions: Core chat functionality's status is unknown after a major refactor. Deployment is reportedly failing.
 
 **Credentials to test flow:**
-- Credentials for testing are not available in the history. The next agent will need to use existing test accounts or create new ones via the UI.
+-   Credentials are not available. The agent will need to use existing test accounts or create new ones via the UI.
 
 **What agent forgot to execute**
--   The agent did not address the long-standing bug with the thumbs up button.
--   The agent did not create an initial plan using  as required by the system prompt, instead reacting directly to user messages.</analysis>
+-   The agent created a new plan based on user requests but the session ended before any part of that plan could be executed.
+-   The agent's new plan did not explicitly prioritize resolving the existing P0 blockers (deployment, core chat functionality) before starting the new feature requests. The next agent must address these blockers first.</analysis>

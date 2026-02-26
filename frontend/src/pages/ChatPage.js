@@ -1998,6 +1998,48 @@ export default function ChatPage() {
       <div className="border-t border-border bg-[#18181B] pb-14 sm:pb-2">
         {/* Main Input */}
         <div className="p-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleAddAttachments}
+            data-testid="attachment-file-input"
+          />
+
+          {attachments.length > 0 && (
+            <div className="mb-2 rounded-md border border-border bg-muted/20 p-2" data-testid="attachment-preview-list">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-muted-foreground">
+                  {attachments.length} attachment(s) ready
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => setAttachmentDialogOpen(true)}
+                  data-testid="attachment-routing-open-btn"
+                >
+                  Route attachments
+                </Button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {attachments.map(att => (
+                  <Badge key={att.id} variant="outline" className="text-[10px] max-w-full" data-testid={`attachment-badge-${att.id}`}>
+                    <span className="truncate max-w-[140px]">{att.name}</span>
+                    <button
+                      onClick={() => removeAttachment(att.id)}
+                      className="ml-1"
+                      data-testid={`remove-attachment-${att.id}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-1">
             <div className="flex-1 flex flex-col gap-1">
               <Textarea
@@ -2023,17 +2065,27 @@ export default function ChatPage() {
             </div>
             <div className="flex flex-col gap-1">
               <Button
+                onClick={handleAttachmentButton}
+                variant="outline"
+                className="h-[33%] px-2"
+                title="Attach files/images"
+                data-testid="add-attachment-btn"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <Button
                 onClick={() => setInput(prev => prev + '\n')}
                 variant="outline"
-                className="h-[50%] px-2"
+                className="h-[33%] px-2"
                 title="Add line break"
+                data-testid="add-linebreak-btn"
               >
                 ↵
               </Button>
               <Button
                 onClick={() => handleSend()}
                 disabled={streaming || !input.trim()}
-                className="h-[50%] px-2"
+                className="h-[33%] px-2"
                 data-testid="send-btn"
               >
                 <Send className="h-4 w-4" />

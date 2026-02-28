@@ -1103,6 +1103,20 @@ export default function ChatPage() {
     toast.success('Copied to clipboard');
   };
 
+  const handleCopyModelThread = (model) => {
+    const modelThread = messages
+      .filter(m => m.model === model || m.role === 'user')
+      .map(m => `${m.role === 'user' ? 'User' : m.model}: ${m.content}`)
+      .join('\n\n');
+
+    if (!modelThread.trim()) {
+      toast.error('No thread content to copy');
+      return;
+    }
+
+    handleCopy(modelThread);
+  };
+
   const handleShare = async (content, model) => {
     if (navigator.share) {
       try {

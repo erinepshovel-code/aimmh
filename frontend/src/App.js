@@ -8,6 +8,9 @@ import AuthCallback from './pages/AuthCallback';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
 import DashboardPage from './pages/DashboardPage';
+import ConsolePage from './pages/ConsolePage';
+import PricingPage from './pages/PricingPage';
+import { HmmmDoctrineBar } from './components/HmmmDoctrineBar';
 import './App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -81,6 +84,22 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/console"
+        element={
+          <ProtectedRoute>
+            <ConsolePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pricing"
+        element={
+          <ProtectedRoute>
+            <PricingPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/" element={<Navigate to="/chat" replace />} />
     </Routes>
   );
@@ -91,9 +110,10 @@ function App() {
     <AuthProvider>
       <ChatProvider>
         <BrowserRouter>
-          <div className="App">
+          <div className="App pb-8">
             <AppRoutes />
             <Toaster position="top-right" theme="dark" />
+            <HmmmDoctrineBar />
           </div>
         </BrowserRouter>
       </ChatProvider>

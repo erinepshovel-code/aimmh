@@ -145,8 +145,11 @@ def test_unauthenticated_access(results):
         if response and response.status_code == 401:
             results.add_pass(f"Unauth {method} {endpoint}", "401 Unauthorized")
         else:
-            status = response.status_code if response else "No response"
-            results.add_fail(f"Unauth {method} {endpoint}", f"Expected 401, got {status}")
+            if response:
+                status = response.status_code
+                results.add_fail(f"Unauth {method} {endpoint}", f"Expected 401, got {status}")
+            else:
+                results.add_fail(f"Unauth {method} {endpoint}", "No response received")
             all_rejected = False
     
     return all_rejected

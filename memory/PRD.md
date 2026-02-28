@@ -114,6 +114,9 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Agent Zero non-UI REST expansion complete (auth-required): prompt-all, prompt-selected, one-off synthesis, paginated history, and non-UI export proxy endpoints.
 - Updated non-UI options endpoint to advertise new REST routes; backend regression validated with authenticated + unauthenticated checks.
 - Added conversation search REST APIs (auth-required): `/api/conversations/search` and `/api/a0/non-ui/conversations/search` with query + offset/limit pagination.
+- Conversation persistence hardened in backend stream flow: conversation record is now upserted at stream start, so early client disconnects still preserve thread/search visibility.
+- Added Chat UI "Search Threads" dialog wired to `/api/conversations/search` for fast loading of older threads from menu.
+- End-to-end search-thread flow verified after persistence fix (create threads -> search -> load thread).
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -140,7 +143,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
-- Wire a frontend conversation picker/search UI to new conversation search endpoints for faster thread switching
+- Add advanced filters to conversation search (date range/model tags/has-feedback)
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

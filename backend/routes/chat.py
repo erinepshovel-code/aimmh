@@ -231,6 +231,7 @@ async def chat_stream(
                 }
 
                 full_response = ""
+                prompt_tokens_est = _estimate_tokens(per_model_prompt)
                 await db.messages.insert_one({
                     "id": message_id,
                     "conversation_id": conversation_id,
@@ -341,6 +342,9 @@ async def chat_stream(
                                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": chunk})}
 
                 response_time_ms = int((time.time() - t_start) * 1000)
+                completion_tokens_est = _estimate_tokens(full_response)
+                total_tokens_est = prompt_tokens_est + completion_tokens_est
+                estimated_cost_usd = round((total_tokens_est / 1000.0) * _model_rate(model_spec), 6)
                 await db.messages.update_one(
                     {"id": message_id, "user_id": get_user_id(current_user)},
                     {
@@ -348,7 +352,11 @@ async def chat_stream(
                             "content": full_response,
                             "response_time_ms": response_time_ms,
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "streaming": False
+                            "streaming": False,
+                            "prompt_tokens_est": prompt_tokens_est,
+                            "completion_tokens_est": completion_tokens_est,
+                            "total_tokens_est": total_tokens_est,
+                            "estimated_cost_usd": estimated_cost_usd,
                         }
                     }
                 )
@@ -360,6 +368,9 @@ async def chat_stream(
                 yield {"event": "chunk", "data": json.dumps({"model": model_spec, "message_id": message_id, "content": f"[ERROR] {str(e)}"})}
 
                 response_time_ms = int((time.time() - t_start) * 1000)
+                completion_tokens_est = _estimate_tokens(f"[ERROR] {str(e)}")
+                total_tokens_est = prompt_tokens_est + completion_tokens_est
+                estimated_cost_usd = round((total_tokens_est / 1000.0) * _model_rate(model_spec), 6)
                 await db.messages.update_one(
                     {"id": message_id, "user_id": get_user_id(current_user)},
                     {
@@ -371,7 +382,11 @@ async def chat_stream(
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                             "feedback": None,
                             "response_time_ms": response_time_ms,
-                            "streaming": False
+                            "streaming": False,
+                            "prompt_tokens_est": prompt_tokens_est,
+                            "completion_tokens_est": completion_tokens_est,
+                            "total_tokens_est": total_tokens_est,
+                            "estimated_cost_usd": estimated_cost_usd,
                         },
                         "$setOnInsert": {
                             "id": message_id,

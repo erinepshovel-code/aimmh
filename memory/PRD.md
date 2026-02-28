@@ -73,6 +73,14 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Conversation re-sync on reload added in frontend to recover latest server-side transcript
 - Chat persistence storage moved to localStorage for stronger cross-reload/cross-tab continuity until logout
 - Iteration 5 regression/testing pass completed (shared-room + reload persistence verification)
+- Added explicit "Refresh from logs" action in chat top bar for manual transcript recovery
+- Prompt history entries now include per-item copy actions
+- Response panels now support per-panel copy-thread + per-message copy actions across visible responses
+- Synthesis is now panel-scoped (triggered from model header), no longer a global top action
+- Response renderer modularized with dedicated Markdown/JSON component (`components/chat/ResponseMessageContent.jsx`)
+- Prompt history item modularized (`components/chat/PromptHistoryItem.jsx`)
+- Vertical dual-panel UX updated: smooth motion indicators, resizable split when unlocked, lock-to-50/50 via button and two-touch gesture hint
+- Iteration 6 frontend testing pass completed (refresh recovery + copyability + panel-scoped synthesis + lock/resizing)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -92,6 +100,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 ### P1
 - Broader regression pass across exports/session/multi-turn retention on production-like data volume
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
+- Continue ChatPage modularization to reduce file size and keep component depth shallow
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

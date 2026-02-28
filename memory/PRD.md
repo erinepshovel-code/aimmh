@@ -111,6 +111,8 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Iteration 8 backend+frontend regression/testing pass completed (chat persistence, pricing tabs, support toggle, checkout redirect/status, feedback all verified)
 - Added explicit opt-in "Restore Latest Thread" action in Chat menu to manually switch to latest conversation when desired (default behavior remains current-thread scoped).
 - Verified restore-latest flow + existing refresh-from-logs regression via frontend testing agent.
+- Agent Zero non-UI REST expansion complete (auth-required): prompt-all, prompt-selected, one-off synthesis, paginated history, and non-UI export proxy endpoints.
+- Updated non-UI options endpoint to advertise new REST routes; backend regression validated with authenticated + unauthenticated checks.
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

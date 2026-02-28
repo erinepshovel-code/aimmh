@@ -2625,11 +2625,10 @@ export default function ChatPage() {
       <Dialog
         open={showSynthesisDialog}
         onOpenChange={(open) => {
-          setShowSynthesisDialog(open);
-          if (!open) {
-            setSynthesisSourceModel('');
-            setSynthesisPrompt('');
-            setSynthesisModels([]);
+          if (open) {
+            setShowSynthesisDialog(true);
+          } else {
+            closeSynthesisDialog();
           }
         }}
       >
@@ -2690,7 +2689,7 @@ export default function ChatPage() {
             </div>
             
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowSynthesisDialog(false)}>
+              <Button variant="outline" onClick={closeSynthesisDialog} data-testid="synthesis-cancel-btn">
                 Cancel
               </Button>
               <Button onClick={handleSynthesis} data-testid="synthesis-submit-btn">

@@ -107,7 +107,7 @@ print('Cleaned up test user and session');
     except Exception as e:
         print(f"Warning: Failed to cleanup test user: {e}")
 
-def make_request(method, endpoint, headers=None, json_data=None, params=None):
+def make_request(method, endpoint, headers=None, json_data=None, params=None, cookies=None):
     """Make HTTP request with error handling"""
     url = f"{API_BASE}{endpoint}"
     print(f"Making {method} request to: {url}")
@@ -118,6 +118,7 @@ def make_request(method, endpoint, headers=None, json_data=None, params=None):
             headers=headers,
             json=json_data,
             params=params,
+            cookies=cookies,
             timeout=30,
             verify=False,  # Skip SSL verification for self-signed certs
             stream=(method.upper() == 'POST' and 'stream' in endpoint)

@@ -137,19 +137,22 @@ def test_unauthenticated_access(results):
         ("/a0/non-ui/conversations/dummy-id/export", "GET"),
     ]
     
-    print("\n=== Testing Unauthenticated Access ===")
     all_rejected = True
     
     for endpoint, method in endpoints_to_test:
-        response = make_request(method, endpoint)
-        if response and response.status_code == 401:
-            results.add_pass(f"Unauth {method} {endpoint}", "401 Unauthorized")
-        else:
-            if response:
-                status = response.status_code
-                results.add_fail(f"Unauth {method} {endpoint}", f"Expected 401, got {status}")
+        try:
+            response = make_request(method, endpoint)
+            if response and response.status_code == 401:
+                results.add_pass(f"Unauth {method} {endpoint}", "401 Unauthorized")
             else:
-                results.add_fail(f"Unauth {method} {endpoint}", "No response received")
+                if response:
+                    status = response.status_code
+                    results.add_fail(f"Unauth {method} {endpoint}", f"Expected 401, got {status}")
+                else:
+                    results.add_fail(f"Unauth {method} {endpoint}", "No response received")
+                all_rejected = False
+        except Exception as e:
+            results.add_fail(f"Unauth {method} {endpoint}", f"Exception: {e}")
             all_rejected = False
     
     return all_rejected

@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for Conversation Search Endpoints
-Tests both regular and a0 non-ui conversation search endpoints
+Backend Regression Test Suite: Conversation Persistence After Early Stream Termination
+
+Testing scenarios:
+1. Start chat stream and terminate early (simulate disconnect), verify conversation persistence
+2. Validate /api/conversations/search and /api/a0/non-ui/conversations/search endpoints 
+3. Ensure Agent Zero non-UI endpoints still work for authenticated users
+
+Regression test for: conversation persistence fix in /api/chat/stream
 """
 
 import asyncio
 import aiohttp
 import json
 import uuid
+import time
+import subprocess
 from typing import Dict, Any, Optional
 
 
-class ConversationSearchTester:
+class BackendRegressionTester:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip('/')
         self.session_token: Optional[str] = None

@@ -378,7 +378,7 @@ def test_synthesis_endpoint(headers, cookies, conversation_id, results):
     else:
         results.add_fail("Synthesis endpoint", f"Expected SSE stream, got {content_type}")
 
-def test_export_endpoint(headers, conversation_id, results):
+def test_export_endpoint(headers, cookies, conversation_id, results):
     """Test GET /api/a0/non-ui/conversations/{conversation_id}/export"""
     print("\n=== Testing Export Endpoint ===")
     

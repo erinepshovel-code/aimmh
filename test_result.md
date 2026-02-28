@@ -304,6 +304,18 @@ frontend:
         agent: "testing"
         comment: "Verified: Thumbs up/down feedback buttons work correctly. Buttons are present in message toolbar for cascade-generated responses. Clicking either button shows 'Feedback submitted' notification and no UI errors occur. Feedback functionality is fully operational."
 
+  - task: "Restore Latest Thread menu action"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE TEST COMPLETED: ✅ (1) Top-right menu contains 'Restore Latest Thread' item with correct data-testid='restore-latest-conversation-menu-item'. ✅ (2) Created conversation by sending prompt 'What is the capital of France?' - received responses from multiple models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview) with correct answer 'Paris'. ✅ (3) Started new chat via 'New Chat' menu item - conversation successfully reset, response panels showed 'Waiting for response...' state. ✅ (4) Used 'Restore Latest Thread' menu action - successfully restored previous conversation, toast notification 'Latest conversation restored' appeared, original messages with 'France'/'Paris' content verified visible in UI. ✅ (5) Verified existing 'Refresh from logs' button (data-testid='refresh-from-logs-btn') still works correctly with active conversation - toast notification 'Conversation refreshed from logs' appeared. All functionality working as expected with no errors."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"

@@ -158,7 +158,7 @@ def test_options_endpoint(headers, cookies, results):
     """Test GET /api/a0/non-ui/options"""
     print("\n=== Testing Options Endpoint ===")
     
-    response = make_request("GET", "/a0/non-ui/options", headers=headers)
+    response = make_request("GET", "/a0/non-ui/options", headers=headers, cookies=cookies)
     
     if not response:
         results.add_fail("Options endpoint", "No response received")

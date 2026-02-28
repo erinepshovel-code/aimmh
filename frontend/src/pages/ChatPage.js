@@ -498,11 +498,22 @@ export default function ChatPage() {
   };
 
   const handleSwipeStart = (event) => {
+    if (event.touches && event.touches.length >= 2) {
+      togglePanelLock();
+      swipeStartXRef.current = null;
+      return;
+    }
+
+    if (panelLock) {
+      swipeStartXRef.current = null;
+      return;
+    }
+
     swipeStartXRef.current = event.changedTouches?.[0]?.clientX ?? null;
   };
 
   const handleSwipeEnd = (event) => {
-    if (selectedModels.length <= 2 || swipeStartXRef.current === null) return;
+    if (panelLock || selectedModels.length <= 2 || swipeStartXRef.current === null) return;
     const endX = event.changedTouches?.[0]?.clientX ?? swipeStartXRef.current;
     const delta = endX - swipeStartXRef.current;
     const threshold = 40;

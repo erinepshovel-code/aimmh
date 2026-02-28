@@ -276,7 +276,7 @@ def test_prompt_all_endpoint(headers, cookies, results):
         "persist_user_message": True
     }
     
-    response = make_request("POST", "/a0/non-ui/prompt/all", headers=headers, json_data=test_data)
+    response = make_request("POST", "/a0/non-ui/prompt/all", headers=headers, cookies=cookies, json_data=test_data)
     
     if not response:
         results.add_fail("Prompt all endpoint", "No response received")

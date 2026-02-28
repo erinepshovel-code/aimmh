@@ -170,11 +170,11 @@ print('SUCCESS: Test user and session created');
     async def test_conversation_persistence_after_disconnect(self, session: aiohttp.ClientSession) -> bool:
         """Test 2: Verify conversation was persisted despite early stream termination"""
         try:
-            headers = {"Authorization": f"Bearer {self.session_token}"}
+            cookies = {"session_token": self.session_token}
             
             # Check if conversation exists in database
             async with session.get(f"{self.base_url}/api/conversations/{self.test_conversation_id}/messages", 
-                                 headers=headers) as response:
+                                 cookies=cookies) as response:
                 
                 if response.status == 200:
                     messages = await response.json()

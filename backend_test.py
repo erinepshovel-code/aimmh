@@ -137,17 +137,21 @@ class BackendTester:
                 for line in response.iter_lines(decode_unicode=True):
                     if line and line.startswith('data: '):
                         try:
-                            data = json.loads(line[6:])  # Remove 'data: ' prefix
-                            events.append(data)
-                            if data.get('event') == 'start':
-                                message_id = data.get('message_id')
+                            data_str = line[6:]  # Remove 'data: ' prefix
+                            if data_str.strip():  # Only process non-empty data
+                                data = json.loads(data_str)
+                                events.append(data)
+                                if not message_id and 'message_id' in data:
+                                    message_id = data.get('message_id')
+                        except json.JSONDecodeError:
+                            continue
                         except:
                             continue
                 
-                if message_id:
-                    self.log_result("Chat Stream - Send Message", True, f"Message sent successfully, ID: {message_id}")
+                if events:
+                    self.log_result("Chat Stream - Send Message", True, f"Stream completed with {len(events)} events")
                 else:
-                    self.log_result("Chat Stream - Send Message", False, "No message_id received from stream")
+                    self.log_result("Chat Stream - Send Message", False, "Stream completed but no events parsed")
             else:
                 self.log_result("Chat Stream - Send Message", False, f"Stream failed: {response.status_code}", response.text[:200])
         

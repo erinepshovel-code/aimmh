@@ -388,7 +388,7 @@ def test_export_endpoint(headers, cookies, conversation_id, results):
     
     params = {"format": "json"}
     response = make_request("GET", f"/a0/non-ui/conversations/{conversation_id}/export", 
-                          headers=headers, params=params)
+                          headers=headers, cookies=cookies, params=params)
     
     if not response:
         results.add_fail("Export endpoint", "No response received")

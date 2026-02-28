@@ -342,7 +342,7 @@ class TestChatStreamWritesContextAndTelemetry:
             "models": ["gpt-4o-mini"],
             "conversation_id": None,
             "context_mode": "compartmented",
-            "shared_room_mode": None,
+            "shared_room_mode": "parallel_all",
             "global_context": "Test global context",
             "model_roles": {"gpt-4o-mini": "neutral"},
             "persist_user_message": True

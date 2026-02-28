@@ -266,7 +266,7 @@ def test_prompt_selected_endpoint(headers, cookies, results):
         results.add_fail("Prompt selected endpoint", f"Expected SSE stream, got {content_type}")
         return None
 
-def test_prompt_all_endpoint(headers, results):
+def test_prompt_all_endpoint(headers, cookies, results):
     """Test POST /api/a0/non-ui/prompt/all"""
     print("\n=== Testing Prompt All Endpoint ===")
     

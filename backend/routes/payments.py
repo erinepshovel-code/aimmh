@@ -154,51 +154,20 @@ def _build_stripe_checkout(request: Request) -> StripeCheckout:
     return StripeCheckout(api_key=_stripe_key(), webhook_url=webhook_url)
 
 
-def _create_product_and_price(package_id: str, package: Dict[str, Any]) -> Dict[str, str]:
-    stripe.api_key = _stripe_key()
-
-    product = stripe.Product.create(
-        name=package["name"],
-        description=package["description"],
-        metadata={
-            "package_id": package_id,
-            "category": package["category"],
-            "billing_type": package["billing_type"],
-        },
-    )
-
-    price_payload: Dict[str, Any] = {
-        "unit_amount": int(round(package["amount"] * 100)),
-        "currency": package["currency"],
-        "product": product["id"],
-        "metadata": {
-            "package_id": package_id,
-            "category": package["category"],
-            "billing_type": package["billing_type"],
-        },
-    }
-
-    if package["billing_type"] == "monthly":
-        price_payload["recurring"] = {"interval": "month"}
-
-    price = stripe.Price.create(**price_payload)
-    return {"product_id": product["id"], "price_id": price["id"]}
-
-
 async def _ensure_catalog_seeded() -> None:
     for package_id, package in PAYMENT_PACKAGES.items():
-        existing = await db.payment_catalog.find_one({"package_id": package_id}, {"_id": 0})
-        if existing and existing.get("stripe_price_id"):
-            continue
-
-        created = await asyncio.to_thread(_create_product_and_price, package_id, package)
         await db.payment_catalog.update_one(
             {"package_id": package_id},
             {
                 "$set": {
                     "package_id": package_id,
-                    "stripe_product_id": created["product_id"],
-                    "stripe_price_id": created["price_id"],
+                    "name": package["name"],
+                    "amount": package["amount"],
+                    "currency": package["currency"],
+                    "billing_type": package["billing_type"],
+                    "category": package["category"],
+                    "description": package["description"],
+                    "features": package.get("features", []),
                     "updated_at": _iso_now(),
                 },
                 "$setOnInsert": {

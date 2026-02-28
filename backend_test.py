@@ -450,6 +450,15 @@ def main():
         # Test 3: POST /api/a0/non-ui/prompt/all
         test_prompt_all_endpoint(headers, cookies, results)
         
+        # Create a test conversation for the remaining tests
+        if not conversation_id:
+            print("\n🔧 Creating test conversation for history/synthesis/export tests...")
+            conversation_id = create_test_conversation(headers, cookies, user_id)
+            if conversation_id:
+                print(f"✅ Test conversation created: {conversation_id}")
+            else:
+                print("❌ Failed to create test conversation")
+        
         # Test 4: GET /api/a0/non-ui/history/{conversation_id}
         test_history_endpoint(headers, cookies, conversation_id, results)
         

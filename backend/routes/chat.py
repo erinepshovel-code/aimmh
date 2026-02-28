@@ -130,13 +130,33 @@ async def chat_stream(
 
     async def event_generator():
         conversation_id = request.conversation_id or str(uuid.uuid4())
+        user_id = get_user_id(current_user)
         normalized_attachments = _normalize_attachments(request.attachments)
         shared_pairs = _normalize_shared_pairs(request.shared_pairs, request.models)
+
+        # Ensure conversation exists immediately so history/search works even if streaming disconnects early.
+        await db.conversations.update_one(
+            {"id": conversation_id, "user_id": user_id},
+            {
+                "$set": {
+                    "title": request.message[:50],
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "context_mode": request.context_mode,
+                    "shared_room_mode": request.shared_room_mode,
+                },
+                "$setOnInsert": {
+                    "id": conversation_id,
+                    "user_id": user_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            },
+            upsert=True,
+        )
 
         context_log = {
             "id": str(uuid.uuid4()),
             "conversation_id": conversation_id,
-            "user_id": get_user_id(current_user),
+            "user_id": user_id,
             "message": request.message,
             "models": request.models,
             "context_mode": request.context_mode,
@@ -412,12 +432,12 @@ async def chat_stream(
             update_fields["model_roles"] = request.model_roles
 
         await db.conversations.update_one(
-            {"id": conversation_id},
+            {"id": conversation_id, "user_id": user_id},
             {
                 "$set": update_fields,
                 "$setOnInsert": {
                     "id": conversation_id,
-                    "user_id": get_user_id(current_user),
+                    "user_id": user_id,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
             },

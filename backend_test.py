@@ -174,6 +174,9 @@ class BackendTester:
                     if user_msgs:
                         self.log_result("Chat Persistence - Message Retrieval", True, 
                                       f"Retrieved {len(messages)} messages: {len(user_msgs)} user, {len(assistant_msgs)} assistant")
+                        # Get message_id from assistant message for feedback testing
+                        if assistant_msgs:
+                            message_id = assistant_msgs[0].get('id')
                     else:
                         self.log_result("Chat Persistence - Message Retrieval", False, "No user messages found in conversation")
                 else:

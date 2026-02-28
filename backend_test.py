@@ -226,7 +226,7 @@ def test_prompt_selected_endpoint(headers, cookies, results):
         "persist_user_message": True
     }
     
-    response = make_request("POST", "/a0/non-ui/prompt/selected", headers=headers, json_data=test_data)
+    response = make_request("POST", "/a0/non-ui/prompt/selected", headers=headers, cookies=cookies, json_data=test_data)
     
     if not response:
         results.add_fail("Prompt selected endpoint", "No response received")

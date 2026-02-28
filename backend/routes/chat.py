@@ -6,6 +6,7 @@ import json
 import uuid
 import time
 import logging
+import math
 
 from db import db
 from models.chat import ChatRequest, MessageFeedback, ConversationResponse, CatchupRequest
@@ -14,6 +15,39 @@ from services.llm import get_api_key, stream_emergent_model, stream_openai_compa
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
+
+MODEL_RATE_PER_1K_TOKENS = {
+    "gpt": 0.012,
+    "claude": 0.011,
+    "gemini": 0.007,
+    "grok": 0.014,
+    "deepseek": 0.004,
+    "perplexity": 0.010,
+    "default": 0.010,
+}
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, math.ceil(len(text) / 4))
+
+
+def _model_rate(model_spec: str) -> float:
+    lower = (model_spec or "").lower()
+    if "gpt" in lower or lower.startswith("o"):
+        return MODEL_RATE_PER_1K_TOKENS["gpt"]
+    if "claude" in lower:
+        return MODEL_RATE_PER_1K_TOKENS["claude"]
+    if "gemini" in lower:
+        return MODEL_RATE_PER_1K_TOKENS["gemini"]
+    if "grok" in lower:
+        return MODEL_RATE_PER_1K_TOKENS["grok"]
+    if "deepseek" in lower:
+        return MODEL_RATE_PER_1K_TOKENS["deepseek"]
+    if "perplexity" in lower or "sonar" in lower:
+        return MODEL_RATE_PER_1K_TOKENS["perplexity"]
+    return MODEL_RATE_PER_1K_TOKENS["default"]
 
 
 def _normalize_attachments(attachments: List[Dict[str, Any]] | None) -> List[Dict[str, Any]]:

@@ -2154,7 +2154,7 @@ export default function ChatPage() {
 
         {/* Response Panels with Carousel */}
         <div
-          className="flex-1 overflow-hidden flex flex-col"
+          className={`flex-1 overflow-hidden flex flex-col transition-all duration-200 ${carouselAnimating ? 'opacity-90 scale-[0.995]' : 'opacity-100 scale-100'}`}
           onTouchStart={handleSwipeStart}
           onTouchEnd={handleSwipeEnd}
           data-testid="model-carousel-container"
@@ -2167,11 +2167,13 @@ export default function ChatPage() {
             <>
               {/* Carousel Navigation */}
               {selectedModels.length > 2 && (
-                <div className="p-2 border-b border-border bg-[#18181B] flex items-center justify-center gap-4">
+                <div className="p-2 border-b border-border bg-[#18181B] space-y-2" data-testid="carousel-controls-bar">
+                  <div className="flex items-center justify-center gap-4">
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={handlePrevModel}
+                    disabled={panelLock}
                     data-testid="prev-model-btn"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -2183,10 +2185,39 @@ export default function ChatPage() {
                     size="sm"
                     variant="ghost"
                     onClick={handleNextModel}
+                    disabled={panelLock}
                     data-testid="next-model-btn"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
+                  <Button
+                    size="sm"
+                    variant={panelLock ? 'default' : 'outline'}
+                    onClick={togglePanelLock}
+                    data-testid="carousel-lock-split-btn"
+                    title="Lock with 50/50 split (or two-finger touch)"
+                  >
+                    {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
+                    {panelLock ? 'Locked' : 'Lock split'}
+                  </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 px-2">
+                    <div className="text-[10px] text-muted-foreground" data-testid="carousel-motion-hint">
+                      Swipe to rotate • Drag divider to resize • Two-finger touch toggles lock
+                    </div>
+                    <div className="flex items-center gap-1" data-testid="carousel-motion-indicators">
+                      {selectedModels.map((model, idx) => {
+                        const active = idx === visibleModelIndex || idx === ((visibleModelIndex + 1) % selectedModels.length);
+                        return (
+                          <span
+                            key={`dot-${model}-${idx}`}
+                            className={`h-1.5 rounded-full transition-all duration-300 ${active ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/50'}`}
+                            data-testid={`carousel-dot-${idx}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
               

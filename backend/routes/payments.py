@@ -342,7 +342,11 @@ async def create_checkout_session(
         metadata=metadata,
     )
 
-    session = await stripe_checkout.create_checkout_session(checkout_request)
+    try:
+        session = await stripe_checkout.create_checkout_session(checkout_request)
+    except Exception as exc:
+        logger.error("Stripe checkout session creation failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Stripe checkout initialization failed: {exc}")
 
     tx_doc = {
         "id": str(uuid.uuid4()),
@@ -380,7 +384,11 @@ async def get_checkout_status(
 ):
     _ = current_user
     stripe_checkout = _build_stripe_checkout(request)
-    status = await stripe_checkout.get_checkout_status(session_id)
+    try:
+        status = await stripe_checkout.get_checkout_status(session_id)
+    except Exception as exc:
+        logger.error("Stripe checkout status fetch failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Stripe status check failed: {exc}")
 
     amount_total = float(status.amount_total) / 100.0 if status.amount_total else 0.0
     metadata = status.metadata or {}
@@ -419,7 +427,11 @@ async def stripe_webhook(request: Request):
     body = await request.body()
     signature = request.headers.get("Stripe-Signature")
 
-    webhook_response = await stripe_checkout.handle_webhook(body, signature)
+    try:
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+    except Exception as exc:
+        logger.error("Stripe webhook processing failed: %s", exc)
+        raise HTTPException(status_code=400, detail=f"Invalid Stripe webhook: {exc}")
     session_id = webhook_response.session_id
 
     if session_id:

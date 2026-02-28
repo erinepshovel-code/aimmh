@@ -2618,12 +2618,24 @@ export default function ChatPage() {
       </div>
 
       {/* Synthesis Dialog */}
-      <Dialog open={showSynthesisDialog} onOpenChange={setShowSynthesisDialog}>
+      <Dialog
+        open={showSynthesisDialog}
+        onOpenChange={(open) => {
+          setShowSynthesisDialog(open);
+          if (!open) {
+            setSynthesisSourceModel('');
+            setSynthesisPrompt('');
+            setSynthesisModels([]);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Synthesize Responses</DialogTitle>
             <DialogDescription>
-              Select models to synthesize the {selectedMessages.length} selected response(s)
+              {synthesisSourceModel
+                ? `Source panel: ${synthesisSourceModel}. Select targets for ${selectedMessages.length} selected response(s).`
+                : `Select models to synthesize ${selectedMessages.length} selected response(s).`}
             </DialogDescription>
           </DialogHeader>
           
@@ -2644,7 +2656,7 @@ export default function ChatPage() {
             <div>
               <Label>Target Models</Label>
               <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
-                {selectedModels.map(model => (
+                {synthesisTargetOptions.map(model => (
                   <div key={model} className="flex items-center space-x-2">
                     <Checkbox
                       id={`synthesis-${model}`}
@@ -2665,6 +2677,11 @@ export default function ChatPage() {
                     </label>
                   </div>
                 ))}
+                {synthesisTargetOptions.length === 0 && (
+                  <div className="text-xs text-muted-foreground" data-testid="synthesis-no-targets-hint">
+                    Add another model to run synthesis from this panel.
+                  </div>
+                )}
               </div>
             </div>
             

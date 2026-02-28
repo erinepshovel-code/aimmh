@@ -2128,10 +2128,11 @@ export default function ChatPage() {
             <ScrollArea className="flex-1">
               <div className="p-1 space-y-1">
                 {promptHistory.map((prompt, idx) => (
-                  <div key={idx} className="p-1.5 rounded bg-muted/50 text-[10px]">
-                    <Badge variant="outline" className="text-[9px] mb-0.5">#{prompt.index}</Badge>
-                    <div className="text-muted-foreground line-clamp-2">{prompt.content}</div>
-                  </div>
+                  <PromptHistoryItem
+                    key={`${prompt.index}-${idx}`}
+                    prompt={prompt}
+                    onCopy={handleCopy}
+                  />
                 ))}
               </div>
             </ScrollArea>

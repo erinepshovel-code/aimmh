@@ -114,6 +114,7 @@ def make_request(method, endpoint, headers=None, json_data=None, params=None):
             json=json_data,
             params=params,
             timeout=30,
+            verify=False,  # Skip SSL verification for self-signed certs
             stream=(method.upper() == 'POST' and 'stream' in endpoint)
         )
         return response

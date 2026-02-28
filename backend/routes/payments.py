@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
-import asyncio
 import logging
 import os
 import uuid
 
-import stripe
 from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout,
     CheckoutSessionRequest,

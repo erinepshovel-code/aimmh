@@ -102,6 +102,18 @@
 user_problem_statement: "Multi-model prompt hub with advanced research features (cascade + scene prompt properties), a0 integration, and mobile-first UI."
 
 backend:
+  - task: "Conversation search REST endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/chat.py, /app/backend/routes/agent_zero.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CONVERSATION SEARCH ENDPOINTS TEST COMPLETED: ✅ ALL TESTS PASSED ✅ (1) GET /api/conversations/search returns correct shape {query, offset, limit, total, conversations} with default values query='', offset=0, limit=20 ✅ (2) GET /api/a0/non-ui/conversations/search returns identical shape and functionality ✅ (3) Case-insensitive regex search working: 'machine' finds 'Machine Learning Tutorial', 'PYTHON' finds 'Python Programming', 'javascript' finds 'JavaScript ES6' ✅ (4) Pagination working: limit parameter respected (tested limit=2), offset parameter working (tested offset=1) ✅ (5) Edge cases handled correctly: empty queries return all conversations, whitespace-only queries treated as empty, large offsets return empty arrays, maximum limit boundary respected ✅ (6) Authentication enforced: unauthenticated requests to both endpoints return 401 Unauthorized as required ✅ (7) User isolation confirmed: search only returns conversations belonging to authenticated user. Both search endpoints are fully functional and ready for production use."
+
   - task: "Universal key default ON + explicit DISABLED sentinel"
     implemented: true
     working: true

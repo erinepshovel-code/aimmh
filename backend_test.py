@@ -38,48 +38,68 @@ class ConversationSearchTester:
         })
         print(f"[{status}] {test_name}: {details}")
 
-    async def login(self, session: aiohttp.ClientSession) -> bool:
-        """Authenticate with test user"""
+    async def setup_auth_session(self, session: aiohttp.ClientSession) -> bool:
+        """Setup authentication using cookie-based session"""
         try:
-            # First check if we can get existing test users
-            async with session.get(f"{self.base_url}/api/auth/me") as resp:
+            # Create test user and session in MongoDB
+            import subprocess
+            import json as json_module
+            
+            result = subprocess.run([
+                'mongosh', '--eval', 
+                """
+                use('prompt_hub');
+                var userId = 'convtest-user-' + Date.now();
+                var sessionToken = 'convtest_session_' + Date.now();
+                db.users.insertOne({
+                  user_id: userId,
+                  email: 'convtest.user.' + Date.now() + '@example.com',
+                  name: 'Conversation Search Test User',
+                  picture: 'https://via.placeholder.com/150',
+                  created_at: new Date()
+                });
+                db.user_sessions.insertOne({
+                  user_id: userId,
+                  session_token: sessionToken,
+                  expires_at: new Date(Date.now() + 7*24*60*60*1000),
+                  created_at: new Date()
+                });
+                print('SESSION_TOKEN:' + sessionToken);
+                """
+            ], capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"MongoDB session creation failed: {result.stderr}")
+                return False
+            
+            # Extract session token from output
+            lines = result.stdout.split('\n')
+            session_token = None
+            for line in lines:
+                if line.startswith('SESSION_TOKEN:'):
+                    session_token = line.split('SESSION_TOKEN:')[1].strip()
+                    break
+            
+            if not session_token:
+                print("Failed to extract session token from MongoDB output")
+                return False
+            
+            # Set the session token as a cookie
+            self.session_token = session_token
+            
+            # Test authentication
+            cookies = {'session_token': session_token}
+            async with session.get(f"{self.base_url}/api/auth/me", cookies=cookies) as resp:
                 if resp.status == 200:
-                    data = await resp.json()
-                    self.session_token = "existing_session"
-                    return True
-                    
-            # Try to register/login with test user
-            test_user = f"convtestuser_{uuid.uuid4().hex[:8]}"
-            test_pass = "ConvTestPass123!"
-            
-            # Register
-            register_data = {
-                "email": f"{test_user}@testdomain.com",
-                "password": test_pass,
-                "confirm_password": test_pass
-            }
-            
-            async with session.post(f"{self.base_url}/api/auth/register", json=register_data) as resp:
-                if resp.status not in [200, 409]:  # 409 = already exists
-                    print(f"Registration failed with status {resp.status}")
-                    return False
-            
-            # Login
-            login_data = {
-                "email": f"{test_user}@testdomain.com",
-                "password": test_pass
-            }
-            
-            async with session.post(f"{self.base_url}/api/auth/login", json=login_data) as resp:
-                if resp.status == 200:
-                    self.session_token = "authenticated"
+                    # Update session with cookies for subsequent requests
+                    session.cookie_jar.update_cookies({'session_token': session_token})
                     return True
                 else:
-                    print(f"Login failed with status {resp.status}")
+                    print(f"Auth test failed with status {resp.status}")
                     return False
                     
         except Exception as e:
-            print(f"Authentication error: {e}")
+            print(f"Authentication setup error: {e}")
             return False
 
     async def create_test_conversations(self, session: aiohttp.ClientSession) -> bool:

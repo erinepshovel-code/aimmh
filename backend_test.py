@@ -267,10 +267,10 @@ print('SUCCESS: Test user and session created');
     async def test_agent_zero_non_ui_endpoints(self, session: aiohttp.ClientSession) -> bool:
         """Test 4: Ensure Agent Zero non-UI endpoints remain functional"""
         try:
-            headers = {"Authorization": f"Bearer {self.session_token}"}
+            cookies = {"session_token": self.session_token}
             
             # Test 4a: /api/a0/non-ui/options
-            async with session.get(f"{self.base_url}/api/a0/non-ui/options", headers=headers) as response:
+            async with session.get(f"{self.base_url}/api/a0/non-ui/options", cookies=cookies) as response:
                 if response.status == 200:
                     options = await response.json()
                     required_keys = ["input_options", "output_options", "available_models", "non_ui_endpoints"]
@@ -297,7 +297,8 @@ print('SUCCESS: Test user and session created');
             
             # Just verify the endpoint starts streaming
             async with session.post(f"{self.base_url}/api/a0/non-ui/prompt/selected",
-                                  headers=headers, json=prompt_payload) as response:
+                                  headers={"Content-Type": "application/json"}, 
+                                  json=prompt_payload, cookies=cookies) as response:
                 
                 if response.status == 200:
                     # Read first chunk to verify streaming works
@@ -314,7 +315,7 @@ print('SUCCESS: Test user and session created');
             # Test 4c: /api/a0/non-ui/history/{conversation_id} with non-existent ID
             fake_id = "non-existent-conversation"
             async with session.get(f"{self.base_url}/api/a0/non-ui/history/{fake_id}?offset=0&limit=200",
-                                 headers=headers) as response:
+                                 cookies=cookies) as response:
                 
                 if response.status == 404:
                     self.log_test("A0 History Endpoint", "PASS", "Returns 404 for non-existent conversation")
@@ -332,7 +333,8 @@ print('SUCCESS: Test user and session created');
             }
             
             async with session.post(f"{self.base_url}/api/a0/non-ui/synthesis",
-                                  headers=headers, json=synthesis_payload) as response:
+                                  headers={"Content-Type": "application/json"},
+                                  json=synthesis_payload, cookies=cookies) as response:
                 
                 if response.status == 404:
                     self.log_test("A0 Synthesis Endpoint", "PASS", "Returns 404 for non-existent messages")
@@ -343,7 +345,7 @@ print('SUCCESS: Test user and session created');
             
             # Test 4e: /api/a0/non-ui/conversations/{id}/export with non-existent ID
             async with session.get(f"{self.base_url}/api/a0/non-ui/conversations/{fake_id}/export?format=json",
-                                 headers=headers) as response:
+                                 cookies=cookies) as response:
                 
                 if response.status == 404:
                     self.log_test("A0 Export Endpoint", "PASS", "Returns 404 for non-existent conversation")

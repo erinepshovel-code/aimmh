@@ -961,6 +961,13 @@ export default function ChatPage() {
     setShowSynthesisDialog(true);
   };
 
+  const closeSynthesisDialog = () => {
+    setShowSynthesisDialog(false);
+    setSynthesisPrompt('');
+    setSynthesisModels([]);
+    setSynthesisSourceModel('');
+  };
+
   const handleSynthesis = async () => {
     if (selectedMessages.length === 0) {
       toast.error('Please select at least one response');
@@ -992,10 +999,7 @@ export default function ChatPage() {
     const fullPrompt = synthesisPrompt || 'Synthesize and analyze these AI responses:';
     const synthesisMessage = `${fullPrompt}\n\n${responsesText}`;
     
-    setShowSynthesisDialog(false);
-    setSynthesisPrompt('');
-    setSynthesisModels([]);
-    setSynthesisSourceModel('');
+    closeSynthesisDialog();
     setSelectedMessages([]);
     
     // Send to selected models

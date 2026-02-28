@@ -109,10 +109,8 @@ print('SUCCESS: Test user and session created');
     async def test_chat_stream_early_termination(self, session: aiohttp.ClientSession) -> bool:
         """Test 1: Start chat stream and terminate early to simulate disconnect"""
         try:
-            headers = {
-                "Authorization": f"Bearer {self.session_token}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Content-Type": "application/json"}
+            cookies = {"session_token": self.session_token}
             
             # Generate unique conversation ID for tracking
             self.test_conversation_id = str(uuid.uuid4())
@@ -130,7 +128,7 @@ print('SUCCESS: Test user and session created');
             # Start streaming request
             chunk_count = 0
             async with session.post(f"{self.base_url}/api/chat/stream", 
-                                  headers=headers, json=payload) as response:
+                                  headers=headers, json=payload, cookies=cookies) as response:
                 
                 if response.status != 200:
                     self.log_test("Chat Stream Start", "FAIL", 

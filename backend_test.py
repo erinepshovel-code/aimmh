@@ -332,7 +332,7 @@ def test_history_endpoint(headers, cookies, conversation_id, results):
     except json.JSONDecodeError:
         results.add_fail("History endpoint", "Invalid JSON response")
 
-def test_synthesis_endpoint(headers, conversation_id, results):
+def test_synthesis_endpoint(headers, cookies, conversation_id, results):
     """Test POST /api/a0/non-ui/synthesis"""
     print("\n=== Testing Synthesis Endpoint ===")
     

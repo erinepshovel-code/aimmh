@@ -110,7 +110,6 @@ print('Cleaned up test user and session');
 def make_request(method, endpoint, headers=None, json_data=None, params=None, cookies=None):
     """Make HTTP request with error handling"""
     url = f"{API_BASE}{endpoint}"
-    print(f"Making {method} request to: {url}")
     try:
         response = requests.request(
             method=method,
@@ -123,10 +122,8 @@ def make_request(method, endpoint, headers=None, json_data=None, params=None, co
             verify=False,  # Skip SSL verification for self-signed certs
             stream=(method.upper() == 'POST' and 'stream' in endpoint)
         )
-        print(f"Response status: {response.status_code}")
         return response
     except Exception as e:
-        print(f"Request failed: {method} {endpoint} - {e}")
         return None
 
 def test_unauthenticated_access(results):

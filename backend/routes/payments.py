@@ -316,8 +316,8 @@ async def create_checkout_session(
 
     await _ensure_catalog_seeded()
     price_doc = await db.payment_catalog.find_one({"package_id": checkout_data.package_id}, {"_id": 0})
-    if not price_doc or not price_doc.get("stripe_price_id"):
-        raise HTTPException(status_code=500, detail="Stripe catalog unavailable for selected package")
+    if not price_doc:
+        raise HTTPException(status_code=500, detail="Payment catalog unavailable for selected package")
 
     user_id = get_user_id(current_user)
     user_email = current_user.get("email") or current_user.get("username") or ""
@@ -335,8 +335,8 @@ async def create_checkout_session(
 
     stripe_checkout = _build_stripe_checkout(request)
     checkout_request = CheckoutSessionRequest(
-        stripe_price_id=price_doc["stripe_price_id"],
-        quantity=1,
+        amount=float(package["amount"]),
+        currency=package["currency"],
         success_url=success_url,
         cancel_url=cancel_url,
         metadata=metadata,
@@ -358,7 +358,7 @@ async def create_checkout_session(
         "status": "initiated",
         "payment_status": "pending",
         "metadata": metadata,
-        "stripe_price_id": price_doc["stripe_price_id"],
+        "stripe_price_id": price_doc.get("stripe_price_id"),
         "created_at": _iso_now(),
         "updated_at": _iso_now(),
         "fulfilled": False,

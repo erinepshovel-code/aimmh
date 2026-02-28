@@ -193,24 +193,24 @@ def test_options_endpoint(headers, cookies, results):
         results.add_fail("Options endpoint", "Invalid JSON response")
         return None
 
-def create_test_conversation(headers, user_id):
+def create_test_conversation(headers, cookies, user_id):
     """Create a test conversation for testing"""
     conversation_id = str(uuid.uuid4())
     
-    # Create conversation
+    # Create conversation using the regular chat endpoint 
     conversation_data = {
-        "message": "Test message for Agent Zero non-UI endpoints",
+        "message": "Test message for Agent Zero non-UI endpoints testing",
         "models": ["gpt-5.2"],
         "conversation_id": conversation_id,
         "context_mode": "compartmented",
         "persist_user_message": True
     }
     
-    response = make_request("POST", "/chat/stream", headers=headers, json_data=conversation_data)
+    response = make_request("POST", "/chat/stream", headers=headers, cookies=cookies, json_data=conversation_data)
     
     if response and response.status_code == 200:
-        # Wait a moment for the conversation to be created
-        time.sleep(2)
+        # Wait a moment for the conversation to be created and process the stream
+        time.sleep(3)
         return conversation_id
     else:
         return None

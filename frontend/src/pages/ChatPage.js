@@ -940,6 +940,27 @@ export default function ChatPage() {
     loadUniversalStatus();
   }, []);
 
+  const handleOpenModelSynthesis = (model) => {
+    const modelMessageIds = messages
+      .filter(m => m.role === 'assistant' && m.model === model && m.id)
+      .map(m => m.id);
+
+    if (modelMessageIds.length === 0) {
+      toast.error('No responses available for synthesis in this panel');
+      return;
+    }
+
+    const selectedForModel = selectedMessages.filter(id => modelMessageIds.includes(id));
+    const fallbackMessageId = modelMessageIds[modelMessageIds.length - 1];
+    const nextSelected = selectedForModel.length > 0 ? selectedForModel : [fallbackMessageId];
+    const targetDefaults = selectedModels.filter(m => m !== model);
+
+    setSelectedMessages(nextSelected);
+    setSynthesisSourceModel(model);
+    setSynthesisModels(targetDefaults.length > 0 ? targetDefaults : [model]);
+    setShowSynthesisDialog(true);
+  };
+
   const handleSynthesis = async () => {
     if (selectedMessages.length === 0) {
       toast.error('Please select at least one response');
@@ -952,7 +973,17 @@ export default function ChatPage() {
     }
     
     // Build synthesis prompt
-    const selectedMsgs = messages.filter(m => selectedMessages.includes(m.id));
+    const selectedMsgs = messages.filter(m => {
+      if (!selectedMessages.includes(m.id)) return false;
+      if (!synthesisSourceModel) return true;
+      return m.model === synthesisSourceModel;
+    });
+
+    if (selectedMsgs.length === 0) {
+      toast.error('No selected responses available for this model');
+      return;
+    }
+
     const responsesText = selectedMsgs.map((msg, idx) => {
       const msgIndex = messageIndexMap[msg.id] || idx;
       return `Response #${msgIndex} from ${msg.model}:\n${msg.content}`;
@@ -964,6 +995,7 @@ export default function ChatPage() {
     setShowSynthesisDialog(false);
     setSynthesisPrompt('');
     setSynthesisModels([]);
+    setSynthesisSourceModel('');
     setSelectedMessages([]);
     
     // Send to selected models

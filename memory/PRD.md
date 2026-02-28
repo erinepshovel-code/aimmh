@@ -16,6 +16,8 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
     chat.py          # Chat/keys Pydantic models
     agent_zero.py    # A0 request models
     edcm.py          # EDCM metrics + A0Config models
+    payments.py      # Stripe checkout/catalog/summary response models
+    context.py       # Console context + cost limit request models
   routes/
     auth.py          # Register, login, Google OAuth, logout, /me
     keys.py          # API key CRUD
@@ -23,6 +25,8 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
     export.py        # JSON/TXT/PDF export
     agent_zero.py    # A0 config CRUD, ingest, route, health (per-user config)
     edcm.py          # EDCM metrics ingest/query, response times, feedback stats, dashboard
+    payments.py      # Stripe checkout sessions, status polling, webhook, catalog, payment summary
+    console.py       # Console preferences + editable prompt context logs
   services/
     auth.py          # Password hashing, JWT, get_current_user
     llm.py           # LLM streaming (Emergent + OpenAI-compatible)
@@ -34,16 +38,21 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 ### Frontend (React + Tailwind + Shadcn)
 ```
 /app/frontend/src/
-  App.js             # Routes: /auth, /chat, /settings, /dashboard
+  App.js             # Routes: /auth, /chat, /settings, /dashboard, /console, /pricing
   contexts/AuthContext.js
   pages/
     AuthPage.js, AuthCallback.js
     ChatPage.js      # Core chat UI (Dashboard link in menu)
     SettingsPage.js  # API keys + A0 Integration + Dashboard link
     DashboardPage.js # EDCM metrics, response times, feedback stats
+    ConsolePage.js   # Token/cost controls, EDCM view, editable prompt context, donations vs costs
+    PricingPage.js   # Core/support/founder/credits tabs with Stripe checkout wiring
   components/
     ModelSelector.js
     A0Settings.js    # A0 config with Local Device / Google Cloud tabs
+    HmmmDoctrineBar.jsx
+    chat/ResponseMessageContent.jsx
+    chat/PromptHistoryItem.jsx
     ui/
 ```
 
@@ -81,6 +90,21 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Prompt history item modularized (`components/chat/PromptHistoryItem.jsx`)
 - Vertical dual-panel UX updated: smooth motion indicators, resizable split when unlocked, lock-to-50/50 via button and two-touch gesture hint
 - Iteration 6 frontend testing pass completed (refresh recovery + copyability + panel-scoped synthesis + lock/resizing)
+- Console page added at `/console` with tabbed windows:
+  - Token + cost telemetry and editable slider/toggle limits
+  - EDCM brain connection metrics display
+  - Editable context payload inspector for prompt packets
+  - Donations vs costs financial panel + OAuth identity state
+- Stripe wiring added:
+  - Catalog seeding endpoint + founder cap tracking
+  - Checkout session creation endpoint
+  - Checkout status polling endpoint
+  - Webhook handler endpoint
+  - Pricing UI at `/pricing` with Core/Support/Founder/Credits tabs and real checkout redirects
+- Founder cap hard enforcement implemented (53 slots) with remaining-slot badge in UI
+- Chat route now records prompt context logs and assistant token/cost telemetry fields
+- Global bottom footer added: dynamic `hmmm doctrine` bar (route/state/signal aware)
+- Iteration 7 backend+frontend testing pass completed (all checks passed)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -94,6 +118,11 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - `user_sessions`: user_id, session_token, expires_at
 - `a0_config`: user_id, mode, local_url, local_port, cloud_url, api_key, route_via_a0, auto_ingest
 - `edcm_metrics`: user_id, conversation_id, 5 metric fields, source, metadata, timestamp
+- `context_logs`: id, user_id, conversation_id, prompt message, context packet fields (global context, roles, per-model messages, shared config), attachments, timestamps
+- `console_preferences`: user_id, enforce_token_limit, enforce_cost_limit, token_limit, cost_limit_usd, updated_at
+- `payment_catalog`: package metadata used by pricing/checkout seeding
+- `payment_transactions`: required Stripe transaction tracking collection (session_id, amount, package/category, user_id/email, status/payment_status, metadata, fulfillment state)
+- `founder_registry`: founder purchaser listing records
 
 ## Pending Tasks
 
@@ -101,6 +130,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Broader regression pass across exports/session/multi-turn retention on production-like data volume
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
+- Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)
@@ -108,6 +138,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Google Cloud A0 deployment (currently stub)
 - Audio output improvements
 - Thumbs feedback refinements (downgraded priority by user)
+- Upgrade Stripe catalog from DB-seeded package map to dashboard-managed product/price IDs if production billing ops require strict Stripe object governance
 
 ## MOCKED
 - EDCM metrics are stubs — they receive data from Agent Zero but no real A0 is running on this server

@@ -347,7 +347,7 @@ def test_synthesis_endpoint(headers, cookies, conversation_id, results):
         "synthesis_prompt": "Analyze this response:"
     }
     
-    response = make_request("POST", "/a0/non-ui/synthesis", headers=headers, json_data=test_data)
+    response = make_request("POST", "/a0/non-ui/synthesis", headers=headers, cookies=cookies, json_data=test_data)
     
     if not response:
         results.add_fail("Synthesis endpoint", "No response received")

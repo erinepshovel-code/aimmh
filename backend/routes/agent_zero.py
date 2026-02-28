@@ -278,6 +278,7 @@ async def get_non_ui_options(current_user: dict = Depends(get_current_user)):
             "transcript": "/api/a0/non-ui/transcript/{conversation_id}",
             "history": "/api/a0/non-ui/history/{conversation_id}",
             "conversations": "/api/a0/non-ui/conversations",
+            "conversations_search": "/api/a0/non-ui/conversations/search?q=term&offset=0&limit=20",
             "export": "/api/a0/non-ui/conversations/{conversation_id}/export?format=json|txt|pdf"
         }
     }
@@ -406,6 +407,36 @@ async def get_non_ui_conversations(
     ).sort("updated_at", -1).limit(limit).to_list(limit)
 
     return {"conversations": conversations}
+
+
+@router.get("/non-ui/conversations/search")
+async def search_non_ui_conversations(
+    q: str = Query(default="", max_length=120),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Search conversation titles for Agent Zero programmatic retrieval."""
+    uid = get_user_id(current_user)
+    title_query = (q or "").strip()
+
+    base_filter = {"user_id": uid}
+    if title_query:
+        base_filter["title"] = {"$regex": title_query, "$options": "i"}
+
+    total = await db.conversations.count_documents(base_filter)
+    conversations = await db.conversations.find(
+        base_filter,
+        {"_id": 0}
+    ).sort("updated_at", -1).skip(offset).limit(limit).to_list(limit)
+
+    return {
+        "query": title_query,
+        "offset": offset,
+        "limit": limit,
+        "total": total,
+        "conversations": conversations,
+    }
 
 
 @router.get("/non-ui/history/{conversation_id}")

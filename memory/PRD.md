@@ -113,6 +113,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Verified restore-latest flow + existing refresh-from-logs regression via frontend testing agent.
 - Agent Zero non-UI REST expansion complete (auth-required): prompt-all, prompt-selected, one-off synthesis, paginated history, and non-UI export proxy endpoints.
 - Updated non-UI options endpoint to advertise new REST routes; backend regression validated with authenticated + unauthenticated checks.
+- Added conversation search REST APIs (auth-required): `/api/conversations/search` and `/api/a0/non-ui/conversations/search` with query + offset/limit pagination.
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -139,7 +140,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
-- Add conversation picker/search for switching among older threads beyond latest/current
+- Wire a frontend conversation picker/search UI to new conversation search endpoints for faster thread switching
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

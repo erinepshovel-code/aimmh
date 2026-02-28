@@ -394,13 +394,16 @@ async def a0_non_ui_synthesis(
 
 
 @router.get("/non-ui/conversations")
-async def get_non_ui_conversations(current_user: dict = Depends(get_current_user)):
+async def get_non_ui_conversations(
+    limit: int = Query(default=100, ge=1, le=500),
+    current_user: dict = Depends(get_current_user)
+):
     """List user conversations for Agent Zero programmatic access."""
     uid = get_user_id(current_user)
     conversations = await db.conversations.find(
         {"user_id": uid},
         {"_id": 0}
-    ).sort("updated_at", -1).limit(100).to_list(100)
+    ).sort("updated_at", -1).limit(limit).to_list(limit)
 
     return {"conversations": conversations}
 

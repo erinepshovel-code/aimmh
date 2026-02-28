@@ -109,6 +109,8 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Pricing page polish pass: Added billing hero, auth-required indicator, live payment summary cards (paid/support/usage/compute), and clearer checkout cancel/status UX.
 - Stripe checkout session now prefers `stripe_price_id` when catalog has one (fallback to fixed amount remains), improving subscription-ready compatibility.
 - Iteration 8 backend+frontend regression/testing pass completed (chat persistence, pricing tabs, support toggle, checkout redirect/status, feedback all verified)
+- Added explicit opt-in "Restore Latest Thread" action in Chat menu to manually switch to latest conversation when desired (default behavior remains current-thread scoped).
+- Verified restore-latest flow + existing refresh-from-logs regression via frontend testing agent.
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -135,7 +137,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
-- Add optional "restore latest conversation" as an explicit opt-in action (current behavior intentionally restores only active conversation)
+- Add conversation picker/search for switching among older threads beyond latest/current
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

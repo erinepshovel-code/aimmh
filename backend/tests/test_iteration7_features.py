@@ -25,8 +25,8 @@ TEST_USER_ID = "test-iter7-1772255810435"
 
 @pytest.fixture(scope="module")
 def auth_headers():
-    """Return auth headers with test session token"""
-    return {"Authorization": f"Bearer {TEST_SESSION_TOKEN}"}
+    """Return auth headers with JWT token"""
+    return {"Authorization": f"Bearer {TEST_JWT_TOKEN}"}
 
 
 @pytest.fixture(scope="module")

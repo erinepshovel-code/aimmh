@@ -117,7 +117,7 @@ class BackendTester:
                 "models": ["gpt-5.2"],
                 "conversation_id": conversation_id,
                 "context_mode": "shared",
-                "shared_room_mode": "all_models",
+                "shared_room_mode": "parallel_all",
                 "persist_user_message": True,
                 "history_limit": 10
             }

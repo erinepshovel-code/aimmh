@@ -442,22 +442,22 @@ def main():
     
     try:
         # Test 1: GET /api/a0/non-ui/options
-        options_data = test_options_endpoint(headers, results)
+        options_data = test_options_endpoint(headers, cookies, results)
         
         # Test 2: POST /api/a0/non-ui/prompt/selected  
-        conversation_id = test_prompt_selected_endpoint(headers, results)
+        conversation_id = test_prompt_selected_endpoint(headers, cookies, results)
         
         # Test 3: POST /api/a0/non-ui/prompt/all
-        test_prompt_all_endpoint(headers, results)
+        test_prompt_all_endpoint(headers, cookies, results)
         
         # Test 4: GET /api/a0/non-ui/history/{conversation_id}
-        test_history_endpoint(headers, conversation_id, results)
+        test_history_endpoint(headers, cookies, conversation_id, results)
         
         # Test 5: POST /api/a0/non-ui/synthesis
-        test_synthesis_endpoint(headers, conversation_id, results)
+        test_synthesis_endpoint(headers, cookies, conversation_id, results)
         
         # Test 6: GET /api/a0/non-ui/conversations/{conversation_id}/export
-        test_export_endpoint(headers, conversation_id, results)
+        test_export_endpoint(headers, cookies, conversation_id, results)
         
     finally:
         # Cleanup

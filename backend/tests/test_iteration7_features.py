@@ -18,8 +18,8 @@ import time
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 
-# Session token created by test setup
-TEST_SESSION_TOKEN = "test_session_iter7_1772255810435"
+# JWT token created by test setup
+TEST_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LWl0ZXI3LTE3NzIyNTU4MTA0MzUiLCJleHAiOjE3NzIzNDIyODB9.RsfAaj40-1dthL0o6TNCO91B1fndodYtLy5I6grJMBQ"
 TEST_USER_ID = "test-iter7-1772255810435"
 
 

@@ -579,11 +579,59 @@ export default function ChatPage() {
     }
   };
 
+  const recoverLatestConversation = async (silent = true) => {
+    try {
+      const token = localStorage.getItem('token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+      const response = await axios.get(`${API}/conversations`, config);
+      const latestConversationId = response.data?.[0]?.id;
+
+      if (!latestConversationId) {
+        if (!silent) {
+          toast.error('No saved conversation logs found');
+        }
+        return;
+      }
+
+      setConversationId(latestConversationId);
+      await syncConversationMessages(latestConversationId, silent);
+
+      if (!silent) {
+        toast.success('Recovered latest conversation from logs');
+      }
+    } catch {
+      if (!silent) {
+        toast.error('Failed to recover conversation from logs');
+      }
+    }
+  };
+
+  const handleRefreshFromLogs = async () => {
+    if (refreshingFromLogs) return;
+    setRefreshingFromLogs(true);
+    try {
+      if (conversationId) {
+        await syncConversationMessages(conversationId, false);
+        toast.success('Conversation refreshed from logs');
+      } else {
+        await recoverLatestConversation(false);
+      }
+    } finally {
+      setRefreshingFromLogs(false);
+    }
+  };
+
   useEffect(() => {
     if (conversationId && !streaming) {
       syncConversationMessages(conversationId, true);
     }
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId && !streaming && messages.length === 0) {
+      recoverLatestConversation(true);
+    }
+  }, []);
 
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
     const {

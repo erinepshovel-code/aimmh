@@ -597,6 +597,30 @@ export default function ChatPage() {
     }
   };
 
+  const handleRestoreLatestConversation = async () => {
+    if (refreshingFromLogs) return;
+    setRefreshingFromLogs(true);
+    try {
+      const token = localStorage.getItem('token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+      const response = await axios.get(`${API}/conversations`, config);
+      const latestConversationId = response.data?.[0]?.id;
+
+      if (!latestConversationId) {
+        toast.error('No saved conversations available');
+        return;
+      }
+
+      setConversationId(latestConversationId);
+      await syncConversationMessages(latestConversationId, true);
+      toast.success('Latest conversation restored');
+    } catch {
+      toast.error('Unable to restore latest conversation');
+    } finally {
+      setRefreshingFromLogs(false);
+    }
+  };
+
   useEffect(() => {
     if (!authLoading && isAuthenticated && conversationId && !streaming) {
       syncConversationMessages(conversationId, true);
@@ -1504,6 +1528,10 @@ export default function ChatPage() {
               <DropdownMenuItem onClick={handleNewChat}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Chat
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleRestoreLatestConversation} data-testid="restore-latest-conversation-menu-item">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Restore Latest Thread
               </DropdownMenuItem>
               
               {/* Export submenu */}

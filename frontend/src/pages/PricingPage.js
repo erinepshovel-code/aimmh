@@ -1,14 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, ShieldCheck, Sparkles, Coins } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldCheck, Sparkles, Coins, Wallet, Gauge, HeartHandshake } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
 import { Label } from '../components/ui/label';
+import { useAuth } from '../contexts/AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 axios.defaults.withCredentials = true;
@@ -19,16 +20,16 @@ const getAuthConfig = () => {
 };
 
 const PackageCard = ({ item, onCheckout, loadingPackage, disabled = false, extraBadge = null }) => (
-  <Card className="border-border" data-testid={`pricing-package-card-${item.package_id}`}>
+  <Card className="border-border bg-zinc-950/70" data-testid={`pricing-package-card-${item.package_id}`}>
     <CardHeader>
       <div className="flex items-center justify-between gap-2">
-        <CardTitle className="text-base">{item.name}</CardTitle>
+        <CardTitle className="text-base" data-testid={`pricing-package-title-${item.package_id}`}>{item.name}</CardTitle>
         {extraBadge}
       </div>
-      <CardDescription>{item.description}</CardDescription>
+      <CardDescription data-testid={`pricing-package-description-${item.package_id}`}>{item.description}</CardDescription>
     </CardHeader>
     <CardContent className="space-y-3">
-      <div className="text-2xl font-bold">${Number(item.amount).toFixed(2)}{item.billing_type === 'monthly' ? <span className="text-sm font-normal text-muted-foreground"> / month</span> : ''}</div>
+      <div className="text-2xl font-bold" data-testid={`pricing-package-amount-${item.package_id}`}>${Number(item.amount).toFixed(2)}{item.billing_type === 'monthly' ? <span className="text-sm font-normal text-muted-foreground"> / month</span> : ''}</div>
       <ul className="space-y-1 text-sm text-muted-foreground" data-testid={`pricing-features-${item.package_id}`}>
         {item.features.map((feature) => (
           <li key={feature}>• {feature}</li>
@@ -40,16 +41,18 @@ const PackageCard = ({ item, onCheckout, loadingPackage, disabled = false, extra
         data-testid={`pricing-checkout-btn-${item.package_id}`}
       >
         {loadingPackage === item.package_id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-        Checkout
+        {disabled ? 'Unavailable' : 'Checkout'}
       </Button>
     </CardContent>
   </Card>
 );
 
 export default function PricingPage() {
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [catalog, setCatalog] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [activeTab, setActiveTab] = useState('core');
   const [supportRecurring, setSupportRecurring] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -65,7 +68,7 @@ export default function PricingPage() {
     return packages.filter((p) => p.category === 'support' && p.billing_type === mode);
   }, [packages, supportRecurring]);
 
-  const loadCatalog = async () => {
+  const loadCatalog = useCallback(async () => {
     setLoading(true);
     try {
       const authConfig = getAuthConfig();
@@ -76,11 +79,22 @@ export default function PricingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const loadSummary = useCallback(async () => {
+    try {
+      const authConfig = getAuthConfig();
+      const response = await axios.get(`${API}/payments/summary`, authConfig);
+      setSummary(response.data);
+    } catch {
+      setSummary(null);
+    }
+  }, []);
 
   useEffect(() => {
     loadCatalog();
-  }, []);
+    loadSummary();
+  }, [loadCatalog, loadSummary]);
 
   const pollCheckoutStatus = async (sessionId) => {
     setPollingStatus(true);
@@ -98,6 +112,7 @@ export default function PricingPage() {
           toast.success('Payment successful. Entitlements activated.');
           setPollingStatus(false);
           loadCatalog();
+          loadSummary();
           return;
         }
 
@@ -121,12 +136,23 @@ export default function PricingPage() {
 
   useEffect(() => {
     const sessionId = params.get('session_id');
+    const checkoutState = params.get('checkout');
+
+    if (checkoutState === 'cancel') {
+      toast.error('Checkout cancelled. No charges were made.');
+    }
+
     if (sessionId) {
       pollCheckoutStatus(sessionId);
     }
   }, [params]);
 
   const startCheckout = async (packageId) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to continue checkout');
+      return;
+    }
+
     setLoadingPackage(packageId);
     try {
       const authConfig = getAuthConfig();
@@ -158,6 +184,7 @@ export default function PricingPage() {
   }
 
   const founderRemaining = catalog?.founder_slots_remaining ?? 0;
+  const founderTotal = catalog?.founder_slots_total ?? 53;
 
   return (
     <div className="min-h-screen bg-background pb-16" data-testid="pricing-page">
@@ -166,11 +193,54 @@ export default function PricingPage() {
           <Button variant="ghost" size="sm" onClick={() => navigate('/chat')} data-testid="pricing-back-chat-btn">
             <ArrowLeft className="h-4 w-4 mr-1" />Chat
           </Button>
-          <h1 className="text-2xl font-semibold">Pricing & Support</h1>
+          <h1 className="text-2xl font-semibold" data-testid="pricing-page-title">Pricing & Support</h1>
+          <Badge variant="outline" className="ml-2" data-testid="pricing-auth-required-badge">Auth required</Badge>
           <Button variant="outline" size="sm" onClick={() => navigate('/console')} className="ml-auto" data-testid="pricing-go-console-btn">
             Console
           </Button>
         </div>
+
+        <Card className="border-zinc-700 bg-gradient-to-r from-zinc-950 to-zinc-900" data-testid="pricing-hero-card">
+          <CardHeader>
+            <CardTitle data-testid="pricing-hero-title">Simple billing for Multi-AI orchestration</CardTitle>
+            <CardDescription data-testid="pricing-hero-description">
+              Monthly core access, founder slots, optional support, and compute top-ups.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="secondary" data-testid="pricing-user-badge">{user?.email || user?.username || 'Signed in user'}</Badge>
+            <Badge variant="outline" data-testid="pricing-founder-slot-badge">Founder slots left: {founderRemaining}/{founderTotal}</Badge>
+          </CardContent>
+        </Card>
+
+        {summary && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3" data-testid="pricing-summary-grid">
+            <Card className="bg-zinc-950/70" data-testid="pricing-summary-total-paid-card">
+              <CardContent className="pt-5 space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Wallet className="h-3.5 w-3.5" />Total paid</div>
+                <div className="text-xl font-semibold" data-testid="pricing-summary-total-paid-value">${Number(summary.total_paid_usd || 0).toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-950/70" data-testid="pricing-summary-support-card">
+              <CardContent className="pt-5 space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><HeartHandshake className="h-3.5 w-3.5" />Support donations</div>
+                <div className="text-xl font-semibold" data-testid="pricing-summary-support-value">${Number(summary.total_support_usd || 0).toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-950/70" data-testid="pricing-summary-usage-card">
+              <CardContent className="pt-5 space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Gauge className="h-3.5 w-3.5" />Estimated usage cost</div>
+                <div className="text-xl font-semibold" data-testid="pricing-summary-usage-value">${Number(summary.estimated_usage_cost_usd || 0).toFixed(4)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-950/70" data-testid="pricing-summary-compute-card">
+              <CardContent className="pt-5 space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Coins className="h-3.5 w-3.5" />Compute purchased</div>
+                <div className="text-xl font-semibold" data-testid="pricing-summary-compute-value">${Number(summary.total_compute_usd || 0).toFixed(2)}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {pollingStatus && (
           <Card data-testid="pricing-polling-status-card">
@@ -243,7 +313,7 @@ export default function PricingPage() {
                   onCheckout={startCheckout}
                   loadingPackage={loadingPackage}
                   disabled={founderRemaining <= 0}
-                  extraBadge={<Badge variant="outline" className="text-amber-300">Remaining {founderRemaining}/{catalog?.founder_slots_total}</Badge>}
+                  extraBadge={<Badge variant="outline" className="text-amber-300" data-testid="pricing-founder-remaining-badge">Remaining {founderRemaining}/{founderTotal}</Badge>}
                 />
               ))}
               <Card data-testid="pricing-founder-details-card">

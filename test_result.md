@@ -163,6 +163,18 @@ backend:
         comment: "AGENT ZERO NON-UI ENDPOINTS TEST COMPLETED: ✅ ALL 7 ENDPOINT TESTS PASSED ✅ (1) GET /api/a0/non-ui/options returns 200 OK with all required keys (prompt_all, prompt_selected, synthesis, history, export) in nested endpoint structure ✅ (2) POST /api/a0/non-ui/prompt/selected accepts single model and returns 200 OK with SSE stream response ✅ (3) POST /api/a0/non-ui/prompt/all returns 200 OK with SSE stream response for all default models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview, grok-3, deepseek-chat, sonar-pro) ✅ (4) GET /api/a0/non-ui/history/{conversation_id}?offset&limit returns 404 for non-existent conversations (expected behavior with proper pagination parameter handling) ✅ (5) POST /api/a0/non-ui/synthesis with selected message IDs + target models returns 404 for non-existent messages (expected behavior with proper validation) ✅ (6) GET /api/a0/non-ui/conversations/{conversation_id}/export?format=json returns 404 for non-existent conversations (expected behavior) ✅ (7) Unauthenticated access verification: All endpoints correctly return 401 Unauthorized when accessed without session token. All Agent Zero non-UI REST endpoints are fully functional, properly authenticated, and ready for programmatic Agent Zero orchestration access."
 
 frontend:
+  - task: "Conversation search UI"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CONVERSATION SEARCH UI REGRESSION TEST COMPLETED: ✅ ALL UI ELEMENTS WORKING CORRECTLY ✅ (1) Menu button clickable - hamburger menu opens correctly ✅ (2) 'Search Threads' menu item visible with correct data-testid='search-conversations-menu-item' ✅ (3) 'Restore Latest Thread' menu item visible alongside search (data-testid='restore-latest-conversation-menu-item') ✅ (4) Search dialog opens when clicking 'Search Threads' with correct data-testid='conversation-search-dialog' ✅ (5) Search input field visible and functional with correct data-testid='conversation-search-input' ✅ (6) Results list container visible with correct data-testid='conversation-search-results-list' ✅ (7) Empty state message 'No conversations found' displays correctly when no results ✅ (8) Search query can be typed and triggers API calls (confirmed via backend logs: GET /api/conversations/search?q=alpha&offset=0&limit=20 returns 200 OK) ✅ (9) No UI errors or blocking console errors detected ✅ (10) Dialog responsive and displays on desktop correctly. NOTE: Search returned no results because conversations are not being persisted to MongoDB - this is a backend persistence issue, NOT a UI bug. The frontend search UI implementation is complete and functional. Backend investigation needed for conversation persistence."
+
   - task: "Top tabs: Chat | Scene | Cascade | Batch + state persistence"
     implemented: true
     working: true

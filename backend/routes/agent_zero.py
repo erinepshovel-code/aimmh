@@ -271,9 +271,14 @@ async def get_non_ui_options(current_user: dict = Depends(get_current_user)):
         },
         "non_ui_endpoints": {
             "chat_stream": "/api/a0/non-ui/chat/stream",
+            "prompt_all": "/api/a0/non-ui/prompt/all",
+            "prompt_selected": "/api/a0/non-ui/prompt/selected",
+            "synthesis": "/api/a0/non-ui/synthesis",
             "options": "/api/a0/non-ui/options",
             "transcript": "/api/a0/non-ui/transcript/{conversation_id}",
-            "conversations": "/api/a0/non-ui/conversations"
+            "history": "/api/a0/non-ui/history/{conversation_id}",
+            "conversations": "/api/a0/non-ui/conversations",
+            "export": "/api/a0/non-ui/conversations/{conversation_id}/export?format=json|txt|pdf"
         }
     }
 

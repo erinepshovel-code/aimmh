@@ -273,7 +273,7 @@ async def get_catalog(current_user: dict = Depends(get_current_user)):
     founder_remaining = await _founder_slots_remaining()
 
     catalog_rows = await db.payment_catalog.find({}, {"_id": 0}).to_list(200)
-    stripe_price_map = {row["package_id"]: row.get("stripe_price_id") for row in catalog_rows}
+    catalog_map = {row["package_id"]: row for row in catalog_rows}
 
     prices = []
     for package_id, package in PAYMENT_PACKAGES.items():
@@ -286,7 +286,7 @@ async def get_catalog(current_user: dict = Depends(get_current_user)):
             category=package["category"],
             description=package["description"],
             features=package.get("features", []),
-            stripe_price_id=stripe_price_map.get(package_id),
+            stripe_price_id=catalog_map.get(package_id, {}).get("stripe_price_id"),
         ))
 
     return CatalogResponse(

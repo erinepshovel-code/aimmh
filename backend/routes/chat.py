@@ -133,6 +133,24 @@ async def chat_stream(
         normalized_attachments = _normalize_attachments(request.attachments)
         shared_pairs = _normalize_shared_pairs(request.shared_pairs, request.models)
 
+        context_log = {
+            "id": str(uuid.uuid4()),
+            "conversation_id": conversation_id,
+            "user_id": get_user_id(current_user),
+            "message": request.message,
+            "models": request.models,
+            "context_mode": request.context_mode,
+            "shared_room_mode": request.shared_room_mode,
+            "shared_pairs": shared_pairs,
+            "global_context": request.global_context,
+            "model_roles": request.model_roles,
+            "per_model_messages": request.per_model_messages,
+            "attachments": normalized_attachments,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.context_logs.insert_one(context_log)
+
         # Persist the *base* user message once (per prompt) unless caller disables it.
         if request.persist_user_message:
             user_message_id = str(uuid.uuid4())

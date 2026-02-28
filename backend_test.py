@@ -342,7 +342,7 @@ def test_synthesis_endpoint(headers, cookies, conversation_id, results):
     
     test_data = {
         "conversation_id": conversation_id,
-        "selected_message_ids": ["dummy-message-id"],
+        "selected_message_ids": ["dummy-message-id-that-does-not-exist"],
         "target_models": ["gpt-5.2"],
         "synthesis_prompt": "Analyze this response:"
     }
@@ -355,21 +355,21 @@ def test_synthesis_endpoint(headers, cookies, conversation_id, results):
     
     # This might return 404 if no messages found, which is expected for test data
     if response.status_code == 404:
-        results.add_pass("Synthesis endpoint", "404 for missing messages - endpoint accessible")
+        results.add_pass("Synthesis endpoint", "404 for missing messages - endpoint accessible and working")
         return
     
     if response.status_code == 400:
         # Check if it's a validation error (expected for dummy data)
         try:
             error_data = response.json()
-            if "detail" in error_data:
-                results.add_pass("Synthesis endpoint", "400 validation error - endpoint accessible and validating")
+            if "detail" in error_data and ("message" in error_data["detail"] or "selected_message_ids" in error_data["detail"]):
+                results.add_pass("Synthesis endpoint", "400 validation error - endpoint accessible and validating input")
                 return
         except:
             pass
     
     if response.status_code != 200:
-        results.add_fail("Synthesis endpoint", f"Status {response.status_code}: {response.text}")
+        results.add_fail("Synthesis endpoint", f"Status {response.status_code}: {response.text[:200]}")
         return
     
     content_type = response.headers.get('content-type', '')

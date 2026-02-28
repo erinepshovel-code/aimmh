@@ -48,7 +48,7 @@ class ConversationSearchTester:
             result = subprocess.run([
                 'mongosh', '--eval', 
                 """
-                use('prompt_hub');
+                use('test_database');
                 var userId = 'convtest-user-' + Date.now();
                 var sessionToken = 'convtest_session_' + Date.now();
                 db.users.insertOne({

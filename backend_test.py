@@ -154,7 +154,7 @@ def test_unauthenticated_access(results):
     
     return all_rejected
 
-def test_options_endpoint(headers, results):
+def test_options_endpoint(headers, cookies, results):
     """Test GET /api/a0/non-ui/options"""
     print("\n=== Testing Options Endpoint ===")
     

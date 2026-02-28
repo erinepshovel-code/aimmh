@@ -465,3 +465,17 @@ async def get_non_ui_transcript(
         "messages": messages,
         "message_count": len(messages)
     }
+
+
+@router.get("/non-ui/conversations/{conversation_id}/export")
+async def get_non_ui_export(
+    conversation_id: str,
+    format: Literal["json", "txt", "pdf"] = "json",
+    current_user: dict = Depends(get_current_user)
+):
+    """Non-UI export endpoint proxying core conversation export formats."""
+    return await export_conversation(
+        conversation_id=conversation_id,
+        format=format,
+        current_user=current_user,
+    )

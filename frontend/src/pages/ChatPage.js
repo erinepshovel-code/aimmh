@@ -1591,16 +1591,9 @@ export default function ChatPage() {
                 )}
 
                 {selectedMessages.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => setShowSynthesisDialog(true)}
-                    className="h-8 px-2 text-xs"
-                    data-testid="synthesis-btn"
-                  >
-                    <Wand2 className="h-3 w-3 mr-1" />
-                    {selectedMessages.length}
-                  </Button>
+                  <div className="text-[10px] text-muted-foreground" data-testid="synthesis-selection-indicator">
+                    {selectedMessages.length} selected
+                  </div>
                 )}
               </div>
             </div>

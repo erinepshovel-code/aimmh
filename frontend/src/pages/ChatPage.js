@@ -1556,6 +1556,12 @@ export default function ChatPage() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Dashboard
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/console')} data-testid="go-console-menu-item">
+                🧠 Console
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/pricing')} data-testid="go-pricing-menu-item">
+                💳 Pricing
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={logout}>
                 Logout
               </DropdownMenuItem>

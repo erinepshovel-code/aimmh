@@ -5,7 +5,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
-import { Settings, Send, ThumbsUp, ThumbsDown, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw } from 'lucide-react';
+import { Settings, Send, ThumbsUp, ThumbsDown, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -344,6 +344,10 @@ export default function ChatPage() {
   const swipeStartXRef = useRef(null);
 
   const [showPromptHistory, setShowPromptHistory] = useState(false);
+  const [showConversationSearchDialog, setShowConversationSearchDialog] = useState(false);
+  const [conversationSearchQuery, setConversationSearchQuery] = useState('');
+  const [conversationSearchResults, setConversationSearchResults] = useState([]);
+  const [conversationSearchLoading, setConversationSearchLoading] = useState(false);
   
   // Research features
   const [batchPrompts, setBatchPrompts] = useState('');
@@ -621,6 +625,42 @@ export default function ChatPage() {
     }
   };
 
+  const fetchConversationSearch = useCallback(async (queryText = '') => {
+    setConversationSearchLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+      const response = await axios.get(`${API}/conversations/search`, {
+        ...(config || {}),
+        params: {
+          q: queryText,
+          offset: 0,
+          limit: 20
+        }
+      });
+      setConversationSearchResults(response.data?.conversations || []);
+    } catch {
+      setConversationSearchResults([]);
+      toast.error('Failed to search conversation history');
+    } finally {
+      setConversationSearchLoading(false);
+    }
+  }, []);
+
+  const openConversationSearchDialog = () => {
+    setShowConversationSearchDialog(true);
+    setConversationSearchQuery('');
+    fetchConversationSearch('');
+  };
+
+  const handleSelectConversationFromSearch = async (convId) => {
+    if (!convId) return;
+    setConversationId(convId);
+    await syncConversationMessages(convId, true);
+    setShowConversationSearchDialog(false);
+    toast.success('Conversation loaded from search');
+  };
+
   useEffect(() => {
     if (!authLoading && isAuthenticated && conversationId && !streaming) {
       syncConversationMessages(conversationId, true);
@@ -638,6 +678,15 @@ export default function ChatPage() {
     window.addEventListener('focus', handleWindowFocus);
     return () => window.removeEventListener('focus', handleWindowFocus);
   }, [conversationId, isAuthenticated, streaming, syncConversationMessages]);
+
+  useEffect(() => {
+    if (!showConversationSearchDialog) return undefined;
+    const timer = setTimeout(() => {
+      fetchConversationSearch(conversationSearchQuery);
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [showConversationSearchDialog, conversationSearchQuery, fetchConversationSearch]);
 
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
     const {
@@ -1532,6 +1581,10 @@ export default function ChatPage() {
               <DropdownMenuItem onClick={handleRestoreLatestConversation} data-testid="restore-latest-conversation-menu-item">
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Restore Latest Thread
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openConversationSearchDialog} data-testid="search-conversations-menu-item">
+                <Search className="h-4 w-4 mr-2" />
+                Search Threads
               </DropdownMenuItem>
               
               {/* Export submenu */}
@@ -2452,6 +2505,47 @@ export default function ChatPage() {
             </div>
           </div>
         )}
+
+      <Dialog open={showConversationSearchDialog} onOpenChange={setShowConversationSearchDialog}>
+        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto" data-testid="conversation-search-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-base">Search Conversation Threads</DialogTitle>
+            <DialogDescription>
+              Find older conversations quickly by title or prompt text prefix.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              value={conversationSearchQuery}
+              onChange={(e) => setConversationSearchQuery(e.target.value)}
+              placeholder="Search by title..."
+              data-testid="conversation-search-input"
+            />
+
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1" data-testid="conversation-search-results-list">
+              {conversationSearchLoading ? (
+                <div className="text-xs text-muted-foreground" data-testid="conversation-search-loading-state">Searching…</div>
+              ) : conversationSearchResults.length === 0 ? (
+                <div className="text-xs text-muted-foreground" data-testid="conversation-search-empty-state">No conversations found</div>
+              ) : (
+                conversationSearchResults.map((conv) => (
+                  <button
+                    key={conv.id}
+                    type="button"
+                    className="w-full rounded-md border border-border bg-muted/20 p-2 text-left hover:bg-muted/35 transition-colors"
+                    onClick={() => handleSelectConversationFromSearch(conv.id)}
+                    data-testid={`conversation-search-result-${conv.id}`}
+                  >
+                    <div className="text-sm font-medium truncate">{conv.title || 'Untitled conversation'}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">Updated: {conv.updated_at ? new Date(conv.updated_at).toLocaleString() : 'N/A'}</div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={modelPromptDialog.open}

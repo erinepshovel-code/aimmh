@@ -215,7 +215,7 @@ def create_test_conversation(headers, user_id):
     else:
         return None
 
-def test_prompt_selected_endpoint(headers, results):
+def test_prompt_selected_endpoint(headers, cookies, results):
     """Test POST /api/a0/non-ui/prompt/selected"""
     print("\n=== Testing Prompt Selected Endpoint ===")
     

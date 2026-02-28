@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sse_starlette.sse import EventSourceResponse
 from datetime import datetime, timezone
 from typing import List, Dict, Any
@@ -460,6 +460,36 @@ async def get_conversations(current_user: dict = Depends(get_current_user)):
         )
         for conv in conversations
     ]
+
+
+@router.get("/conversations/search")
+async def search_conversations(
+    q: str = Query(default="", max_length=120),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Search conversation titles with pagination for older thread retrieval."""
+    uid = get_user_id(current_user)
+
+    title_query = (q or "").strip()
+    base_filter: Dict[str, Any] = {"user_id": uid}
+    if title_query:
+        base_filter["title"] = {"$regex": title_query, "$options": "i"}
+
+    total = await db.conversations.count_documents(base_filter)
+    conversations = await db.conversations.find(
+        base_filter,
+        {"_id": 0}
+    ).sort("updated_at", -1).skip(offset).limit(limit).to_list(limit)
+
+    return {
+        "query": title_query,
+        "offset": offset,
+        "limit": limit,
+        "total": total,
+        "conversations": conversations,
+    }
 
 
 @router.get("/conversations/{conversation_id}/messages")

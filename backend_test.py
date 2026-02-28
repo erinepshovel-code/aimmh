@@ -385,35 +385,37 @@ def test_synthesis_endpoint(headers, cookies, conversation_id, results):
 
 def test_export_endpoint(headers, cookies, conversation_id, results):
     """Test GET /api/a0/non-ui/conversations/{conversation_id}/export"""
-    print("\n=== Testing Export Endpoint ===")
-    
     if not conversation_id:
         results.add_fail("Export endpoint", "No conversation ID available for testing")
         return
     
     params = {"format": "json"}
-    response = make_request("GET", f"/a0/non-ui/conversations/{conversation_id}/export", 
-                          headers=headers, cookies=cookies, params=params)
-    
-    if not response:
-        results.add_fail("Export endpoint", "No response received")
-        return
-    
-    # This might return 404 if conversation not found, which is expected for test data
-    if response.status_code == 404:
-        results.add_pass("Export endpoint", "404 for missing conversation - endpoint accessible")
-        return
-    
-    if response.status_code != 200:
-        results.add_fail("Export endpoint", f"Status {response.status_code}: {response.text}")
-        return
-    
-    # Check content type for JSON format
-    content_type = response.headers.get('content-type', '')
-    if 'application/json' in content_type:
-        results.add_pass("Export endpoint", "JSON export response received")
-    else:
-        results.add_pass("Export endpoint", f"Export response received (content-type: {content_type})")
+    try:
+        response = make_request("GET", f"/a0/non-ui/conversations/{conversation_id}/export", 
+                              headers=headers, cookies=cookies, params=params)
+        
+        if not response:
+            results.add_fail("Export endpoint", "No response received")
+            return
+        
+        # This might return 404 if conversation not found, which is expected for test data
+        if response.status_code == 404:
+            results.add_pass("Export endpoint", "404 for missing conversation - endpoint accessible and working")
+            return
+        
+        if response.status_code != 200:
+            results.add_fail("Export endpoint", f"Status {response.status_code}: {response.text[:200]}")
+            return
+        
+        # Check content type for JSON format
+        content_type = response.headers.get('content-type', '')
+        if 'application/json' in content_type:
+            results.add_pass("Export endpoint", "JSON export response received")
+        else:
+            results.add_pass("Export endpoint", f"Export response received (content-type: {content_type})")
+            
+    except Exception as e:
+        results.add_fail("Export endpoint", f"Exception: {e}")
 
 def main():
     """Run all Agent Zero non-UI REST endpoint tests"""

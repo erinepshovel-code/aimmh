@@ -15,6 +15,8 @@ from routes.chat import router as chat_router
 from routes.export import router as export_router
 from routes.agent_zero import router as a0_router
 from routes.edcm import router as edcm_router
+from routes.payments import router as payments_router
+from routes.console import router as console_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +31,8 @@ app.include_router(chat_router)
 app.include_router(export_router)
 app.include_router(a0_router)
 app.include_router(edcm_router)
+app.include_router(payments_router)
+app.include_router(console_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,18 +1,35 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime, timezone
+from typing import Literal
 import os
 import httpx
 import logging
 
 from db import db
-from models.agent_zero import A0IngestRequest, A0RouteRequest
+from models.agent_zero import (
+    A0IngestRequest,
+    A0RouteRequest,
+    A0NonUIPromptRequest,
+    A0NonUISelectedPromptRequest,
+    A0NonUISynthesisRequest,
+)
 from models.chat import ChatRequest
 from models.edcm import A0Config
 from services.auth import get_current_user, get_user_id
 from routes.chat import chat_stream
+from routes.export import export_conversation
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/a0", tags=["agent_zero"])
+
+NON_UI_ALL_MODELS = [
+    "gpt-5.2",
+    "claude-sonnet-4-5-20250929",
+    "gemini-3-flash-preview",
+    "grok-3",
+    "deepseek-chat",
+    "sonar-pro",
+]
 
 
 async def get_a0_connection(user_id: str) -> dict:

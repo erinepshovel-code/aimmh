@@ -208,11 +208,11 @@ print('SUCCESS: Test user and session created');
     async def test_conversation_search_endpoints(self, session: aiohttp.ClientSession) -> bool:
         """Test 3: Validate conversation search endpoints structure and auth enforcement"""
         try:
-            headers = {"Authorization": f"Bearer {self.session_token}"}
+            cookies = {"session_token": self.session_token}
             
             # Test 3a: /api/conversations/search
             async with session.get(f"{self.base_url}/api/conversations/search?q=regression&offset=0&limit=20", 
-                                 headers=headers) as response:
+                                 cookies=cookies) as response:
                 
                 if response.status == 200:
                     data = await response.json()
@@ -232,7 +232,7 @@ print('SUCCESS: Test user and session created');
             
             # Test 3b: /api/a0/non-ui/conversations/search
             async with session.get(f"{self.base_url}/api/a0/non-ui/conversations/search?q=regression&offset=0&limit=20",
-                                 headers=headers) as response:
+                                 cookies=cookies) as response:
                 
                 if response.status == 200:
                     a0_data = await response.json()

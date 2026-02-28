@@ -408,6 +408,38 @@ async def get_non_ui_conversations(
     return {"conversations": conversations}
 
 
+@router.get("/non-ui/history/{conversation_id}")
+async def get_non_ui_history(
+    conversation_id: str,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user)
+):
+    """Return paginated message history for one conversation."""
+    uid = get_user_id(current_user)
+
+    conversation = await db.conversations.find_one(
+        {"id": conversation_id, "user_id": uid},
+        {"_id": 0, "id": 1, "title": 1, "created_at": 1, "updated_at": 1},
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    total_messages = await db.messages.count_documents({"conversation_id": conversation_id, "user_id": uid})
+    messages = await db.messages.find(
+        {"conversation_id": conversation_id, "user_id": uid},
+        {"_id": 0},
+    ).sort("timestamp", 1).skip(offset).limit(limit).to_list(limit)
+
+    return {
+        "conversation": conversation,
+        "offset": offset,
+        "limit": limit,
+        "total_messages": total_messages,
+        "messages": messages,
+    }
+
+
 @router.get("/non-ui/transcript/{conversation_id}")
 async def get_non_ui_transcript(
     conversation_id: str,

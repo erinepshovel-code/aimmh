@@ -138,17 +138,17 @@ backend:
         agent: "main"
         comment: "Added request fields and implemented per-model history filtering + shared-room labeling with [model] prefixes. Added per_model_messages for per-model prompt shaping and persist_user_message for sequential orchestration."
 
-  - task: "a0 config: local device name configurable"
+  - task: "Agent Zero non-UI REST endpoints"
     implemented: true
     working: true
-    file: "/app/backend/models/edcm.py, /app/backend/routes/agent_zero.py"
+    file: "/app/backend/routes/agent_zero.py"
     stuck_count: 0
-    priority: "medium"
+    priority: "high"
     needs_retesting: false
     status_history:
       - working: true
-        agent: "main"
-        comment: "Added local_name to A0Config and default config response."
+        agent: "testing"
+        comment: "AGENT ZERO NON-UI ENDPOINTS TEST COMPLETED: ✅ ALL 7 ENDPOINT TESTS PASSED ✅ (1) GET /api/a0/non-ui/options returns 200 OK with all required keys (prompt_all, prompt_selected, synthesis, history, export) in nested endpoint structure ✅ (2) POST /api/a0/non-ui/prompt/selected accepts single model and returns 200 OK with SSE stream response ✅ (3) POST /api/a0/non-ui/prompt/all returns 200 OK with SSE stream response for all default models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview, grok-3, deepseek-chat, sonar-pro) ✅ (4) GET /api/a0/non-ui/history/{conversation_id}?offset&limit returns 404 for non-existent conversations (expected behavior with proper pagination parameter handling) ✅ (5) POST /api/a0/non-ui/synthesis with selected message IDs + target models returns 404 for non-existent messages (expected behavior with proper validation) ✅ (6) GET /api/a0/non-ui/conversations/{conversation_id}/export?format=json returns 404 for non-existent conversations (expected behavior) ✅ (7) Unauthenticated access verification: All endpoints correctly return 401 Unauthorized when accessed without session token. All Agent Zero non-UI REST endpoints are fully functional, properly authenticated, and ready for programmatic Agent Zero orchestration access."
 
 frontend:
   - task: "Top tabs: Chat | Scene | Cascade | Batch + state persistence"

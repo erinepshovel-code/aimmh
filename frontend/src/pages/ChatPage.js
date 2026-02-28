@@ -1456,6 +1456,9 @@ export default function ChatPage() {
   const activeModelSettings = modelPromptDialog.model
     ? (cascadeConfig.modelSettings?.[modelPromptDialog.model] || {})
     : {};
+  const synthesisTargetOptions = synthesisSourceModel
+    ? selectedModels.filter(model => model !== synthesisSourceModel)
+    : selectedModels;
 
   return (
     <div className="h-screen flex flex-col bg-background">

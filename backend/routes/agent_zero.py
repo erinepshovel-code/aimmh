@@ -292,6 +292,107 @@ async def a0_non_ui_chat_stream(
     return await chat_stream(request=request, current_user=current_user)
 
 
+def _build_chat_request(
+    base_request: A0NonUIPromptRequest,
+    models: list[str],
+) -> ChatRequest:
+    return ChatRequest(
+        message=base_request.message,
+        models=models,
+        conversation_id=base_request.conversation_id,
+        context_mode=base_request.context_mode,
+        shared_room_mode=base_request.shared_room_mode,
+        shared_pairs=base_request.shared_pairs,
+        global_context=base_request.global_context,
+        model_roles=base_request.model_roles,
+        per_model_messages=base_request.per_model_messages,
+        persist_user_message=base_request.persist_user_message,
+        history_limit=base_request.history_limit,
+        attachments=base_request.attachments,
+    )
+
+
+@router.post("/non-ui/prompt/all")
+async def a0_non_ui_prompt_all(
+    request: A0NonUIPromptRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Dispatch one prompt to all supported model families for non-UI orchestration."""
+    chat_request = _build_chat_request(request, NON_UI_ALL_MODELS)
+    return await chat_stream(request=chat_request, current_user=current_user)
+
+
+@router.post("/non-ui/prompt/selected")
+async def a0_non_ui_prompt_selected(
+    request: A0NonUISelectedPromptRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Dispatch one prompt to selected models only for non-UI orchestration."""
+    selected_models = [model.strip() for model in request.models if isinstance(model, str) and model.strip()]
+    if not selected_models:
+        raise HTTPException(status_code=400, detail="At least one target model is required")
+
+    deduped_models = list(dict.fromkeys(selected_models))
+    chat_request = _build_chat_request(request, deduped_models)
+    return await chat_stream(request=chat_request, current_user=current_user)
+
+
+@router.post("/non-ui/synthesis")
+async def a0_non_ui_synthesis(
+    request: A0NonUISynthesisRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """One-off synthesis endpoint for Agent Zero: selected assistant responses => target models."""
+    uid = get_user_id(current_user)
+    selected_ids = [mid for mid in request.selected_message_ids if isinstance(mid, str) and mid]
+    if not selected_ids:
+        raise HTTPException(status_code=400, detail="selected_message_ids must include at least one ID")
+
+    target_models = [model.strip() for model in request.target_models if isinstance(model, str) and model.strip()]
+    if not target_models:
+        raise HTTPException(status_code=400, detail="target_models must include at least one model")
+
+    selected_messages = await db.messages.find(
+        {
+            "conversation_id": request.conversation_id,
+            "user_id": uid,
+            "role": "assistant",
+            "id": {"$in": selected_ids},
+        },
+        {"_id": 0},
+    ).to_list(5000)
+
+    if request.source_model:
+        selected_messages = [msg for msg in selected_messages if msg.get("model") == request.source_model]
+
+    if not selected_messages:
+        raise HTTPException(status_code=404, detail="No matching assistant responses found for synthesis")
+
+    selected_messages.sort(key=lambda msg: msg.get("timestamp", ""))
+    responses_text = []
+    for idx, msg in enumerate(selected_messages, start=1):
+        responses_text.append(
+            f"Response #{idx} from {msg.get('model', 'unknown')}:\n{msg.get('content', '')}"
+        )
+
+    synthesis_prompt = request.synthesis_prompt or "Synthesize and analyze these AI responses:"
+    synthesis_message = f"{synthesis_prompt}\n\n" + "\n\n".join(responses_text)
+
+    chat_request = ChatRequest(
+        message=synthesis_message,
+        models=list(dict.fromkeys(target_models)),
+        conversation_id=request.conversation_id,
+        context_mode=request.context_mode,
+        shared_room_mode=request.shared_room_mode,
+        shared_pairs=request.shared_pairs,
+        global_context=request.global_context,
+        model_roles=request.model_roles,
+        persist_user_message=True,
+        history_limit=request.history_limit,
+    )
+    return await chat_stream(request=chat_request, current_user=current_user)
+
+
 @router.get("/non-ui/conversations")
 async def get_non_ui_conversations(current_user: dict = Depends(get_current_user)):
     """List user conversations for Agent Zero programmatic access."""

@@ -330,11 +330,16 @@ export default function ChatPage() {
   const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);
   const [synthesisModels, setSynthesisModels] = useState([]);
   const [synthesisPrompt, setSynthesisPrompt] = useState('');
+  const [synthesisSourceModel, setSynthesisSourceModel] = useState('');
   const [showRolesDialog, setShowRolesDialog] = useState(false);
   const [universalStatus, setUniversalStatus] = useState(null);
   const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [modelPromptDialog, setModelPromptDialog] = useState({ open: false, model: '' });
+  const [panelLock, setPanelLock] = useState(false);
+  const [panelSplit, setPanelSplit] = useState([70, 30]);
+  const [carouselAnimating, setCarouselAnimating] = useState(false);
+  const [refreshingFromLogs, setRefreshingFromLogs] = useState(false);
   const fileInputRef = useRef(null);
   const swipeStartXRef = useRef(null);
 
@@ -357,13 +362,39 @@ export default function ChatPage() {
     ];
   };
 
+  const triggerCarouselMotion = () => {
+    setCarouselAnimating(true);
+    setTimeout(() => setCarouselAnimating(false), 220);
+  };
+
+  const togglePanelLock = () => {
+    setPanelLock(prev => {
+      const next = !prev;
+      if (next) {
+        setPanelSplit([50, 50]);
+      }
+      toast(next ? 'Window lock enabled: forced 50/50 split' : 'Window lock disabled: drag divider to resize');
+      return next;
+    });
+  };
+
   const handlePrevModel = () => {
+    if (panelLock) {
+      toast('Unlock window stack to rotate carousel');
+      return;
+    }
+    triggerCarouselMotion();
     setVisibleModelIndex((prev) => 
       prev === 0 ? selectedModels.length - 1 : prev - 1
     );
   };
 
   const handleNextModel = () => {
+    if (panelLock) {
+      toast('Unlock window stack to rotate carousel');
+      return;
+    }
+    triggerCarouselMotion();
     setVisibleModelIndex((prev) => 
       (prev + 1) % selectedModels.length
     );

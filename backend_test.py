@@ -303,7 +303,7 @@ def test_history_endpoint(headers, cookies, conversation_id, results):
     # Test with pagination parameters
     params = {"offset": 0, "limit": 10}
     response = make_request("GET", f"/a0/non-ui/history/{conversation_id}", 
-                          headers=headers, params=params)
+                          headers=headers, cookies=cookies, params=params)
     
     if not response:
         results.add_fail("History endpoint", "No response received")

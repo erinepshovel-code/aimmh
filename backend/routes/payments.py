@@ -334,13 +334,23 @@ async def create_checkout_session(
     }
 
     stripe_checkout = _build_stripe_checkout(request)
-    checkout_request = CheckoutSessionRequest(
-        amount=float(package["amount"]),
-        currency=package["currency"],
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata=metadata,
-    )
+    stripe_price_id = price_doc.get("stripe_price_id")
+    if stripe_price_id:
+        checkout_request = CheckoutSessionRequest(
+            stripe_price_id=stripe_price_id,
+            quantity=1,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata,
+        )
+    else:
+        checkout_request = CheckoutSessionRequest(
+            amount=float(package["amount"]),
+            currency=package["currency"],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata,
+        )
 
     try:
         session = await stripe_checkout.create_checkout_session(checkout_request)

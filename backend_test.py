@@ -37,7 +37,7 @@ class BackendTester:
         """Setup authentication using existing session token from MongoDB"""
         try:
             # Use existing valid session token
-            self.session_token = "Hf1QqXHNTYalogo4xRSMo2x_C54oKefZFJVjT_PeZyM"
+            self.session_token = "test_session_1772298188498"
             
             # Test auth with this session
             response = requests.get(

@@ -432,10 +432,12 @@ def main():
     
     print(f"✅ Test user created: {user_id}")
     
-    # Setup headers with authentication
+    # Setup headers and cookies for authentication
     headers = {
-        "Authorization": f"Bearer {session_token}",
         "Content-Type": "application/json"
+    }
+    cookies = {
+        "session_token": session_token
     }
     
     try:

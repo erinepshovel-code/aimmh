@@ -17,7 +17,11 @@ import time
 import uuid
 import subprocess
 import sys
+import urllib3
 from datetime import datetime, timezone
+
+# Disable SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configuration
 BASE_URL = "https://prompt-hub-67.preview.emergentagent.com"

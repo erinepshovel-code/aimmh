@@ -2237,10 +2237,21 @@ export default function ChatPage() {
                   messageIndexMap={messageIndexMap}
                   onSaveThread={handleSaveThread}
                   onOpenPromptSettings={openModelPromptDialog}
+                  onOpenSynthesis={handleOpenModelSynthesis}
+                  onCopyThread={handleCopyModelThread}
                 />
               ) : (
-                <PanelGroup direction="vertical" className="flex-1">
-                  <Panel defaultSize={50} minSize={20}>
+                <PanelGroup
+                  direction="vertical"
+                  className="flex-1"
+                  onLayout={(sizes) => {
+                    if (!panelLock && Array.isArray(sizes) && sizes.length === 2) {
+                      setPanelSplit([Math.round(sizes[0]), Math.round(sizes[1])]);
+                    }
+                  }}
+                  data-testid="response-panel-group"
+                >
+                  <Panel defaultSize={panelLock ? 50 : panelSplit[0]} minSize={panelLock ? 50 : 25} maxSize={panelLock ? 50 : 75}>
                     <ResponsePanel
                       model={visibleModels[0]}
                       messages={messages}
@@ -2255,10 +2266,14 @@ export default function ChatPage() {
                       messageIndexMap={messageIndexMap}
                       onSaveThread={handleSaveThread}
                       onOpenPromptSettings={openModelPromptDialog}
+                      onOpenSynthesis={handleOpenModelSynthesis}
+                      onCopyThread={handleCopyModelThread}
                     />
                   </Panel>
-                  <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" />
-                  <Panel defaultSize={50} minSize={20}>
+                  {!panelLock && (
+                    <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" data-testid="response-panel-resize-handle" />
+                  )}
+                  <Panel defaultSize={panelLock ? 50 : panelSplit[1]} minSize={panelLock ? 50 : 25} maxSize={panelLock ? 50 : 75}>
                     <ResponsePanel
                       model={visibleModels[1]}
                       messages={messages}
@@ -2273,6 +2288,8 @@ export default function ChatPage() {
                       messageIndexMap={messageIndexMap}
                       onSaveThread={handleSaveThread}
                       onOpenPromptSettings={openModelPromptDialog}
+                      onOpenSynthesis={handleOpenModelSynthesis}
+                      onCopyThread={handleCopyModelThread}
                     />
                   </Panel>
                 </PanelGroup>

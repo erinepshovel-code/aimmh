@@ -1475,6 +1475,18 @@ export default function ChatPage() {
           >
             {autoExport ? '📥' : '📤'}
           </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleRefreshFromLogs}
+            className="h-8 w-8 p-0"
+            data-testid="refresh-from-logs-btn"
+            title="Refresh from conversation logs"
+            disabled={refreshingFromLogs}
+          >
+            <RotateCcw className={`h-4 w-4 ${refreshingFromLogs ? 'animate-spin' : ''}`} />
+          </Button>
           
           {/* More menu */}
           <DropdownMenu>

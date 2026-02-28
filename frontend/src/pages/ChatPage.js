@@ -2220,6 +2220,23 @@ export default function ChatPage() {
                   </div>
                 </div>
               )}
+
+              {selectedModels.length <= 2 && visibleModels.length === 2 && (
+                <div className="p-2 border-b border-border bg-[#18181B] flex items-center justify-between gap-2" data-testid="dual-panel-lock-bar">
+                  <div className="text-[10px] text-muted-foreground" data-testid="dual-panel-lock-hint">
+                    Drag divider to resize • two-finger touch or button to lock 50/50 split
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={panelLock ? 'default' : 'outline'}
+                    onClick={togglePanelLock}
+                    data-testid="dual-panel-lock-btn"
+                  >
+                    {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
+                    {panelLock ? 'Locked' : 'Lock split'}
+                  </Button>
+                </div>
+              )}
               
               {/* Response Panels */}
               {visibleModels.length === 1 ? (

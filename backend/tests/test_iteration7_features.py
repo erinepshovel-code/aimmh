@@ -222,7 +222,7 @@ class TestCheckoutSession:
         """Test POST /api/payments/checkout/session creates session"""
         payload = {
             "package_id": "core_monthly",
-            "origin_url": "https://response-stack.preview.emergentagent.com"
+            "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
         }
         response = api_client.post(
             f"{BASE_URL}/api/payments/checkout/session",
@@ -249,7 +249,7 @@ class TestCheckoutSession:
         """Test checkout fails for invalid package_id"""
         payload = {
             "package_id": "invalid_package",
-            "origin_url": "https://response-stack.preview.emergentagent.com"
+            "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
         }
         response = api_client.post(
             f"{BASE_URL}/api/payments/checkout/session",
@@ -282,7 +282,7 @@ class TestCheckoutStatus:
         # First create a session
         payload = {
             "package_id": "support_one_time_1",
-            "origin_url": "https://response-stack.preview.emergentagent.com"
+            "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
         }
         create_response = api_client.post(
             f"{BASE_URL}/api/payments/checkout/session",

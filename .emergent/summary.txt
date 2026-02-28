@@ -2,190 +2,221 @@
 The user wants to build a user interface for prompting multiple AI models simultaneously.
 
 **PRODUCT REQUIREMENTS (as of last user interaction):**
--   **Models:** Support GPT, Gemini, Claude (using a universal key), Grok, DeepSeek, and Perplexity (with user-provided keys).
--   **UI:**
-    -   Minimalist dark theme, optimized for mobile phone screens.
-    -   Display multiple model responses at once in a vertically stacked, carousel-like view. **New:** The carousel should support endless scroll on swipe.
+-   **Models:** Support GPT, Gemini, Claude (using Emergent LLM Key), and integrate Grok, DeepSeek, and Perplexity (user to provide keys). The user has the Grok key.
+-   **UI & Core Features:**
+    -   Minimalist dark theme, mobile-first.
+    -   Display model responses in a vertically stacked, ferris wheel style carousel with smooth, endless scrolling.
+    -   Response windows should be user-resizable and can be locked into a 50/50 split view.
     -   Collapsible sidebar for prompt history.
-    -   Enter key should create a new line; Ctrl+Enter should send the prompt. A dedicated Enter button for mobile.
-    -   **New:** Carousel headers for each AI model should have a button for individual prompt customization (e.g., role, system prompt).
-    -   **New:** Suspected text formatting issues (Markdown, code blocks) need to be fixed.
--   **Authentication:** Secure user/password (JWT) and Google OAuth login.
--   **Core Features:**
-    -   Settings page to manage API keys.
-    -   Session state must persist across window/tab changes until manual logout.
+    -   Enter key creates a new line; Ctrl+Enter sends the prompt.
+    -   Individual AI responses should have buttons for copy, audio output, and share.
+    -   Responses should correctly render Markdown and JSON formatting.
+    -   A button to upload pictures/files, with the ability to dispatch them to all or selected models.
+-   **State & History:**
+    -   Session state (including model responses) must persist on page refresh by reloading history from the backend.
     -   Export conversation history to JSON, TXT, and PDF.
-    -   Copy, audio output, and share buttons for each individual AI response. Thumbs up/down is deprioritized.
-    -   **New:** A button to upload pictures and files, with the ability to send them to all selected models or only specific ones.
--   **Advanced Research Features (for EDCM):**
-    -   **Synthesis:** Send one or more model responses to other models as a new prompt.
-    -   **Batch Prompting:** Sequentially send a list of prompts to the selected models.
-    -   **Context Control:** A Global Context box to prepend text to all prompts.
-    -   **Role Assignment:** Assign specific roles to each model.
-    -   **Auto-Cascade:** Automatically chain responses between models for a set number of rounds.
--   **Agent Zero (a0) Integration:**
-    -   **New:** The app must provide non-UI access for  to every input and output option available, including orchestration and control endpoints.
+-   **Advanced Features (EDCM):**
+    -   **Synthesis:** Send one or more model responses to other models as a new prompt. This should be a one-off action, not a global toggle.
+    -   **Context Control:** A Global Context box.
+    -   **Agent Zero (a0) Integration:** Provide non-UI API access for  to all features.
+-   **NEW - SaaS & Monetization (Stripe Integration):**
+    -   Implement a pricing page with subscription and credit options.
+    -   **Tiers:**
+        -   
+        -   
+        -   Optional support donations (, , ).
+        -    in  blocks.
+    -   **New UI Tabs:**
+        -   Token and cost metrics with user-settable limits.
+        -   EDCM metrics (brain connections).
+        -   Display of all context sent with prompts.
+        -   Donations vs. costs display.
+    -   OAuth login is required.
+    -   Display a hmmm doctrine at the bottom of the app.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack React/FastAPI application. The previous session refactored the universal API key handling to be more secure, with the backend now reading the  from its environment. This change has not been tested.
-
-In the current session, the user provided a significant number of new feature requests and changed priorities. The agent created a new, user-approved plan to address these but did not execute any implementation before the session ended. No code has been modified in this session.
+A full-stack React/FastAPI application. The core chat functionality, which was previously broken, has been fixed and verified for models using the universal key (e.g., Claude). The agent has pivoted to implement the new SaaS/Stripe requirements. This involved:
+-   **Backend:** Installing the Stripe SDK, creating a new  router, a  for business logic, a webhook endpoint, a checkout session creation endpoint, and adding required keys to the  file. A script () was created to populate products and prices in Stripe.
+-   **Frontend:** Installing Stripe JS libraries, adding a new  route, and creating a  component. This page is partially built with the user's requested pricing tiers and includes a  function, but the UI is incomplete and untested.
 
 **Last working item**:
--   **Last item agent was working:** Formulating a new development plan based on user requests. The first task in the approved plan is to add per-AI carousel header controls for individual prompt customization.
--   **Status:** NOT STARTED
+-   **Last item agent was working:** Implementing the frontend  to display subscription options and handle Stripe checkouts. The agent was in the process of adding and styling UI components on this page using Shadcn UI.
+-   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
 -   **Which testing method agent to use?** both
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0):** User is experiencing a deployment failure.
--   **Issue 2 (P0):** Core LLM API calls are failing or unverified after the universal key refactor.
--   **Issue 3 (P1):** Text formatting protocols are not enabled or working correctly (e.g., Markdown, code blocks).
--   **Issue 4 (P3):** The  feedback button causes an error.
+-   **Issue 1 (P0): Stripe Integration is incomplete.** The end-to-end flow is not finished. The  UI is not complete, the checkout process is untested, and the backend webhook is not fully implemented or verified.
+-   **Issue 2 (P1): Chat history is lost on page reload.** The user has reported this twice. Responses are not persisted and reloaded when the browser is refreshed.
+-   **Issue 3 (P2): Text formatting for AI responses is broken.** Responses with Markdown or code blocks are not rendered correctly.
+-   **Issue 4 (P3):  feedback button causes an error.** This is a recurring, low-priority bug from a previous session.
 
 **Issues Detail:**
--   **Issue 1: User is experiencing a deployment failure**
-    -   **Attempted fixes:** In a previous session, the agent analyzed user-provided deployment logs and found no errors.
+-   **Issue 1: Stripe Integration is incomplete**
+    -   **Attempted fixes:** The agent has set up the backend routes, services, and seeding script. It has also created the basic structure of the frontend .
     -   **Next debug checklist:**
-        1.  Confirm with the user if the deployment issue is still occurring.
-        2.  If it is, request new, complete logs that show the actual failure or error message, as previous logs showed a successful deployment.
-    -   **Why fix this issue and what will be achieved with the fix?** The application cannot be tested or used until it can be deployed successfully. This is a top-priority blocker.
-    -   **Status:** BLOCKED (waiting on user input)
+        1.  Finalize the UI/UX of , ensuring it is responsive and all pricing options are displayed correctly.
+        2.  Test the checkout flow by clicking a Subscribe button. Verify the call to  is successful and redirects the user to Stripe's checkout page.
+        3.  Implement and test the logic in the  endpoint to handle successful payments and update user subscription status in the database.
+        4.  Run the  script and confirm the products are created in the Stripe dashboard.
+    -   **Why fix this issue and what will be achieved with the fix?** This is the user's current top priority and is required for the application's monetization model.
+    -   **Status:** IN PROGRESS
     -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** N/A
+    -   **Should Test frontend/backend/both after fix?** Both
     -   **Blocked on other issue:** None
 
--   **Issue 2: Core LLM API calls are failing or unverified**
-    -   **Attempted fixes:** The insecure  endpoint was removed, and the backend was modified to pull the key directly from its environment. This fix has not been tested.
+-   **Issue 2: Chat history is lost on page reload**
+    -   **Attempted fixes:** The agent acknowledged the issue but was redirected to other tasks before implementation could begin.
     -   **Next debug checklist:**
-        1.  Once the deployment issue is resolved, perform an end-to-end test by sending a chat message from the frontend.
-        2.  Verify the chat stream works for a model using the universal key (e.g., Claude).
-        3.  Check backend logs () for errors during the API call.
-    -   **Why fix this issue and what will be achieved with the fix?** This is the core functionality of the application.
-    -   **Status:** TESTING PENDING
+        1.  Create a new backend endpoint (e.g., ) that retrieves all messages for the authenticated user from the database.
+        2.  In the frontend (), use a  hook to call this endpoint on component mount.
+        3.  Populate the chat state with the retrieved history, ensuring responses are displayed correctly.
+    -   **Why fix this issue and what will be achieved with the fix?** It's a critical usability issue. Users expect their conversations to be saved.
+    -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on other issue:** Issue 1: User is experiencing a deployment failure.
+    -   **Blocked on other issue:** None
 
--   **Issue 3: Text formatting protocols are not enabled or working correctly**
-    -   **Attempted fixes:** None. This was newly reported by the user in this session.
+-   **Issue 3: Text formatting for AI responses is broken**
+    -   **Attempted fixes:** None.
     -   **Next debug checklist:**
-        1.  Send a prompt to an LLM that should return a Markdown formatted response (e.g., a code block or a list).
-        2.  Inspect the frontend component responsible for rendering chat messages ( or similar).
-        3.  Ensure a library like  is being used to render the content.
-        4.  Verify CSS is not interfering with the formatting.
-    -   **Why fix this issue and what will be achieved with the fix?** To ensure AI responses are displayed correctly and legibly.
+        1.  Identify the component rendering chat messages (e.g., a  component inside ).
+        2.  Ensure a library like  is installed and used to wrap the message content.
+        3.  Send a prompt that elicits a Markdown response (e.g., show me a code block in javascript) to verify the fix.
+    -   **Why fix this issue and what will be achieved with the fix?** To ensure AI responses are displayed legibly and correctly.
     -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
+    -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** Frontend
-    -   **Blocked on other issue:** Issue 1, Issue 2
+    -   **Blocked on other issue:** None
 
--   **Issue 4: The  feedback button causes an error**
-    -   **Attempted fixes:** None. The user has downgraded the priority of this issue.
+-   **Issue 4:  feedback button causes an error**
+    -   **Attempted fixes:** None in recent sessions. Deprioritized by user.
     -   **Next debug checklist:**
-        1.  Inspect the  endpoint logic in .
-        2.  Analyze the  function in .
-    -   **Why fix this issue and what will be achieved with the fix?** A minor UI feature for rating model responses.
+        1.  Inspect the  function in .
+        2.  Examine the  endpoint in .
+    -   **Why fix this issue and what will be achieved with the fix?** Fixes a minor UI bug.
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** Both
     -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   None. No implementation was started in this session.
+-   **Task 1: Complete Stripe Integration**
+    -   **Where to resume:** Finalizing the UI of , then proceeding with end-to-end testing of the checkout flow and webhook handling.
+    -   **What will be achieved with this?** A fully functional payment and subscription system as requested by the user.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Blocked on something:** None
 
 **Upcoming and Future Tasks**
--   **Upcoming Tasks (P0, after blockers are resolved):**
-    1.  **Per-AI Carousel Header Controls:** Add a button in each model’s carousel header for individual prompt customization.
-    2.  **Endless Swipe Carousel:** Implement infinite-loop swipe behavior for model cards.
-    3.  **Image/File Dispatch Controls:** Add a UI button for file/image upload with targeting options (send to all/selected models).
-    4.  **Agent Zero (a0) Non-UI Full Access:** Create and expose endpoints for  to access all input/output options programmatically.
 -   **Upcoming Tasks (P1):**
-    1.  **Full Regression Test:** Verify core features (Newline on Enter, Ctrl+Enter to send, Export, etc.) after P0 tasks are complete.
+    -   **Chat History Persistence:** Implement loading chat history on page refresh.
+    -   **Complex Carousel UI:** Build the ferris wheel carousel with user-resizable windows and a lock-to-split-view feature.
+    -   **New SaaS UI Tabs:** Create the UI tabs for Token/Cost, EDCM, Context, and Donations.
+    -   **Response Formatting:** Fix Markdown/JSON rendering in chat responses.
 -   **Future Tasks (P2/P3):**
-    -   Advanced research features (Cascade, Batch Prompting).
-    -   Integrate additional models (Grok, DeepSeek, Perplexity).
-    -   Scene Presets to save/load settings.
+    -   Add copy buttons to prompt/response windows.
+    -   Change Synthesize feature to be a one-off action.
+    -   Add per-AI carousel header controls for individual prompt customization.
+    -   Implement image/file uploads with model dispatching.
+    -   Integrate Grok model (user has key).
+    -   Implement non-UI API for Agent Zero (a0).
     -   Fix  feedback bug (P3).
+    -   Display hmmm doctrine at the bottom of the app.
 
 **Completed work in this session**
--   Analyzed user's new feature requests and priority changes.
--   Created a new, user-approved development plan.
--   Removed OAuth troubleshooting from the task list as requested by the user.
--   **Note:** No code was modified or implemented in this session.
+-   **Resolved Core Chat Functionality Blocker:** Fixed a  by correcting the Claude model name in , unblocking the primary  endpoint.
+-   **Resolved Deployment Blocker:** User confirmed deployment is now successful.
+-   **Initiated Stripe Integration:**
+    -   Installed Stripe SDKs for both frontend and backend.
+    -   Created backend endpoints for checkout session creation and webhooks in .
+    -   Created  for Stripe logic.
+    -   Created  to populate Stripe products.
+    -   Created and began implementing the frontend .
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1:** The  feedback button error remains unresolved from a previous session, though it has been deprioritized by the user.
+-   The page refresh loses chat history bug was reported by the user twice but has not been addressed.
+-   The complex UI requirements for a ferris wheel carousel and resizable windows were started but abandoned in favor of the Stripe integration.
 
 **Known issue recurrence from previous fork**
 -   **Issue recurrence in previous fork:** Thumbs up/down button error.
--   **Recurrence count:** 2+
+-   **Recurrence count:** 3+
 -   **Status:** NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Frontend:** React, Tailwind CSS, Shadcn UI, Context API.
--   **Backend:** FastAPI, MongoDB (motor).
--   **API Key Management:** Backend-managed environment variables for universal keys.
+-   **Frontend:** React, Tailwind CSS, Shadcn UI, Context API, Stripe.js
+-   **Backend:** FastAPI, MongoDB (motor), Stripe SDK
+-   **API Key Management:** Backend-managed environment variables.
+-   **Payments:** Stripe for subscriptions and one-time payments.
 
 **key DB schema**
--   No changes to the schema.
+-   No schema changes were made in this session, but a  field will likely need to be added to the  collection to support Stripe integration.
 
 **All files of reference**
--   No files were modified in this session. All file references from the previous handoff remain relevant to the last code change.
-
-**Areas that need refactoring**:
--   None identified in this session.
-
-**key api endpoints**
--   : Main endpoint for sending prompts. Status is pending testing.
--   : **Removed** in a previous session.
+-   **Modified:**
+    -   : Fixed Claude model name.
+    -   : Added Stripe router.
+    -   : Added  route.
+    -   , : Added Stripe keys.
+    -   , : Added Stripe dependencies.
+-   **Created:**
+    -   : Handles Stripe API calls (checkout, webhooks).
+    -   : Business logic for Stripe (creating products).
+    -   : Script to populate Stripe with products/prices.
+    -   : UI for the new pricing/subscription page.
 
 **Critical Info for New Agent**
-1.  **Start with Blockers:** Your first priority is to resolve the two P0 blockers from the previous session: **Deployment Failure** and **Unverified Core Chat Functionality**. First, ask the user if the deployment is still failing and request new logs if it is. Only after the app is deployed and core chat works should you begin new features.
-2.  **Execute the New Plan:** A new feature plan was approved by the user but **zero implementation has occurred**. Once blockers are clear, start with the first P0 task: Per-AI Carousel Header Controls.
-3.  **User Communication:** The user has requested that you include hmmm at the start of every response. Adhere to this.
-4.  **New Requirements:** Be fully aware of the new P0 features requested by the user: per-model customization buttons, endless carousel, file uploads, and programmatic  access. These are the top development priorities after the blockers are resolved.
-5.  **Deprioritized Items:** The user confirmed OAuth is working and has downgraded the priority of the thumbs up/down button bug. Do not work on these unless asked.
+1.  **Resume Stripe Integration:** Your immediate priority is to complete the Stripe integration. Pick up where the last agent left off on . The goal is a fully testable end-to-end checkout flow.
+2.  **User Communication:** The user has requested that you include hmmm at the start of every response. Adhere to this.
+3.  **High-Priority Bug:** After the Stripe work is stable, address the chat history lost on refresh bug (Issue #2). The user has mentioned it multiple times, and it's a major usability flaw.
+4.  **Complex UI:** The user has requested very complex UI changes (ferris wheel carousel, resizable windows). The previous agent struggled with this. Before implementing, break this task into very small, verifiable steps and consider asking for clarification if the user's instructions are ambiguous.
+5.  **Blockers Resolved:** The original P0 blockers from the last fork (deployment failure, broken core chat) are now **RESOLVED**. Do not spend time investigating them.
 
 **documents and test reports created in this job**
 -   None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:**  (approving the agent's new plan).
-2.  **Agent:** Replied with a new, prioritized task list based on the user's latest requests, asking for confirmation to proceed.
-3.  **User:** Provided a list of new feature requests (carousel controls, endless scroll, file uploads, a0 access), reported a new bug (text formatting), and changed priorities (removed OAuth issue, downgraded thumbs-up bug). Requested an updated task list and that the agent include hmmm in responses.
-4.  **System:** 
+-   : approved agent's plan to test stripe integration.
+-   : approved agent's plan to create a pricing page.
+-   : Provided brief answers clarifying requirements for the new SaaS UI tabs.
+-   : **Major pivot.** Requested a full SaaS pricing model with Stripe, new UI tabs for metrics, and OAuth login. Explicitly stated Stripe is connected and instructed the agent to wire it into the app.
+-   : Provided cryptic, one-word answers to the agent's clarifying questions about complex UI requests.
+-   : Requested numerous complex UI features: ferris wheel carousel, resizable windows with a lock gesture, copyable status for responses, and specified that synthesize should be a one-off action.
+-   : Re-iterated that page refresh loses model responses and that history should be reloaded.
+-   : Confirmed deployment successful, provided a Grok API key, asked agent to use a test account, and reported the reply lost on reload bug for the first time.
 
 **Project Health Check:**
 -   **Broken**:
-    -   Deployment (reported by user, but logs were clean).
-    -   Core chat functionality (pending verification).
-    -   Text formatting (reported by user).
+    -   Stripe checkout flow (in progress).
+    -   Chat state persistence on page reload.
+    -   Markdown/JSON rendering in responses.
     -   Thumbs up/down feedback button.
 -   **Mocked**:
-    -   Agent Zero (a0) Google Cloud access tab.
+    -   The new UI tabs (Token/Cost, EDCM, Donations).
     -   Integrations for Grok, DeepSeek, and Perplexity.
+    -   Agent Zero (a0) access.
 
 **3rd Party Integrations**
--   **OpenAI GPT, Claude, Gemini:** Uses Emergent LLM Key via .
+-   **OpenAI GPT, Claude, Gemini:** Uses Emergent LLM Key.
 -   **Emergent-managed Google Auth:** Integrated for user login.
+-   **Stripe:** In progress for payments. Requires user API keys, which are set in the environment.
 -   **Agent Zero:** Custom integration for a local user-run application.
 
 **Testing status**
 -   Testing agent used after significant changes: NO
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: None
--   Known regressions: Core chat functionality's status is unknown after a major refactor. Deployment is reportedly failing.
+-   Known regressions: None. A major bug in core chat functionality was fixed.
 
 **Credentials to test flow:**
--   Credentials are not available. The agent will need to use existing test accounts or create new ones via the UI.
+-   User instructed to create and use testing account via the UI for testing purposes.
 
 **What agent forgot to execute**
--   The agent created a new plan based on user requests but the session ended before any part of that plan could be executed.
--   The agent's new plan did not explicitly prioritize resolving the existing P0 blockers (deployment, core chat functionality) before starting the new feature requests. The next agent must address these blockers first.</analysis>
+-   The agent acknowledged the critical chat history lost on reload bug twice but did not fix it, getting sidetracked by newer, larger user requests (complex carousel and then Stripe).
+-   The Per-AI Carousel Header Controls task was started but immediately abandoned and forgotten when the user interrupted.</analysis>

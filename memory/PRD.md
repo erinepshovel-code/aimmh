@@ -105,6 +105,10 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Chat route now records prompt context logs and assistant token/cost telemetry fields
 - Global bottom footer added: dynamic `hmmm doctrine` bar (route/state/signal aware)
 - Iteration 7 backend+frontend testing pass completed (all checks passed)
+- Current-thread persistence hardening: ChatPage now re-syncs only the active conversation from backend on auth-ready mount and window-focus; manual refresh no longer auto-switches to latest thread.
+- Pricing page polish pass: Added billing hero, auth-required indicator, live payment summary cards (paid/support/usage/compute), and clearer checkout cancel/status UX.
+- Stripe checkout session now prefers `stripe_price_id` when catalog has one (fallback to fixed amount remains), improving subscription-ready compatibility.
+- Iteration 8 backend+frontend regression/testing pass completed (chat persistence, pricing tabs, support toggle, checkout redirect/status, feedback all verified)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -131,6 +135,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Improve attachment rendering/preview in conversation history (currently focused on prompt dispatch)
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
+- Add optional "restore latest conversation" as an explicit opt-in action (current behavior intentionally restores only active conversation)
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

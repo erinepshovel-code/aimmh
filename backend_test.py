@@ -272,7 +272,7 @@ class ConversationSearchTester:
             
             # Authenticate
             print("\n--- Authenticating ---")
-            if not await self.login(session):
+            if not await self.setup_auth_session(session):
                 print("❌ Authentication failed - cannot proceed with authenticated tests")
                 return False
             

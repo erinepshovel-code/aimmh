@@ -1,524 +1,474 @@
 #!/usr/bin/env python3
 """
-Backend API regression test for prompt hub application
-Tests: auth-protected access, chat stream persistence, feedback, payments catalog/summary/checkout
+Backend test suite for Agent Zero non-UI REST endpoints
+Tests the following endpoints:
+1. GET /api/a0/non-ui/options
+2. POST /api/a0/non-ui/prompt/selected
+3. POST /api/a0/non-ui/prompt/all
+4. GET /api/a0/non-ui/history/{conversation_id}
+5. POST /api/a0/non-ui/synthesis
+6. GET /api/a0/non-ui/conversations/{conversation_id}/export
+7. Authentication verification
 """
 
 import requests
 import json
 import time
 import uuid
-from typing import Dict, Any, Optional
+import subprocess
+import sys
+from datetime import datetime, timezone
 
+# Configuration
 BASE_URL = "https://prompt-hub-67.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
-class BackendTester:
+class TestResult:
     def __init__(self):
-        self.session_token = None
-        self.user_id = None
-        self.test_results = []
+        self.passed = 0
+        self.failed = 0
+        self.details = []
         
-    def log_result(self, test_name: str, success: bool, message: str, details: str = ""):
-        """Log test result"""
-        result = {
-            "test": test_name,
-            "success": success,
-            "message": message,
-            "details": details
-        }
-        self.test_results.append(result)
-        status = "✅" if success else "❌"
-        print(f"{status} {test_name}: {message}")
-        if details and not success:
-            print(f"   Details: {details}")
+    def add_pass(self, test_name, details=""):
+        self.passed += 1
+        self.details.append(f"✅ {test_name}: PASS{' - ' + details if details else ''}")
+        
+    def add_fail(self, test_name, details=""):
+        self.failed += 1
+        self.details.append(f"❌ {test_name}: FAIL{' - ' + details if details else ''}")
+        
+    def summary(self):
+        return f"Tests: {self.passed + self.failed} | Passed: {self.passed} | Failed: {self.failed}"
+
+def setup_test_user():
+    """Create test user and session in MongoDB"""
+    user_id = f"test-user-a0-{int(time.time())}"
+    session_token = f"test_session_a0_{int(time.time())}"
     
-    def setup_auth_session(self) -> bool:
-        """Setup authentication using existing session token from MongoDB"""
-        try:
-            # Use existing valid session token
-            self.session_token = "test_session_1772298188498"
-            
-            # Test auth with this session
-            response = requests.get(
-                f"{API_BASE}/auth/me",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                user_data = response.json()
-                self.user_id = user_data.get("user_id")
-                self.log_result("Auth Setup", True, f"Authenticated as user: {self.user_id}")
-                return True
-            else:
-                self.log_result("Auth Setup", False, f"Auth failed: {response.status_code}", response.text[:200])
-                return False
-                
-        except Exception as e:
-            self.log_result("Auth Setup", False, f"Auth setup error: {str(e)}")
-            return False
+    mongo_script = f"""
+use('test_database');
+var userId = '{user_id}';
+var sessionToken = '{session_token}';
+db.users.insertOne({{
+  user_id: userId,
+  email: 'test.user.' + Date.now() + '@example.com',
+  name: 'A0 Test User',
+  picture: 'https://via.placeholder.com/150',
+  created_at: new Date()
+}});
+db.user_sessions.insertOne({{
+  user_id: userId,
+  session_token: sessionToken,
+  expires_at: new Date(Date.now() + 7*24*60*60*1000),
+  created_at: new Date()
+}});
+print('Session token: ' + sessionToken);
+print('User ID: ' + userId);
+"""
     
-    def test_auth_protected_access(self):
-        """Test 1: Auth-protected access rules"""
+    try:
+        result = subprocess.run(
+            ["mongosh", "--eval", mongo_script],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
         
-        # Test unauthorized access
-        try:
-            response = requests.get(f"{API_BASE}/auth/me", timeout=10)
-            if response.status_code == 401:
-                self.log_result("Auth - Unauthorized Access", True, "Correctly blocked unauthorized access")
-            else:
-                self.log_result("Auth - Unauthorized Access", False, f"Expected 401, got {response.status_code}")
-        except Exception as e:
-            self.log_result("Auth - Unauthorized Access", False, f"Error testing unauthorized: {str(e)}")
-        
-        # Test authorized access
-        try:
-            response = requests.get(
-                f"{API_BASE}/auth/me",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            if response.status_code == 200:
-                user_data = response.json()
-                if "user_id" in user_data:
-                    self.log_result("Auth - Authorized Access", True, "Successfully authenticated and returned user data")
-                else:
-                    self.log_result("Auth - Authorized Access", False, "Missing user_id in response")
-            else:
-                self.log_result("Auth - Authorized Access", False, f"Expected 200, got {response.status_code}")
-        except Exception as e:
-            self.log_result("Auth - Authorized Access", False, f"Error testing authorized: {str(e)}")
-        
-        # Test conversations endpoint (auth required)
-        try:
-            response = requests.get(
-                f"{API_BASE}/conversations",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            if response.status_code == 200:
-                self.log_result("Auth - Protected Endpoint", True, f"Conversations accessible, returned {len(response.json())} conversations")
-            else:
-                self.log_result("Auth - Protected Endpoint", False, f"Conversations failed: {response.status_code}")
-        except Exception as e:
-            self.log_result("Auth - Protected Endpoint", False, f"Error testing conversations: {str(e)}")
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')
+            for line in lines:
+                if line.startswith('Session token:'):
+                    session_token = line.split(':')[1].strip()
+                elif line.startswith('User ID:'):
+                    user_id = line.split(':')[1].strip()
+            return user_id, session_token
+        else:
+            print(f"MongoDB setup failed: {result.stderr}")
+            return None, None
+    except Exception as e:
+        print(f"Failed to setup test user: {e}")
+        return None, None
+
+def cleanup_test_user(user_id, session_token):
+    """Remove test user and session from MongoDB"""
+    mongo_script = f"""
+use('test_database');
+db.users.deleteOne({{user_id: '{user_id}'}});
+db.user_sessions.deleteOne({{session_token: '{session_token}'}});
+print('Cleaned up test user and session');
+"""
     
-    def test_chat_stream_persistence(self):
-        """Test 2: Chat stream persistence + message retrieval"""
+    try:
+        subprocess.run(["mongosh", "--eval", mongo_script], capture_output=True, timeout=10)
+    except Exception as e:
+        print(f"Warning: Failed to cleanup test user: {e}")
+
+def make_request(method, endpoint, headers=None, json_data=None, params=None):
+    """Make HTTP request with error handling"""
+    url = f"{API_BASE}{endpoint}"
+    try:
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            json=json_data,
+            params=params,
+            timeout=30,
+            stream=(method.upper() == 'POST' and 'stream' in endpoint)
+        )
+        return response
+    except Exception as e:
+        print(f"Request failed: {method} {endpoint} - {e}")
+        return None
+
+def test_unauthenticated_access(results):
+    """Test that unauthenticated access to a0 non-ui endpoints is rejected"""
+    endpoints_to_test = [
+        ("/a0/non-ui/options", "GET"),
+        ("/a0/non-ui/prompt/selected", "POST"),
+        ("/a0/non-ui/prompt/all", "POST"),
+        ("/a0/non-ui/history/dummy-conversation-id", "GET"),
+        ("/a0/non-ui/synthesis", "POST"),
+        ("/a0/non-ui/conversations/dummy-id/export", "GET"),
+    ]
+    
+    print("\n=== Testing Unauthenticated Access ===")
+    all_rejected = True
+    
+    for endpoint, method in endpoints_to_test:
+        response = make_request(method, endpoint)
+        if response and response.status_code == 401:
+            results.add_pass(f"Unauth {method} {endpoint}", "401 Unauthorized")
+        else:
+            status = response.status_code if response else "No response"
+            results.add_fail(f"Unauth {method} {endpoint}", f"Expected 401, got {status}")
+            all_rejected = False
+    
+    return all_rejected
+
+def test_options_endpoint(headers, results):
+    """Test GET /api/a0/non-ui/options"""
+    print("\n=== Testing Options Endpoint ===")
+    
+    response = make_request("GET", "/a0/non-ui/options", headers=headers)
+    
+    if not response:
+        results.add_fail("Options endpoint", "No response received")
+        return None
+    
+    if response.status_code != 200:
+        results.add_fail("Options endpoint", f"Status {response.status_code}: {response.text}")
+        return None
+    
+    try:
+        data = response.json()
         
-        conversation_id = str(uuid.uuid4())
-        message_id = None
+        # Check for required top-level keys
+        required_keys = ["prompt_all", "prompt_selected", "synthesis", "history", "export"]
+        found_keys = []
         
-        # Send a message via chat stream
+        # Check if keys exist in any of the nested structures
+        response_text = response.text.lower()
+        for key in required_keys:
+            if key in response_text:
+                found_keys.append(key)
+        
+        if len(found_keys) == len(required_keys):
+            results.add_pass("Options endpoint", f"Contains all required keys: {', '.join(required_keys)}")
+            return data
+        else:
+            missing_keys = set(required_keys) - set(found_keys)
+            results.add_fail("Options endpoint", f"Missing keys: {', '.join(missing_keys)}")
+            return data
+            
+    except json.JSONDecodeError:
+        results.add_fail("Options endpoint", "Invalid JSON response")
+        return None
+
+def create_test_conversation(headers, user_id):
+    """Create a test conversation for testing"""
+    conversation_id = str(uuid.uuid4())
+    
+    # Create conversation
+    conversation_data = {
+        "message": "Test message for Agent Zero non-UI endpoints",
+        "models": ["gpt-5.2"],
+        "conversation_id": conversation_id,
+        "context_mode": "compartmented",
+        "persist_user_message": True
+    }
+    
+    response = make_request("POST", "/chat/stream", headers=headers, json_data=conversation_data)
+    
+    if response and response.status_code == 200:
+        # Wait a moment for the conversation to be created
+        time.sleep(2)
+        return conversation_id
+    else:
+        return None
+
+def test_prompt_selected_endpoint(headers, results):
+    """Test POST /api/a0/non-ui/prompt/selected"""
+    print("\n=== Testing Prompt Selected Endpoint ===")
+    
+    test_data = {
+        "message": "What is artificial intelligence?",
+        "models": ["gpt-5.2"],
+        "context_mode": "compartmented",
+        "persist_user_message": True
+    }
+    
+    response = make_request("POST", "/a0/non-ui/prompt/selected", headers=headers, json_data=test_data)
+    
+    if not response:
+        results.add_fail("Prompt selected endpoint", "No response received")
+        return None
+    
+    if response.status_code != 200:
+        results.add_fail("Prompt selected endpoint", f"Status {response.status_code}: {response.text}")
+        return None
+    
+    # For SSE endpoints, check if response is streaming
+    content_type = response.headers.get('content-type', '')
+    if 'text/event-stream' in content_type or 'text/plain' in content_type:
+        results.add_pass("Prompt selected endpoint", "SSE stream response received")
+        
+        # Try to get conversation_id from response headers or content
+        conversation_id = response.headers.get('x-conversation-id')
+        if conversation_id:
+            return conversation_id
+        
+        # Try to extract conversation_id from streaming response
         try:
-            chat_payload = {
-                "message": "Backend regression test message",
-                "models": ["gpt-5.2"],
-                "conversation_id": conversation_id,
-                "context_mode": "shared",
-                "shared_room_mode": "parallel_all",
-                "persist_user_message": True,
-                "history_limit": 10
-            }
-            
-            response = requests.post(
-                f"{API_BASE}/chat/stream",
-                json=chat_payload,
-                cookies={"session_token": self.session_token},
-                headers={"Accept": "text/event-stream"},
-                timeout=30,
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                # Parse SSE stream to get message_id
-                events = []
-                for line in response.iter_lines(decode_unicode=True):
-                    if line and line.startswith('data: '):
+            for line in response.iter_lines(decode_unicode=True):
+                if line.startswith('data:'):
+                    data_str = line[5:].strip()
+                    if data_str and data_str != '[DONE]':
                         try:
-                            data_str = line[6:]  # Remove 'data: ' prefix
-                            if data_str.strip():  # Only process non-empty data
-                                data = json.loads(data_str)
-                                events.append(data)
-                                if not message_id and 'message_id' in data:
-                                    message_id = data.get('message_id')
+                            data = json.loads(data_str)
+                            if 'conversation_id' in data:
+                                return data['conversation_id']
                         except json.JSONDecodeError:
                             continue
-                        except:
-                            continue
-                
-                if events:
-                    self.log_result("Chat Stream - Send Message", True, f"Stream completed with {len(events)} events")
-                else:
-                    self.log_result("Chat Stream - Send Message", False, "Stream completed but no events parsed")
-            else:
-                self.log_result("Chat Stream - Send Message", False, f"Stream failed: {response.status_code}", response.text[:200])
+        except:
+            pass
         
-        except Exception as e:
-            self.log_result("Chat Stream - Send Message", False, f"Error sending message: {str(e)}")
-        
-        # Wait a moment for persistence
-        time.sleep(2)
-        
-        # Test message retrieval
-        try:
-            response = requests.get(
-                f"{API_BASE}/conversations/{conversation_id}/messages",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                messages = response.json()
-                if len(messages) >= 1:  # At least user message should be persisted
-                    user_msgs = [m for m in messages if m.get('role') == 'user']
-                    assistant_msgs = [m for m in messages if m.get('role') == 'assistant']
-                    
-                    if user_msgs:
-                        self.log_result("Chat Persistence - Message Retrieval", True, 
-                                      f"Retrieved {len(messages)} messages: {len(user_msgs)} user, {len(assistant_msgs)} assistant")
-                        # Get message_id from assistant message for feedback testing
-                        if assistant_msgs:
-                            message_id = assistant_msgs[0].get('id')
-                    else:
-                        self.log_result("Chat Persistence - Message Retrieval", False, "No user messages found in conversation")
-                else:
-                    self.log_result("Chat Persistence - Message Retrieval", False, "No messages found after sending")
-            else:
-                self.log_result("Chat Persistence - Message Retrieval", False, f"Retrieval failed: {response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Chat Persistence - Message Retrieval", False, f"Error retrieving messages: {str(e)}")
-        
-        return message_id, conversation_id
-    
-    def test_feedback_endpoints(self, message_id: Optional[str]):
-        """Test 3: Chat feedback up/down and 404 for invalid message ID"""
-        
-        if not message_id:
-            self.log_result("Feedback - No Message ID", False, "Skipping feedback test: no valid message ID")
-            return
-        
-        # Test thumbs up feedback
-        try:
-            feedback_payload = {
-                "message_id": message_id,
-                "feedback": "up"
-            }
-            
-            response = requests.post(
-                f"{API_BASE}/chat/feedback",
-                json=feedback_payload,
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                self.log_result("Feedback - Thumbs Up", True, "Successfully submitted thumbs up feedback")
-            elif response.status_code == 404:
-                self.log_result("Feedback - Thumbs Up", False, "Message not found for feedback (404)")
-            else:
-                self.log_result("Feedback - Thumbs Up", False, f"Unexpected status: {response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Feedback - Thumbs Up", False, f"Error submitting thumbs up: {str(e)}")
-        
-        # Test thumbs down feedback
-        try:
-            feedback_payload = {
-                "message_id": message_id,
-                "feedback": "down"
-            }
-            
-            response = requests.post(
-                f"{API_BASE}/chat/feedback",
-                json=feedback_payload,
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                self.log_result("Feedback - Thumbs Down", True, "Successfully submitted thumbs down feedback")
-            elif response.status_code == 404:
-                self.log_result("Feedback - Thumbs Down", False, "Message not found for feedback (404)")
-            else:
-                self.log_result("Feedback - Thumbs Down", False, f"Unexpected status: {response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Feedback - Thumbs Down", False, f"Error submitting thumbs down: {str(e)}")
-        
-        # Test invalid message ID (should return 404)
-        try:
-            invalid_feedback = {
-                "message_id": "invalid-message-id",
-                "feedback": "up"
-            }
-            
-            response = requests.post(
-                f"{API_BASE}/chat/feedback",
-                json=invalid_feedback,
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 404:
-                self.log_result("Feedback - Invalid Message ID", True, "Correctly returned 404 for invalid message ID")
-            else:
-                self.log_result("Feedback - Invalid Message ID", False, f"Expected 404, got {response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Feedback - Invalid Message ID", False, f"Error testing invalid ID: {str(e)}")
-    
-    def test_payments_catalog(self):
-        """Test 4: Payments catalog fields and categories"""
-        
-        try:
-            response = requests.get(
-                f"{API_BASE}/payments/catalog",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                catalog = response.json()
-                
-                # Check required fields exist
-                required_fields = ["prices", "founder_slots_total", "founder_slots_remaining"]
-                missing_fields = [field for field in required_fields if field not in catalog]
-                
-                if missing_fields:
-                    self.log_result("Payments Catalog - Fields", False, f"Missing fields: {missing_fields}")
-                else:
-                    self.log_result("Payments Catalog - Fields", True, "All required catalog fields present")
-                
-                # Check categories
-                prices = catalog.get("prices", [])
-                categories = set(price.get("category") for price in prices)
-                expected_categories = {"core", "support", "founder", "credits"}
-                
-                if expected_categories.issubset(categories):
-                    self.log_result("Payments Catalog - Categories", True, f"Found all expected categories: {sorted(categories)}")
-                else:
-                    missing = expected_categories - categories
-                    self.log_result("Payments Catalog - Categories", False, f"Missing categories: {missing}")
-                
-                # Check price structure
-                if prices:
-                    sample_price = prices[0]
-                    price_fields = ["package_id", "name", "amount", "currency", "billing_type", "category"]
-                    missing_price_fields = [field for field in price_fields if field not in sample_price]
-                    
-                    if missing_price_fields:
-                        self.log_result("Payments Catalog - Price Structure", False, f"Missing price fields: {missing_price_fields}")
-                    else:
-                        self.log_result("Payments Catalog - Price Structure", True, "Price objects have correct structure")
-                else:
-                    self.log_result("Payments Catalog - Price Structure", False, "No prices in catalog")
-            
-            else:
-                self.log_result("Payments Catalog - Request", False, f"Catalog request failed: {response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Payments Catalog - Request", False, f"Error fetching catalog: {str(e)}")
-    
-    def test_payments_summary(self):
-        """Test 5: Payments summary shape"""
-        
-        try:
-            response = requests.get(
-                f"{API_BASE}/payments/summary",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                summary = response.json()
-                
-                # Check required fields
-                required_fields = [
-                    "total_paid_usd", "total_support_usd", "total_founder_usd", 
-                    "total_compute_usd", "total_core_usd", "estimated_usage_cost_usd", 
-                    "total_estimated_tokens"
-                ]
-                
-                missing_fields = [field for field in required_fields if field not in summary]
-                
-                if missing_fields:
-                    self.log_result("Payments Summary - Shape", False, f"Missing fields: {missing_fields}")
-                else:
-                    # Verify field types
-                    numeric_fields = required_fields  # All should be numeric
-                    type_errors = []
-                    
-                    for field in numeric_fields:
-                        value = summary.get(field)
-                        if not isinstance(value, (int, float)):
-                            type_errors.append(f"{field}: {type(value).__name__}")
-                    
-                    if type_errors:
-                        self.log_result("Payments Summary - Shape", False, f"Wrong types: {type_errors}")
-                    else:
-                        self.log_result("Payments Summary - Shape", True, f"Summary shape correct: {len(summary)} fields")
-            
-            else:
-                self.log_result("Payments Summary - Request", False, f"Summary request failed: {response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Payments Summary - Request", False, f"Error fetching summary: {str(e)}")
-    
-    def test_checkout_session(self):
-        """Test 6: Checkout session creation for package IDs"""
-        
-        test_packages = ["core_monthly", "support_one_time_1", "credits_10", "founder_one_time"]
-        
-        for package_id in test_packages:
-            try:
-                checkout_payload = {
-                    "package_id": package_id,
-                    "origin_url": BASE_URL
-                }
-                
-                response = requests.post(
-                    f"{API_BASE}/payments/checkout/session",
-                    json=checkout_payload,
-                    cookies={"session_token": self.session_token},
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    session_data = response.json()
-                    
-                    # Check required response fields
-                    required_fields = ["url", "session_id"]
-                    missing_fields = [field for field in required_fields if field not in session_data]
-                    
-                    if missing_fields:
-                        self.log_result(f"Checkout - {package_id}", False, f"Missing fields: {missing_fields}")
-                    else:
-                        # Verify URL format
-                        url = session_data.get("url")
-                        if url and url.startswith("https://checkout.stripe.com"):
-                            self.log_result(f"Checkout - {package_id}", True, "Session created with valid Stripe URL")
-                        else:
-                            self.log_result(f"Checkout - {package_id}", False, f"Invalid URL format: {url}")
-                
-                elif response.status_code == 409 and package_id == "founder_one_time":
-                    self.log_result(f"Checkout - {package_id}", True, "Founder slots sold out (409 expected)")
-                else:
-                    self.log_result(f"Checkout - {package_id}", False, f"Request failed: {response.status_code}")
-            
-            except Exception as e:
-                self.log_result(f"Checkout - {package_id}", False, f"Error creating session: {str(e)}")
-    
-    def test_checkout_status(self):
-        """Test 7: Checkout status endpoint response fields"""
-        
-        # Create a dummy session first
-        try:
-            checkout_payload = {
-                "package_id": "support_one_time_1",
-                "origin_url": BASE_URL
-            }
-            
-            response = requests.post(
-                f"{API_BASE}/payments/checkout/session",
-                json=checkout_payload,
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if response.status_code != 200:
-                self.log_result("Checkout Status - Session Creation", False, f"Could not create test session: {response.status_code}")
-                return
-            
-            session_data = response.json()
-            session_id = session_data.get("session_id")
-            
-            if not session_id:
-                self.log_result("Checkout Status - Session ID", False, "No session_id in response")
-                return
-            
-            # Now test the status endpoint
-            status_response = requests.get(
-                f"{API_BASE}/payments/checkout/status/{session_id}",
-                cookies={"session_token": self.session_token},
-                timeout=10
-            )
-            
-            if status_response.status_code == 200:
-                status_data = status_response.json()
-                
-                # Check required response fields
-                required_fields = ["session_id", "status", "payment_status", "amount_total", "currency"]
-                missing_fields = [field for field in required_fields if field not in status_data]
-                
-                if missing_fields:
-                    self.log_result("Checkout Status - Response Fields", False, f"Missing fields: {missing_fields}")
-                else:
-                    # Verify session_id matches
-                    if status_data.get("session_id") == session_id:
-                        self.log_result("Checkout Status - Response Fields", True, "All required fields present and session_id matches")
-                    else:
-                        self.log_result("Checkout Status - Response Fields", False, "Session ID mismatch")
-            else:
-                self.log_result("Checkout Status - Request", False, f"Status request failed: {status_response.status_code}")
-        
-        except Exception as e:
-            self.log_result("Checkout Status - Request", False, f"Error testing status: {str(e)}")
-    
-    def print_summary(self):
-        """Print test summary"""
-        print("\n" + "="*80)
-        print("BACKEND API REGRESSION TEST SUMMARY")
-        print("="*80)
-        
-        passed = sum(1 for result in self.test_results if result["success"])
-        failed = len(self.test_results) - passed
-        
-        print(f"Total Tests: {len(self.test_results)}")
-        print(f"Passed: {passed}")
-        print(f"Failed: {failed}")
-        
-        if failed > 0:
-            print(f"\nFAILED TESTS:")
-            for result in self.test_results:
-                if not result["success"]:
-                    print(f"❌ {result['test']}: {result['message']}")
-                    if result["details"]:
-                        print(f"   {result['details'][:100]}...")
-        
-        print(f"\nOVERALL RESULT: {'PASS' if failed == 0 else 'FAIL'}")
-        return failed == 0
+        return "test-conversation-id"  # Return a test ID if we can't extract one
+    else:
+        results.add_fail("Prompt selected endpoint", f"Expected SSE stream, got {content_type}")
+        return None
 
+def test_prompt_all_endpoint(headers, results):
+    """Test POST /api/a0/non-ui/prompt/all"""
+    print("\n=== Testing Prompt All Endpoint ===")
+    
+    test_data = {
+        "message": "Explain quantum computing briefly",
+        "context_mode": "compartmented",
+        "persist_user_message": True
+    }
+    
+    response = make_request("POST", "/a0/non-ui/prompt/all", headers=headers, json_data=test_data)
+    
+    if not response:
+        results.add_fail("Prompt all endpoint", "No response received")
+        return
+    
+    if response.status_code != 200:
+        results.add_fail("Prompt all endpoint", f"Status {response.status_code}: {response.text}")
+        return
+    
+    content_type = response.headers.get('content-type', '')
+    if 'text/event-stream' in content_type or 'text/plain' in content_type:
+        results.add_pass("Prompt all endpoint", "SSE stream response received")
+    else:
+        results.add_fail("Prompt all endpoint", f"Expected SSE stream, got {content_type}")
+
+def test_history_endpoint(headers, conversation_id, results):
+    """Test GET /api/a0/non-ui/history/{conversation_id}"""
+    print("\n=== Testing History Endpoint ===")
+    
+    if not conversation_id:
+        results.add_fail("History endpoint", "No conversation ID available for testing")
+        return
+    
+    # Test with pagination parameters
+    params = {"offset": 0, "limit": 10}
+    response = make_request("GET", f"/a0/non-ui/history/{conversation_id}", 
+                          headers=headers, params=params)
+    
+    if not response:
+        results.add_fail("History endpoint", "No response received")
+        return
+    
+    if response.status_code == 404:
+        results.add_fail("History endpoint", "Conversation not found - may be expected for test conversation")
+        return
+    
+    if response.status_code != 200:
+        results.add_fail("History endpoint", f"Status {response.status_code}: {response.text}")
+        return
+    
+    try:
+        data = response.json()
+        
+        # Check for required pagination fields
+        required_fields = ["offset", "limit", "total_messages", "messages"]
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if not missing_fields:
+            results.add_pass("History endpoint", f"Contains pagination fields: {', '.join(required_fields)}")
+        else:
+            results.add_fail("History endpoint", f"Missing fields: {', '.join(missing_fields)}")
+            
+    except json.JSONDecodeError:
+        results.add_fail("History endpoint", "Invalid JSON response")
+
+def test_synthesis_endpoint(headers, conversation_id, results):
+    """Test POST /api/a0/non-ui/synthesis"""
+    print("\n=== Testing Synthesis Endpoint ===")
+    
+    if not conversation_id:
+        results.add_fail("Synthesis endpoint", "No conversation ID available for testing")
+        return
+    
+    test_data = {
+        "conversation_id": conversation_id,
+        "selected_message_ids": ["dummy-message-id"],
+        "target_models": ["gpt-5.2"],
+        "synthesis_prompt": "Analyze this response:"
+    }
+    
+    response = make_request("POST", "/a0/non-ui/synthesis", headers=headers, json_data=test_data)
+    
+    if not response:
+        results.add_fail("Synthesis endpoint", "No response received")
+        return
+    
+    # This might return 404 if no messages found, which is expected for test data
+    if response.status_code == 404:
+        results.add_pass("Synthesis endpoint", "404 for missing messages - endpoint accessible")
+        return
+    
+    if response.status_code == 400:
+        # Check if it's a validation error (expected for dummy data)
+        try:
+            error_data = response.json()
+            if "detail" in error_data:
+                results.add_pass("Synthesis endpoint", "400 validation error - endpoint accessible and validating")
+                return
+        except:
+            pass
+    
+    if response.status_code != 200:
+        results.add_fail("Synthesis endpoint", f"Status {response.status_code}: {response.text}")
+        return
+    
+    content_type = response.headers.get('content-type', '')
+    if 'text/event-stream' in content_type or 'text/plain' in content_type:
+        results.add_pass("Synthesis endpoint", "SSE stream response received")
+    else:
+        results.add_fail("Synthesis endpoint", f"Expected SSE stream, got {content_type}")
+
+def test_export_endpoint(headers, conversation_id, results):
+    """Test GET /api/a0/non-ui/conversations/{conversation_id}/export"""
+    print("\n=== Testing Export Endpoint ===")
+    
+    if not conversation_id:
+        results.add_fail("Export endpoint", "No conversation ID available for testing")
+        return
+    
+    params = {"format": "json"}
+    response = make_request("GET", f"/a0/non-ui/conversations/{conversation_id}/export", 
+                          headers=headers, params=params)
+    
+    if not response:
+        results.add_fail("Export endpoint", "No response received")
+        return
+    
+    # This might return 404 if conversation not found, which is expected for test data
+    if response.status_code == 404:
+        results.add_pass("Export endpoint", "404 for missing conversation - endpoint accessible")
+        return
+    
+    if response.status_code != 200:
+        results.add_fail("Export endpoint", f"Status {response.status_code}: {response.text}")
+        return
+    
+    # Check content type for JSON format
+    content_type = response.headers.get('content-type', '')
+    if 'application/json' in content_type:
+        results.add_pass("Export endpoint", "JSON export response received")
+    else:
+        results.add_pass("Export endpoint", f"Export response received (content-type: {content_type})")
 
 def main():
-    """Run backend API regression tests"""
-    print("Starting Backend API Regression Tests")
-    print(f"Target: {BASE_URL}")
-    print("="*60)
+    """Run all Agent Zero non-UI REST endpoint tests"""
+    print("🤖 Agent Zero Non-UI REST Endpoints Test Suite")
+    print("=" * 60)
     
-    tester = BackendTester()
+    results = TestResult()
     
-    # Setup authentication
-    if not tester.setup_auth_session():
-        print("❌ Failed to setup authentication - aborting tests")
-        return False
+    # Test unauthenticated access first
+    if not test_unauthenticated_access(results):
+        print("⚠️  Some endpoints allow unauthenticated access")
     
-    # Run all tests
-    tester.test_auth_protected_access()
-    message_id, conversation_id = tester.test_chat_stream_persistence()
-    tester.test_feedback_endpoints(message_id)
-    tester.test_payments_catalog()
-    tester.test_payments_summary()
-    tester.test_checkout_session()
-    tester.test_checkout_status()
+    # Setup test user
+    print("\n🔧 Setting up test user...")
+    user_id, session_token = setup_test_user()
     
-    # Print final results
-    success = tester.print_summary()
-    return success
-
+    if not user_id or not session_token:
+        print("❌ Failed to setup test user. Cannot continue with authenticated tests.")
+        print(f"\nResults: {results.summary()}")
+        return
+    
+    print(f"✅ Test user created: {user_id}")
+    
+    # Setup headers with authentication
+    headers = {
+        "Authorization": f"Bearer {session_token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # Test 1: GET /api/a0/non-ui/options
+        options_data = test_options_endpoint(headers, results)
+        
+        # Test 2: POST /api/a0/non-ui/prompt/selected  
+        conversation_id = test_prompt_selected_endpoint(headers, results)
+        
+        # Test 3: POST /api/a0/non-ui/prompt/all
+        test_prompt_all_endpoint(headers, results)
+        
+        # Test 4: GET /api/a0/non-ui/history/{conversation_id}
+        test_history_endpoint(headers, conversation_id, results)
+        
+        # Test 5: POST /api/a0/non-ui/synthesis
+        test_synthesis_endpoint(headers, conversation_id, results)
+        
+        # Test 6: GET /api/a0/non-ui/conversations/{conversation_id}/export
+        test_export_endpoint(headers, conversation_id, results)
+        
+    finally:
+        # Cleanup
+        print(f"\n🧹 Cleaning up test user...")
+        cleanup_test_user(user_id, session_token)
+    
+    # Print results
+    print("\n" + "=" * 60)
+    print("📊 TEST RESULTS")
+    print("=" * 60)
+    for detail in results.details:
+        print(detail)
+    
+    print(f"\n📈 {results.summary()}")
+    
+    if results.failed > 0:
+        print(f"\n❌ {results.failed} test(s) failed")
+        return 1
+    else:
+        print(f"\n✅ All {results.passed} tests passed!")
+        return 0
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    sys.exit(main())

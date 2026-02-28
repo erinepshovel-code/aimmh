@@ -292,7 +292,7 @@ def test_prompt_all_endpoint(headers, cookies, results):
     else:
         results.add_fail("Prompt all endpoint", f"Expected SSE stream, got {content_type}")
 
-def test_history_endpoint(headers, conversation_id, results):
+def test_history_endpoint(headers, cookies, conversation_id, results):
     """Test GET /api/a0/non-ui/history/{conversation_id}"""
     print("\n=== Testing History Endpoint ===")
     

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -294,7 +294,7 @@ const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, 
 };
 
 export default function ChatPage() {
-  const { logout } = useAuth();
+  const { logout, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const {
     activeTopTab, setActiveTopTab,
@@ -559,8 +559,8 @@ export default function ChatPage() {
     return buildSharedPairs(models);
   };
 
-  const syncConversationMessages = async (convId, silent = true) => {
-    if (!convId) return;
+  const syncConversationMessages = useCallback(async (convId, silent = true) => {
+    if (!convId) return false;
     try {
       const token = localStorage.getItem('token');
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
@@ -569,42 +569,18 @@ export default function ChatPage() {
         ? response.data.map(msg => ({ ...msg, streaming: false }))
         : [];
 
-      if (serverMessages.length > 0) {
-        setMessages(serverMessages);
+      setMessages(serverMessages);
+      if (!silent && serverMessages.length === 0) {
+        toast('No persisted messages found for this conversation yet');
       }
+      return true;
     } catch (error) {
       if (!silent) {
         toast.error('Unable to refresh conversation from server');
       }
+      return false;
     }
-  };
-
-  const recoverLatestConversation = async (silent = true) => {
-    try {
-      const token = localStorage.getItem('token');
-      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
-      const response = await axios.get(`${API}/conversations`, config);
-      const latestConversationId = response.data?.[0]?.id;
-
-      if (!latestConversationId) {
-        if (!silent) {
-          toast.error('No saved conversation logs found');
-        }
-        return;
-      }
-
-      setConversationId(latestConversationId);
-      await syncConversationMessages(latestConversationId, silent);
-
-      if (!silent) {
-        toast.success('Recovered latest conversation from logs');
-      }
-    } catch {
-      if (!silent) {
-        toast.error('Failed to recover conversation from logs');
-      }
-    }
-  };
+  }, [setMessages]);
 
   const handleRefreshFromLogs = async () => {
     if (refreshingFromLogs) return;
@@ -614,7 +590,7 @@ export default function ChatPage() {
         await syncConversationMessages(conversationId, false);
         toast.success('Conversation refreshed from logs');
       } else {
-        await recoverLatestConversation(false);
+        toast.error('No active conversation selected yet');
       }
     } finally {
       setRefreshingFromLogs(false);
@@ -622,16 +598,22 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    if (conversationId && !streaming) {
+    if (!authLoading && isAuthenticated && conversationId && !streaming) {
       syncConversationMessages(conversationId, true);
     }
-  }, [conversationId]);
+  }, [authLoading, isAuthenticated, conversationId, streaming, syncConversationMessages]);
 
   useEffect(() => {
-    if (!conversationId && !streaming && messages.length === 0) {
-      recoverLatestConversation(true);
-    }
-  }, []);
+    if (!conversationId || !isAuthenticated) return undefined;
+    const handleWindowFocus = () => {
+      if (!streaming) {
+        syncConversationMessages(conversationId, true);
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [conversationId, isAuthenticated, streaming, syncConversationMessages]);
 
   const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
     const {

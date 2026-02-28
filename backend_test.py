@@ -92,8 +92,9 @@ print('SUCCESS: Test user and session created');
     async def verify_auth(self, session: aiohttp.ClientSession) -> bool:
         """Verify authentication works"""
         try:
-            headers = {"Authorization": f"Bearer {self.session_token}"}
-            async with session.get(f"{self.base_url}/api/auth/me", headers=headers) as response:
+            # Set session token as cookie
+            cookies = {"session_token": self.session_token}
+            async with session.get(f"{self.base_url}/api/auth/me", cookies=cookies) as response:
                 if response.status == 200:
                     data = await response.json()
                     self.log_test("Auth Verification", "PASS", f"Authenticated as {data.get('name')}")

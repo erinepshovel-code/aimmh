@@ -1,6 +1,8 @@
 import bcrypt
 import jwt
 import logging
+import hashlib
+import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException, status, Request, Depends
@@ -27,6 +29,14 @@ def create_access_token(user_id: str) -> str:
         "exp": expiration
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def generate_service_token() -> str:
+    return f"sat_{secrets.token_urlsafe(48)}"
+
+
+def hash_service_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 async def get_current_user(
@@ -60,8 +70,8 @@ async def get_current_user(
         return user
 
     if credentials:
+        token = credentials.credentials
         try:
-            token = credentials.credentials
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             user_id = payload.get("sub")
             if not user_id:
@@ -74,9 +84,55 @@ async def get_current_user(
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
             return user
         except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+            jwt_error = "Token expired"
         except jwt.InvalidTokenError:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+            jwt_error = "Invalid token"
+        else:
+            jwt_error = None
+
+        token_hash = hash_service_token(token)
+        service_token = await db.service_account_tokens.find_one(
+            {"token_hash": token_hash, "revoked": {"$ne": True}},
+            {"_id": 0}
+        )
+        if service_token:
+            expires_at = service_token.get("expires_at")
+            if isinstance(expires_at, str):
+                expires_at = datetime.fromisoformat(expires_at)
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at and expires_at < datetime.now(timezone.utc):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Service token expired")
+
+            service_account = await db.service_accounts.find_one(
+                {
+                    "id": service_token.get("service_account_id"),
+                    "active": {"$ne": False}
+                },
+                {"_id": 0}
+            )
+            if not service_account:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Service account not found")
+
+            owner_user_id = service_token.get("owner_user_id") or service_account.get("owner_user_id")
+            user = await db.users.find_one({"id": owner_user_id}, {"_id": 0})
+            if not user:
+                user = await db.users.find_one({"user_id": owner_user_id}, {"_id": 0})
+            if not user:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+            await db.service_account_tokens.update_one(
+                {"id": service_token.get("id")},
+                {"$set": {"last_used_at": datetime.now(timezone.utc).isoformat()}}
+            )
+
+            user["auth_type"] = "service_account"
+            user["service_account_username"] = service_account.get("username")
+            return user
+
+        if jwt_error:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=jwt_error)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 

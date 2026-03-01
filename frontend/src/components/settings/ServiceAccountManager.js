@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Switch } from '../ui/switch';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -32,6 +33,8 @@ export const ServiceAccountManager = () => {
   const [createForm, setCreateForm] = useState({ username: '', password: '', label: '' });
   const [tokenForm, setTokenForm] = useState({ password: '', expiresInDays: '90' });
   const [issuedToken, setIssuedToken] = useState('');
+  const [oneTokenPerBot, setOneTokenPerBot] = useState(false);
+  const [updatingPolicy, setUpdatingPolicy] = useState(false);
 
   const selectedAccount = useMemo(
     () => accounts.find((item) => item.id === selectedAccountId),
@@ -73,8 +76,18 @@ export const ServiceAccountManager = () => {
     }
   };
 
+  const loadServicePolicy = async () => {
+    try {
+      const response = await axios.get(`${API}/auth/service-account/policy`);
+      setOneTokenPerBot(Boolean(response.data?.one_token_per_bot));
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to load service account policy');
+    }
+  };
+
   useEffect(() => {
     loadServiceAccounts();
+    loadServicePolicy();
   }, []);
 
   useEffect(() => {
@@ -133,7 +146,7 @@ export const ServiceAccountManager = () => {
       });
       setIssuedToken(response.data.access_token || '');
       setTokenForm((prev) => ({ ...prev, password: '' }));
-      toast.success('Long-lived service token issued');
+      toast.success(oneTokenPerBot ? 'Long-lived token issued (previous active tokens auto-revoked)' : 'Long-lived service token issued');
       await loadServiceTokens(selectedAccount.id);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to issue service token');
@@ -161,6 +174,23 @@ export const ServiceAccountManager = () => {
       toast.success('Token copied to clipboard');
     } catch {
       toast.error('Could not copy token');
+    }
+  };
+
+  const handlePolicyToggle = async (checked) => {
+    const previous = oneTokenPerBot;
+    setOneTokenPerBot(checked);
+    setUpdatingPolicy(true);
+    try {
+      await axios.put(`${API}/auth/service-account/policy`, {
+        one_token_per_bot: checked,
+      });
+      toast.success(checked ? 'One-token-per-bot enabled' : 'One-token-per-bot disabled');
+    } catch (error) {
+      setOneTokenPerBot(previous);
+      toast.error(error.response?.data?.detail || 'Failed to update service account policy');
+    } finally {
+      setUpdatingPolicy(false);
     }
   };
 
@@ -280,6 +310,21 @@ export const ServiceAccountManager = () => {
           <Label className="text-sm" data-testid="service-account-token-section-label">
             {selectedAccount ? `Token management for ${selectedAccount.username}` : 'Select a service account to manage tokens'}
           </Label>
+
+          <div className="flex items-center justify-between rounded-md border border-border bg-muted/20 p-2" data-testid="service-account-policy-row">
+            <div>
+              <div className="text-xs font-medium" data-testid="service-account-policy-title">One active token per bot</div>
+              <div className="text-[10px] text-muted-foreground" data-testid="service-account-policy-help">
+                When enabled, issuing a new token auto-revokes any previous active token for that bot.
+              </div>
+            </div>
+            <Switch
+              checked={oneTokenPerBot}
+              disabled={updatingPolicy}
+              onCheckedChange={handlePolicyToggle}
+              data-testid="service-account-policy-toggle"
+            />
+          </div>
 
           <div className="grid gap-3 md:grid-cols-3">
             <Input

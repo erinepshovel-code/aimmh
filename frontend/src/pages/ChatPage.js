@@ -62,6 +62,8 @@ const getModelType = (model) => {
 };
 
 const MAX_ATTACHMENT_CHARS = 12000;
+const GALAXY_PANEL_DEFAULT_VH = 75;
+const DUAL_PANEL_STACK_DEFAULT_VH = GALAXY_PANEL_DEFAULT_VH * 2;
 
 const formatBytes = (bytes = 0) => {
   if (!bytes) return '0 B';

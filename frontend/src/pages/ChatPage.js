@@ -1541,6 +1541,8 @@ export default function ChatPage() {
   };
 
   const visibleModels = getVisibleModels();
+  const singlePanelHeight = `${GALAXY_PANEL_DEFAULT_VH}vh`;
+  const dualPanelStackHeight = `${DUAL_PANEL_STACK_DEFAULT_VH}vh`;
   const activeModelSettings = modelPromptDialog.model
     ? (cascadeConfig.modelSettings?.[modelPromptDialog.model] || {})
     : {};

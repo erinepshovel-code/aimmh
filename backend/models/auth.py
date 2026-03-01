@@ -89,3 +89,12 @@ class ServiceAccountTokenListResponse(BaseModel):
 class ServiceAccountUpdateRequest(BaseModel):
     active: Optional[bool] = None
     label: Optional[str] = None
+
+
+class ServiceAccountPolicyResponse(BaseModel):
+    one_token_per_bot: bool
+    updated_at: Optional[datetime] = None
+
+
+class ServiceAccountPolicyUpdateRequest(BaseModel):
+    one_token_per_bot: bool

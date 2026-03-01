@@ -1551,7 +1551,7 @@ export default function ChatPage() {
     : selectedModels;
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Top Bar - Mobile Optimized */}
       <div className="h-14 border-b border-border flex items-center justify-between px-2 bg-[#18181B]">
         <h1 className="text-sm font-bold truncate" style={{ fontFamily: 'Manrope, sans-serif' }}>Multi-AI Hub</h1>

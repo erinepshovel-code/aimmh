@@ -339,11 +339,12 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState([]);
   const [modelPromptDialog, setModelPromptDialog] = useState({ open: false, model: '' });
   const [panelLock, setPanelLock] = useState(false);
-  const [panelSplit, setPanelSplit] = useState([70, 30]);
+  const [panelSplit, setPanelSplit] = useState([50, 50]);
   const [carouselAnimating, setCarouselAnimating] = useState(false);
   const [refreshingFromLogs, setRefreshingFromLogs] = useState(false);
   const fileInputRef = useRef(null);
   const swipeStartXRef = useRef(null);
+  const carouselWheelLastTickRef = useRef(0);
 
   const [showPromptHistory, setShowPromptHistory] = useState(false);
   const [showConversationSearchDialog, setShowConversationSearchDialog] = useState(false);

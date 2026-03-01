@@ -122,6 +122,13 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - `POST /api/auth/service-account/token` (public) to exchange bot username/password for long-lived bearer token
   - Protected APIs now accept service-account bearer tokens via auth middleware.
 - Service-account auth validated on protected endpoints (`/api/a0/non-ui/options`, `/api/conversations/search`) with regression pass.
+- Service-account management expansion completed (Mar 1, 2026):
+  - `GET /api/auth/service-accounts` (auth) to list owner service accounts
+  - `PATCH /api/auth/service-accounts/{id}` (auth) to toggle active state and update label
+  - `GET /api/auth/service-accounts/{id}/tokens` (auth) to list issued long-lived tokens
+  - `POST /api/auth/service-account/tokens/{id}/revoke` (auth) to revoke issued tokens
+- Settings page now includes full Service Account Manager UI (create/list/enable-disable/issue/revoke/copy token) for a0 and REST automation workflows.
+- Iteration 9 backend+frontend testing pass completed (service account management + auth regressions)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -151,7 +158,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
 - Add advanced filters to conversation search (date range/model tags/has-feedback)
-- Add service-account token revoke/list endpoints and optional one-token-per-bot policy toggle
+- Add optional one-token-per-bot policy toggle and token-rotation UX guardrails
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

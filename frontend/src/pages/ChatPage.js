@@ -2288,7 +2288,7 @@ export default function ChatPage() {
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                   <span className="text-sm text-muted-foreground" data-testid="carousel-position-indicator">
-                    Viewing {visibleModelIndex + 1}-{Math.min(visibleModelIndex + 2, selectedModels.length)} of {selectedModels.length}
+                    Windows {visibleModelIndex + 1} & {((visibleModelIndex + 1) % selectedModels.length) + 1} of {selectedModels.length}
                   </span>
                   <Button
                     size="sm"
@@ -2312,9 +2312,12 @@ export default function ChatPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2 px-2">
                     <div className="text-[10px] text-muted-foreground" data-testid="carousel-motion-hint">
-                      Swipe to rotate • Drag divider to resize • Two-finger touch toggles lock
+                      Swipe or wheel-scroll to rotate • Drag divider to resize • Two-finger touch toggles lock
                     </div>
-                    <div className="flex items-center gap-1" data-testid="carousel-motion-indicators">
+                    <div className="flex items-center gap-2" data-testid="carousel-motion-indicators">
+                      <span className={`text-[10px] ${panelLock ? 'text-muted-foreground' : 'text-emerald-300'}`} data-testid="carousel-infinity-status">
+                        {panelLock ? '∞ Loop paused (locked)' : '∞ Loop active'}
+                      </span>
                       {selectedModels.map((model, idx) => {
                         const active = idx === visibleModelIndex || idx === ((visibleModelIndex + 1) % selectedModels.length);
                         return (

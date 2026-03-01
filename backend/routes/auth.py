@@ -16,6 +16,11 @@ from models.auth import (
     ServiceAccountResponse,
     ServiceAccountTokenRequest,
     ServiceAccountTokenResponse,
+    ServiceAccountListResponse,
+    ServiceAccountListItem,
+    ServiceAccountTokenListResponse,
+    ServiceAccountTokenListItem,
+    ServiceAccountUpdateRequest,
 )
 from services.auth import (
     hash_password, verify_password, create_access_token,
@@ -139,6 +144,144 @@ async def issue_service_account_token(payload: ServiceAccountTokenRequest):
         expires_at=expires_at,
         service_account_username=username,
     )
+
+
+@router.get("/service-accounts", response_model=ServiceAccountListResponse)
+async def list_service_accounts(current_user: dict = Depends(get_current_user)):
+    owner_user_id = get_user_id(current_user)
+    cursor = db.service_accounts.find(
+        {"owner_user_id": owner_user_id},
+        {"_id": 0, "id": 1, "username": 1, "label": 1, "active": 1, "created_at": 1, "updated_at": 1}
+    ).sort("created_at", -1)
+
+    items = []
+    for account in await cursor.to_list(length=200):
+        items.append(
+            ServiceAccountListItem(
+                id=account["id"],
+                username=account["username"],
+                label=account.get("label"),
+                active=account.get("active", True),
+                created_at=account["created_at"],
+                updated_at=account.get("updated_at", account["created_at"]),
+            )
+        )
+
+    return ServiceAccountListResponse(items=items)
+
+
+@router.patch("/service-accounts/{service_account_id}", response_model=ServiceAccountResponse)
+async def update_service_account(
+    service_account_id: str,
+    payload: ServiceAccountUpdateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    owner_user_id = get_user_id(current_user)
+    service_account = await db.service_accounts.find_one(
+        {"id": service_account_id, "owner_user_id": owner_user_id},
+        {"_id": 0}
+    )
+    if not service_account:
+        raise HTTPException(status_code=404, detail="Service account not found")
+
+    updates = {}
+    if payload.active is not None:
+        updates["active"] = payload.active
+    if payload.label is not None:
+        updates["label"] = payload.label.strip() or None
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No updates provided")
+
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    await db.service_accounts.update_one(
+        {"id": service_account_id, "owner_user_id": owner_user_id},
+        {"$set": updates}
+    )
+
+    updated = await db.service_accounts.find_one(
+        {"id": service_account_id, "owner_user_id": owner_user_id},
+        {"_id": 0, "password": 0}
+    )
+    return ServiceAccountResponse(
+        id=updated["id"],
+        username=updated["username"],
+        label=updated.get("label"),
+        owner_user_id=updated["owner_user_id"],
+        active=updated.get("active", True),
+        created_at=updated["created_at"],
+    )
+
+
+@router.get("/service-accounts/{service_account_id}/tokens", response_model=ServiceAccountTokenListResponse)
+async def list_service_account_tokens(
+    service_account_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    owner_user_id = get_user_id(current_user)
+    service_account = await db.service_accounts.find_one(
+        {"id": service_account_id, "owner_user_id": owner_user_id},
+        {"_id": 0, "id": 1}
+    )
+    if not service_account:
+        raise HTTPException(status_code=404, detail="Service account not found")
+
+    cursor = db.service_account_tokens.find(
+        {"service_account_id": service_account_id, "owner_user_id": owner_user_id},
+        {
+            "_id": 0,
+            "id": 1,
+            "token_prefix": 1,
+            "revoked": 1,
+            "created_at": 1,
+            "expires_at": 1,
+            "last_used_at": 1,
+        }
+    ).sort("created_at", -1)
+
+    items = []
+    for token in await cursor.to_list(length=200):
+        items.append(
+            ServiceAccountTokenListItem(
+                id=token["id"],
+                token_prefix=token.get("token_prefix", ""),
+                revoked=token.get("revoked", False),
+                created_at=token["created_at"],
+                expires_at=token["expires_at"],
+                last_used_at=token.get("last_used_at"),
+            )
+        )
+
+    return ServiceAccountTokenListResponse(items=items)
+
+
+@router.post("/service-account/tokens/{token_id}/revoke")
+async def revoke_service_account_token(
+    token_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    owner_user_id = get_user_id(current_user)
+    token_doc = await db.service_account_tokens.find_one(
+        {"id": token_id, "owner_user_id": owner_user_id},
+        {"_id": 0, "id": 1, "revoked": 1}
+    )
+    if not token_doc:
+        raise HTTPException(status_code=404, detail="Token not found")
+
+    if token_doc.get("revoked"):
+        return {"message": "Token already revoked", "token_id": token_id}
+
+    await db.service_account_tokens.update_one(
+        {"id": token_id, "owner_user_id": owner_user_id},
+        {
+            "$set": {
+                "revoked": True,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        }
+    )
+    return {"message": "Token revoked", "token_id": token_id}
 
 
 @router.post("/google/session")

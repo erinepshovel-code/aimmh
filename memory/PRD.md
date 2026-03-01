@@ -130,6 +130,27 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - `POST /api/auth/service-account/tokens/{id}/revoke` (auth) to revoke issued tokens
 - Settings page now includes full Service Account Manager UI (create/list/enable-disable/issue/revoke/copy token) for a0 and REST automation workflows.
 - Iteration 9 backend+frontend testing pass completed (service account management + auth regressions)
+- Chat response windows enlarged for deep-view workflows:
+  - Default per-window height set to ~75vh (Galaxy-style)
+  - Dual-window stack now defaults to ~150vh so panels extend below viewport
+  - Vertical panel split defaults to 50/50 and remains lockable at 50/50
+- Carousel interaction upgraded for unlocked mode:
+  - Infinite loop status indicator (`∞ Loop active` / `∞ Loop paused (locked)`)
+  - Infinite wrap preserved for prev/next and swipe
+  - Wheel-scroll rotation added for smoother endless navigation
+- Refresh-from-logs interruption fix:
+  - Refresh controls now blocked while streaming is active to prevent transcript display interruption
+  - Manual restore-latest is also blocked during active stream
+- Append-only audit logging layer added (`services/audit.py` + insert-only events):
+  - `chat_event_logs` (prompt/stream lifecycle/feedback/delete events)
+  - `payment_audit_logs` (checkout creation/status polling/webhook/fulfillment events)
+  - `service_account_audit_logs` (create/update/policy/token issue/revoke/rotation events)
+- Service-account policy (roadmap item C) completed:
+  - `GET /api/auth/service-account/policy`
+  - `PUT /api/auth/service-account/policy`
+  - One-token-per-bot enforcement: issuing a new token auto-revokes old active tokens for that bot when enabled
+  - Settings UI toggle added for one-token-per-bot behavior
+- Iteration 10 backend+frontend testing pass completed (panel sizing + infinite carousel + refresh protection + append-only audit logs + one-token-per-bot policy)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -150,6 +171,9 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - `founder_registry`: founder purchaser listing records
 - `service_accounts`: per-user bot credentials (username, hashed password, owner_user_id, active)
 - `service_account_tokens`: long-lived machine tokens (hashed token, owner_user_id, expiry, revoke/last_used metadata)
+- `chat_event_logs`: append-only chat audit events
+- `payment_audit_logs`: append-only payment lifecycle audit events
+- `service_account_audit_logs`: append-only service account lifecycle audit events
 
 ## Pending Tasks
 
@@ -159,7 +183,6 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
 - Add advanced filters to conversation search (date range/model tags/has-feedback)
-- Add optional one-token-per-bot policy toggle and token-rotation UX guardrails
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

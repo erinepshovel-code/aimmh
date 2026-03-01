@@ -21,11 +21,14 @@ from models.auth import (
     ServiceAccountTokenListResponse,
     ServiceAccountTokenListItem,
     ServiceAccountUpdateRequest,
+    ServiceAccountPolicyResponse,
+    ServiceAccountPolicyUpdateRequest,
 )
 from services.auth import (
     hash_password, verify_password, create_access_token,
     get_current_user, get_user_id, generate_service_token, hash_service_token
 )
+from services.audit import append_audit_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -103,6 +106,16 @@ async def create_service_account(
         "updated_at": now.isoformat(),
     }
     await db.service_accounts.insert_one(service_account_doc)
+    await append_audit_event(
+        collection="service_account_audit_logs",
+        event_type="service_account_created",
+        actor_user_id=owner_user_id,
+        payload={
+            "service_account_id": service_account_id,
+            "username": username,
+            "label": service_account_doc.get("label"),
+        },
+    )
 
     return ServiceAccountResponse(
         id=service_account_id,
@@ -122,13 +135,47 @@ async def issue_service_account_token(payload: ServiceAccountTokenRequest):
     if not service_account or not verify_password(payload.password, service_account["password"]):
         raise HTTPException(status_code=401, detail="Invalid service account credentials")
 
+    owner_user_id = service_account["owner_user_id"]
+    owner_user = await db.users.find_one(
+        {"$or": [{"id": owner_user_id}, {"user_id": owner_user_id}]},
+        {"_id": 0, "service_account_policy": 1}
+    )
+    policy = owner_user.get("service_account_policy") if owner_user else {}
+    one_token_per_bot = bool((policy or {}).get("one_token_per_bot", False))
+
+    if one_token_per_bot:
+        revoke_result = await db.service_account_tokens.update_many(
+            {
+                "service_account_id": service_account["id"],
+                "owner_user_id": owner_user_id,
+                "revoked": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "revoked": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            }
+        )
+        if revoke_result.modified_count > 0:
+            await append_audit_event(
+                collection="service_account_audit_logs",
+                event_type="service_account_token_rotation_auto_revoke",
+                actor_user_id=owner_user_id,
+                payload={
+                    "service_account_id": service_account["id"],
+                    "username": username,
+                    "revoked_tokens": revoke_result.modified_count,
+                },
+            )
+
     token = generate_service_token()
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=payload.expires_in_days)
     token_doc = {
         "id": str(uuid.uuid4()),
         "service_account_id": service_account["id"],
-        "owner_user_id": service_account["owner_user_id"],
+        "owner_user_id": owner_user_id,
         "token_hash": hash_service_token(token),
         "token_prefix": token[:12],
         "revoked": False,
@@ -138,6 +185,18 @@ async def issue_service_account_token(payload: ServiceAccountTokenRequest):
         "last_used_at": None,
     }
     await db.service_account_tokens.insert_one(token_doc)
+    await append_audit_event(
+        collection="service_account_audit_logs",
+        event_type="service_account_token_issued",
+        actor_user_id=owner_user_id,
+        payload={
+            "service_account_id": service_account["id"],
+            "token_id": token_doc["id"],
+            "token_prefix": token_doc["token_prefix"],
+            "expires_at": token_doc["expires_at"],
+            "one_token_per_bot": one_token_per_bot,
+        },
+    )
 
     return ServiceAccountTokenResponse(
         access_token=token,
@@ -170,6 +229,48 @@ async def list_service_accounts(current_user: dict = Depends(get_current_user)):
     return ServiceAccountListResponse(items=items)
 
 
+@router.get("/service-account/policy", response_model=ServiceAccountPolicyResponse)
+async def get_service_account_policy(current_user: dict = Depends(get_current_user)):
+    owner_user_id = get_user_id(current_user)
+    user_doc = await db.users.find_one(
+        {"$or": [{"id": owner_user_id}, {"user_id": owner_user_id}]},
+        {"_id": 0, "service_account_policy": 1}
+    )
+    policy = user_doc.get("service_account_policy") if user_doc else {}
+    return ServiceAccountPolicyResponse(
+        one_token_per_bot=bool((policy or {}).get("one_token_per_bot", False)),
+        updated_at=(policy or {}).get("updated_at"),
+    )
+
+
+@router.put("/service-account/policy", response_model=ServiceAccountPolicyResponse)
+async def update_service_account_policy(
+    payload: ServiceAccountPolicyUpdateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    owner_user_id = get_user_id(current_user)
+    updated_at = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"$or": [{"id": owner_user_id}, {"user_id": owner_user_id}]},
+        {
+            "$set": {
+                "service_account_policy.one_token_per_bot": bool(payload.one_token_per_bot),
+                "service_account_policy.updated_at": updated_at,
+            }
+        },
+    )
+    await append_audit_event(
+        collection="service_account_audit_logs",
+        event_type="service_account_policy_updated",
+        actor_user_id=owner_user_id,
+        payload={"one_token_per_bot": bool(payload.one_token_per_bot), "updated_at": updated_at},
+    )
+    return ServiceAccountPolicyResponse(
+        one_token_per_bot=bool(payload.one_token_per_bot),
+        updated_at=updated_at,
+    )
+
+
 @router.patch("/service-accounts/{service_account_id}", response_model=ServiceAccountResponse)
 async def update_service_account(
     service_account_id: str,
@@ -198,6 +299,15 @@ async def update_service_account(
     await db.service_accounts.update_one(
         {"id": service_account_id, "owner_user_id": owner_user_id},
         {"$set": updates}
+    )
+    await append_audit_event(
+        collection="service_account_audit_logs",
+        event_type="service_account_updated",
+        actor_user_id=owner_user_id,
+        payload={
+            "service_account_id": service_account_id,
+            "updates": {k: v for k, v in updates.items() if k != "updated_at"},
+        },
     )
 
     updated = await db.service_accounts.find_one(
@@ -270,6 +380,12 @@ async def revoke_service_account_token(
         raise HTTPException(status_code=404, detail="Token not found")
 
     if token_doc.get("revoked"):
+        await append_audit_event(
+            collection="service_account_audit_logs",
+            event_type="service_account_token_revoke_noop",
+            actor_user_id=owner_user_id,
+            payload={"token_id": token_id},
+        )
         return {"message": "Token already revoked", "token_id": token_id}
 
     await db.service_account_tokens.update_one(
@@ -280,6 +396,12 @@ async def revoke_service_account_token(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         }
+    )
+    await append_audit_event(
+        collection="service_account_audit_logs",
+        event_type="service_account_token_revoked",
+        actor_user_id=owner_user_id,
+        payload={"token_id": token_id},
     )
     return {"message": "Token revoked", "token_id": token_id}
 

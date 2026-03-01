@@ -536,6 +536,24 @@ export default function ChatPage() {
     swipeStartXRef.current = null;
   };
 
+  const handleCarouselWheel = (event) => {
+    if (panelLock || selectedModels.length <= 2) return;
+
+    const now = Date.now();
+    if (now - carouselWheelLastTickRef.current < 240) return;
+
+    if (Math.abs(event.deltaY) < 10 && Math.abs(event.deltaX) < 10) return;
+    carouselWheelLastTickRef.current = now;
+
+    event.preventDefault();
+    const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (delta > 0) {
+      handleNextModel();
+    } else {
+      handlePrevModel();
+    }
+  };
+
   const buildSharedPairs = (models = []) => {
     const pairMap = {};
     models.forEach(model => {

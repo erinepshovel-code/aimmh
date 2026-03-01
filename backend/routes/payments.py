@@ -20,6 +20,7 @@ from models.payments import (
     PaymentSummaryResponse,
 )
 from services.auth import get_current_user, get_user_id
+from services.audit import append_audit_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["payments"])
@@ -258,6 +259,18 @@ async def _fulfill_transaction_once(session_id: str) -> None:
             upsert=True,
         )
 
+    await append_audit_event(
+        collection="payment_audit_logs",
+        event_type="payment_fulfillment_applied",
+        actor_user_id=user_id,
+        payload={
+            "session_id": session_id,
+            "package_id": package_id,
+            "category": category,
+            "amount": float(package["amount"]),
+        },
+    )
+
 
 @router.post("/payments/seed-products")
 async def seed_products(current_user: dict = Depends(get_current_user)):
@@ -382,6 +395,18 @@ async def create_checkout_session(
         {"$set": tx_doc},
         upsert=True,
     )
+    await append_audit_event(
+        collection="payment_audit_logs",
+        event_type="checkout_session_created",
+        actor_user_id=user_id,
+        payload={
+            "session_id": session.session_id,
+            "package_id": checkout_data.package_id,
+            "amount": float(package["amount"]),
+            "billing_type": package["billing_type"],
+            "category": package["category"],
+        },
+    )
 
     return CheckoutCreateResponse(url=session.url, session_id=session.session_id)
 
@@ -415,6 +440,19 @@ async def get_checkout_status(
                 "metadata": metadata,
                 "updated_at": _iso_now(),
             }
+        },
+    )
+    await append_audit_event(
+        collection="payment_audit_logs",
+        event_type="checkout_status_polled",
+        actor_user_id=get_user_id(current_user),
+        payload={
+            "session_id": session_id,
+            "status": status.status,
+            "payment_status": status.payment_status,
+            "amount_total": amount_total,
+            "currency": status.currency,
+            "package_id": package_id,
         },
     )
 
@@ -456,6 +494,18 @@ async def stripe_webhook(request: Request):
                     "metadata": webhook_response.metadata or {},
                     "updated_at": _iso_now(),
                 }
+            },
+        )
+        tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0, "user_id": 1})
+        await append_audit_event(
+            collection="payment_audit_logs",
+            event_type="stripe_webhook_processed",
+            actor_user_id=tx.get("user_id") if tx else None,
+            payload={
+                "session_id": session_id,
+                "event_type": webhook_response.event_type,
+                "event_id": webhook_response.event_id,
+                "payment_status": webhook_response.payment_status,
             },
         )
 

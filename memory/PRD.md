@@ -50,6 +50,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   components/
     ModelSelector.js
     A0Settings.js    # A0 config with Local Device / Google Cloud tabs
+    settings/ServiceAccountManager.js # Service account create/list/token/revoke manager
     HmmmDoctrineBar.jsx
     chat/ResponseMessageContent.jsx
     chat/PromptHistoryItem.jsx

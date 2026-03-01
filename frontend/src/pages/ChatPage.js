@@ -609,6 +609,10 @@ export default function ChatPage() {
 
   const handleRefreshFromLogs = async () => {
     if (refreshingFromLogs) return;
+    if (streaming) {
+      toast('Wait for current streaming to finish before refreshing logs');
+      return;
+    }
     setRefreshingFromLogs(true);
     try {
       if (conversationId) {
@@ -624,6 +628,10 @@ export default function ChatPage() {
 
   const handleRestoreLatestConversation = async () => {
     if (refreshingFromLogs) return;
+    if (streaming) {
+      toast('Wait for current streaming to finish before restoring latest thread');
+      return;
+    }
     setRefreshingFromLogs(true);
     try {
       const token = localStorage.getItem('token');

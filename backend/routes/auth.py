@@ -69,6 +69,78 @@ async def login(user_data: UserLogin):
     )
 
 
+@router.post("/service-account/create", response_model=ServiceAccountResponse)
+async def create_service_account(
+    payload: ServiceAccountCreateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a per-user service account for machine/API access."""
+    owner_user_id = get_user_id(current_user)
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+
+    existing_user = await db.users.find_one({"username": username}, {"_id": 0, "username": 1})
+    existing_service_account = await db.service_accounts.find_one({"username": username}, {"_id": 0, "username": 1})
+    if existing_user or existing_service_account:
+        raise HTTPException(status_code=400, detail="Username already in use")
+
+    now = datetime.now(timezone.utc)
+    service_account_id = str(uuid.uuid4())
+    service_account_doc = {
+        "id": service_account_id,
+        "owner_user_id": owner_user_id,
+        "username": username,
+        "password": hash_password(payload.password),
+        "label": payload.label.strip() if payload.label else None,
+        "active": True,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    await db.service_accounts.insert_one(service_account_doc)
+
+    return ServiceAccountResponse(
+        id=service_account_id,
+        username=username,
+        label=service_account_doc.get("label"),
+        owner_user_id=owner_user_id,
+        active=True,
+        created_at=now,
+    )
+
+
+@router.post("/service-account/token", response_model=ServiceAccountTokenResponse)
+async def issue_service_account_token(payload: ServiceAccountTokenRequest):
+    """Public endpoint: exchange service-account username/password for a long-lived API token."""
+    username = payload.username.strip()
+    service_account = await db.service_accounts.find_one({"username": username, "active": {"$ne": False}}, {"_id": 0})
+    if not service_account or not verify_password(payload.password, service_account["password"]):
+        raise HTTPException(status_code=401, detail="Invalid service account credentials")
+
+    token = generate_service_token()
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=payload.expires_in_days)
+    token_doc = {
+        "id": str(uuid.uuid4()),
+        "service_account_id": service_account["id"],
+        "owner_user_id": service_account["owner_user_id"],
+        "token_hash": hash_service_token(token),
+        "token_prefix": token[:12],
+        "revoked": False,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "last_used_at": None,
+    }
+    await db.service_account_tokens.insert_one(token_doc)
+
+    return ServiceAccountTokenResponse(
+        access_token=token,
+        expires_at=expires_at,
+        service_account_username=username,
+    )
+
+
 @router.post("/google/session")
 async def process_google_session(request: Request, response: FastAPIResponse):
     """Process Google OAuth session_id from Emergent Auth"""

@@ -58,3 +58,34 @@ class ServiceAccountTokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: datetime
     service_account_username: str
+
+
+class ServiceAccountListItem(BaseModel):
+    id: str
+    username: str
+    label: Optional[str] = None
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class ServiceAccountListResponse(BaseModel):
+    items: list[ServiceAccountListItem] = Field(default_factory=list)
+
+
+class ServiceAccountTokenListItem(BaseModel):
+    id: str
+    token_prefix: str
+    revoked: bool
+    created_at: datetime
+    expires_at: datetime
+    last_used_at: Optional[datetime] = None
+
+
+class ServiceAccountTokenListResponse(BaseModel):
+    items: list[ServiceAccountTokenListItem] = Field(default_factory=list)
+
+
+class ServiceAccountUpdateRequest(BaseModel):
+    active: Optional[bool] = None
+    label: Optional[str] = None

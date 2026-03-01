@@ -117,6 +117,11 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Conversation persistence hardened in backend stream flow: conversation record is now upserted at stream start, so early client disconnects still preserve thread/search visibility.
 - Added Chat UI "Search Threads" dialog wired to `/api/conversations/search` for fast loading of older threads from menu.
 - End-to-end search-thread flow verified after persistence fix (create threads -> search -> load thread).
+- Added per-user service-account auth flow for AI automation:
+  - `POST /api/auth/service-account/create` (auth-required) to create bot credentials
+  - `POST /api/auth/service-account/token` (public) to exchange bot username/password for long-lived bearer token
+  - Protected APIs now accept service-account bearer tokens via auth middleware.
+- Service-account auth validated on protected endpoints (`/api/a0/non-ui/options`, `/api/conversations/search`) with regression pass.
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)
@@ -135,6 +140,8 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - `payment_catalog`: package metadata used by pricing/checkout seeding
 - `payment_transactions`: required Stripe transaction tracking collection (session_id, amount, package/category, user_id/email, status/payment_status, metadata, fulfillment state)
 - `founder_registry`: founder purchaser listing records
+- `service_accounts`: per-user bot credentials (username, hashed password, owner_user_id, active)
+- `service_account_tokens`: long-lived machine tokens (hashed token, owner_user_id, expiry, revoke/last_used metadata)
 
 ## Pending Tasks
 
@@ -144,6 +151,7 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
 - Continue ChatPage modularization to reduce file size and keep component depth shallow
 - Add Stripe customer portal flow (self-serve subscription management/cancel) and richer webhook event mapping
 - Add advanced filters to conversation search (date range/model tags/has-feedback)
+- Add service-account token revoke/list endpoints and optional one-token-per-bot policy toggle
 
 ### P2
 - Validate Grok live inference path with user-provided key in Settings (implementation exists; live key verification pending)

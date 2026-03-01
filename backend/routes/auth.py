@@ -6,10 +6,20 @@ import httpx
 import logging
 
 from db import db
-from models.auth import UserCreate, UserLogin, UserResponse, TokenResponse, GoogleAuthUser
+from models.auth import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    TokenResponse,
+    GoogleAuthUser,
+    ServiceAccountCreateRequest,
+    ServiceAccountResponse,
+    ServiceAccountTokenRequest,
+    ServiceAccountTokenResponse,
+)
 from services.auth import (
     hash_password, verify_password, create_access_token,
-    get_current_user, get_user_id
+    get_current_user, get_user_id, generate_service_token, hash_service_token
 )
 
 logger = logging.getLogger(__name__)

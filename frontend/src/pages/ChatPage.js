@@ -1576,7 +1576,7 @@ export default function ChatPage() {
             className="h-8 w-8 p-0"
             data-testid="refresh-from-logs-btn"
             title="Refresh from conversation logs"
-            disabled={refreshingFromLogs}
+            disabled={refreshingFromLogs || streaming}
           >
             <RotateCcw className={`h-4 w-4 ${refreshingFromLogs ? 'animate-spin' : ''}`} />
           </Button>

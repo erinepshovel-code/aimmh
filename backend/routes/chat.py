@@ -12,6 +12,7 @@ from db import db
 from models.chat import ChatRequest, MessageFeedback, ConversationResponse, CatchupRequest
 from services.auth import get_current_user, get_user_id
 from services.llm import get_api_key, stream_emergent_model, stream_openai_compatible
+from services.audit import append_audit_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -170,6 +171,19 @@ async def chat_stream(
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.context_logs.insert_one(context_log)
+        await append_audit_event(
+            collection="chat_event_logs",
+            event_type="chat_prompt_received",
+            actor_user_id=user_id,
+            payload={
+                "conversation_id": conversation_id,
+                "models": request.models,
+                "context_mode": request.context_mode,
+                "shared_room_mode": request.shared_room_mode,
+                "attachments_count": len(normalized_attachments),
+                "persist_user_message": request.persist_user_message,
+            },
+        )
 
         # Persist the *base* user message once (per prompt) unless caller disables it.
         if request.persist_user_message:
@@ -264,6 +278,16 @@ async def chat_stream(
                     "response_time_ms": None,
                     "streaming": True
                 })
+                await append_audit_event(
+                    collection="chat_event_logs",
+                    event_type="assistant_stream_started",
+                    actor_user_id=user_id,
+                    payload={
+                        "conversation_id": conversation_id,
+                        "message_id": message_id,
+                        "model": model_spec,
+                    },
+                )
 
                 if "gpt" in model_lower or model_lower.startswith("o"):
                     api_key = get_api_key(current_user, "gpt")
@@ -380,6 +404,19 @@ async def chat_stream(
                         }
                     }
                 )
+                await append_audit_event(
+                    collection="chat_event_logs",
+                    event_type="assistant_stream_completed",
+                    actor_user_id=user_id,
+                    payload={
+                        "conversation_id": conversation_id,
+                        "message_id": message_id,
+                        "model": model_spec,
+                        "response_time_ms": response_time_ms,
+                        "total_tokens_est": total_tokens_est,
+                        "estimated_cost_usd": estimated_cost_usd,
+                    },
+                )
 
                 yield {"event": "complete", "data": json.dumps({"model": model_spec, "message_id": message_id, "response_time_ms": response_time_ms})}
 
@@ -414,6 +451,18 @@ async def chat_stream(
                         }
                     },
                     upsert=True
+                )
+                await append_audit_event(
+                    collection="chat_event_logs",
+                    event_type="assistant_stream_error",
+                    actor_user_id=user_id,
+                    payload={
+                        "conversation_id": conversation_id,
+                        "message_id": message_id,
+                        "model": model_spec,
+                        "error": str(e),
+                        "response_time_ms": response_time_ms,
+                    },
                 )
 
                 yield {"event": "complete", "data": json.dumps({"model": model_spec, "message_id": message_id, "response_time_ms": response_time_ms})}
@@ -459,6 +508,12 @@ async def submit_feedback(
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Message not found")
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="message_feedback_submitted",
+        actor_user_id=get_user_id(current_user),
+        payload={"message_id": feedback.message_id, "feedback": feedback.feedback},
+    )
     return {"message": "Feedback submitted"}
 
 
@@ -531,8 +586,19 @@ async def delete_conversation(
     current_user: dict = Depends(get_current_user)
 ):
     """Delete a conversation and its messages"""
-    await db.conversations.delete_one({"id": conversation_id, "user_id": get_user_id(current_user)})
-    await db.messages.delete_many({"conversation_id": conversation_id, "user_id": get_user_id(current_user)})
+    uid = get_user_id(current_user)
+    conversation_delete = await db.conversations.delete_one({"id": conversation_id, "user_id": uid})
+    messages_delete = await db.messages.delete_many({"conversation_id": conversation_id, "user_id": uid})
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="conversation_deleted",
+        actor_user_id=uid,
+        payload={
+            "conversation_id": conversation_id,
+            "conversation_deleted": conversation_delete.deleted_count,
+            "messages_deleted": messages_delete.deleted_count,
+        },
+    )
     return {"message": "Conversation deleted"}
 
 

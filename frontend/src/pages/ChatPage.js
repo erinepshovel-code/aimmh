@@ -2261,10 +2261,12 @@ export default function ChatPage() {
 
         {/* Response Panels with Carousel */}
         <div
-          className={`flex-1 overflow-hidden flex flex-col transition-all duration-200 ${carouselAnimating ? 'opacity-90 scale-[0.995]' : 'opacity-100 scale-100'}`}
+          className={`flex-1 overflow-visible flex flex-col transition-all duration-200 ${carouselAnimating ? 'opacity-90 scale-[0.995]' : 'opacity-100 scale-100'}`}
           onTouchStart={handleSwipeStart}
           onTouchEnd={handleSwipeEnd}
+          onWheel={handleCarouselWheel}
           data-testid="model-carousel-container"
+          style={{ minHeight: visibleModels.length > 1 ? dualPanelStackHeight : singlePanelHeight }}
         >
           {selectedModels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-muted-foreground">

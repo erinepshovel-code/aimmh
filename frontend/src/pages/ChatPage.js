@@ -2217,7 +2217,7 @@ export default function ChatPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto flex">
         {/* Prompt History Sidebar - Hidden by default on mobile */}
         <div className={`${showPromptHistory ? 'w-48' : 'w-0'} transition-all duration-200 border-r border-border bg-[#18181B] overflow-hidden`}>
           <div className="h-full flex flex-col">

@@ -2352,27 +2352,30 @@ export default function ChatPage() {
               
               {/* Response Panels */}
               {visibleModels.length === 1 ? (
-                <ResponsePanel
-                  model={visibleModels[0]}
-                  messages={messages}
-                  onFeedback={handleFeedback}
-                  onCopy={handleCopy}
-                  onShare={handleShare}
-                  onAudio={handleAudio}
-                  onToggleSelect={handleToggleSelect}
-                  selectedMessages={selectedMessages}
-                  isPaused={pausedModels[visibleModels[0]]}
-                  onTogglePause={() => handleTogglePause(visibleModels[0])}
-                  messageIndexMap={messageIndexMap}
-                  onSaveThread={handleSaveThread}
-                  onOpenPromptSettings={openModelPromptDialog}
-                  onOpenSynthesis={handleOpenModelSynthesis}
-                  onCopyThread={handleCopyModelThread}
-                />
+                <div className="flex-1" style={{ minHeight: singlePanelHeight, height: singlePanelHeight }}>
+                  <ResponsePanel
+                    model={visibleModels[0]}
+                    messages={messages}
+                    onFeedback={handleFeedback}
+                    onCopy={handleCopy}
+                    onShare={handleShare}
+                    onAudio={handleAudio}
+                    onToggleSelect={handleToggleSelect}
+                    selectedMessages={selectedMessages}
+                    isPaused={pausedModels[visibleModels[0]]}
+                    onTogglePause={() => handleTogglePause(visibleModels[0])}
+                    messageIndexMap={messageIndexMap}
+                    onSaveThread={handleSaveThread}
+                    onOpenPromptSettings={openModelPromptDialog}
+                    onOpenSynthesis={handleOpenModelSynthesis}
+                    onCopyThread={handleCopyModelThread}
+                  />
+                </div>
               ) : (
                 <PanelGroup
                   direction="vertical"
                   className="flex-1"
+                  style={{ minHeight: dualPanelStackHeight, height: dualPanelStackHeight }}
                   onLayout={(sizes) => {
                     if (!panelLock && Array.isArray(sizes) && sizes.length === 2) {
                       setPanelSplit([Math.round(sizes[0]), Math.round(sizes[1])]);
@@ -2380,7 +2383,7 @@ export default function ChatPage() {
                   }}
                   data-testid="response-panel-group"
                 >
-                  <Panel defaultSize={panelLock ? 50 : panelSplit[0]} minSize={panelLock ? 50 : 25} maxSize={panelLock ? 50 : 75}>
+                  <Panel defaultSize={panelLock ? 50 : panelSplit[0]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
                     <ResponsePanel
                       model={visibleModels[0]}
                       messages={messages}
@@ -2402,7 +2405,7 @@ export default function ChatPage() {
                   {!panelLock && (
                     <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" data-testid="response-panel-resize-handle" />
                   )}
-                  <Panel defaultSize={panelLock ? 50 : panelSplit[1]} minSize={panelLock ? 50 : 25} maxSize={panelLock ? 50 : 75}>
+                  <Panel defaultSize={panelLock ? 50 : panelSplit[1]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
                     <ResponsePanel
                       model={visibleModels[1]}
                       messages={messages}

@@ -9,6 +9,7 @@ import { ArrowLeft, ExternalLink, Key, Lock, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import A0Settings from '../components/A0Settings';
+import { ServiceAccountManager } from '../components/settings/ServiceAccountManager';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const UNIVERSAL_STATUS_KEY = 'universal_key_status';
@@ -277,6 +278,11 @@ export default function SettingsPage() {
         {/* Agent Zero Integration */}
         <div className="mb-6">
           <A0Settings />
+        </div>
+
+        {/* Service Accounts */}
+        <div className="mb-6">
+          <ServiceAccountManager />
         </div>
 
         {/* API Keys */}

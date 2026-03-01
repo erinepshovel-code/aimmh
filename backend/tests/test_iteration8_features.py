@@ -16,7 +16,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://prompt-hub-67.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ai-carousel-chat.preview.emergentagent.com").rstrip("/")
 
 # Test user credentials
 TEST_USER_ID = "test-iter8-1772297459823"
@@ -323,7 +323,7 @@ class TestCheckoutSessionAndStatus:
         """Test POST /api/payments/checkout/session returns redirect URL"""
         payload = {
             "package_id": "core_monthly",
-            "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
+            "origin_url": "https://ai-carousel-chat.preview.emergentagent.com"
         }
         response = api_client.post(
             f"{BASE_URL}/api/payments/checkout/session",
@@ -355,7 +355,7 @@ class TestCheckoutSessionAndStatus:
         # First create a session
         create_payload = {
             "package_id": "support_one_time_1",
-            "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
+            "origin_url": "https://ai-carousel-chat.preview.emergentagent.com"
         }
         create_response = api_client.post(
             f"{BASE_URL}/api/payments/checkout/session",
@@ -395,7 +395,7 @@ class TestCheckoutSessionAndStatus:
         for package_id in package_ids:
             payload = {
                 "package_id": package_id,
-                "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
+                "origin_url": "https://ai-carousel-chat.preview.emergentagent.com"
             }
             response = api_client.post(
                 f"{BASE_URL}/api/payments/checkout/session",
@@ -412,7 +412,7 @@ class TestCheckoutSessionAndStatus:
         """Test checkout session creation requires authentication"""
         payload = {
             "package_id": "core_monthly",
-            "origin_url": "https://prompt-hub-67.preview.emergentagent.com"
+            "origin_url": "https://ai-carousel-chat.preview.emergentagent.com"
         }
         response = api_client.post(
             f"{BASE_URL}/api/payments/checkout/session",

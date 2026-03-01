@@ -454,7 +454,7 @@ print('SUCCESS: Test data cleaned up');
 
 async def main():
     """Main test runner"""
-    BASE_URL = "https://prompt-hub-67.preview.emergentagent.com"
+    BASE_URL = "https://ai-carousel-chat.preview.emergentagent.com"
     
     tester = BackendRegressionTester(BASE_URL)
     success = await tester.run_regression_tests()

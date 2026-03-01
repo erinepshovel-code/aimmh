@@ -174,6 +174,18 @@ backend:
         agent: "testing"
         comment: "AGENT ZERO NON-UI ENDPOINTS TEST COMPLETED: ✅ ALL 7 ENDPOINT TESTS PASSED ✅ (1) GET /api/a0/non-ui/options returns 200 OK with all required keys (prompt_all, prompt_selected, synthesis, history, export) in nested endpoint structure ✅ (2) POST /api/a0/non-ui/prompt/selected accepts single model and returns 200 OK with SSE stream response ✅ (3) POST /api/a0/non-ui/prompt/all returns 200 OK with SSE stream response for all default models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview, grok-3, deepseek-chat, sonar-pro) ✅ (4) GET /api/a0/non-ui/history/{conversation_id}?offset&limit returns 404 for non-existent conversations (expected behavior with proper pagination parameter handling) ✅ (5) POST /api/a0/non-ui/synthesis with selected message IDs + target models returns 404 for non-existent messages (expected behavior with proper validation) ✅ (6) GET /api/a0/non-ui/conversations/{conversation_id}/export?format=json returns 404 for non-existent conversations (expected behavior) ✅ (7) Unauthenticated access verification: All endpoints correctly return 401 Unauthorized when accessed without session token. All Agent Zero non-UI REST endpoints are fully functional, properly authenticated, and ready for programmatic Agent Zero orchestration access."
 
+  - task: "Service Account Authentication Flow"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/auth.py, /app/backend/models/auth.py, /app/backend/services/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "SERVICE ACCOUNT AUTHENTICATION BACKEND VALIDATION COMPLETED: ✅ ALL 7 TESTS PASSED ✅ (1) Register User & JWT: Normal user registration and JWT token issuance working correctly ✅ (2) Create Service Account (JWT Auth): POST /api/auth/service-account/create with JWT successfully creates per-user service account with correct ownership ✅ (3) Service Account Create (No Auth): Same endpoint without authentication correctly returns 401 Unauthorized ✅ (4) Service Account Token (Valid Creds): POST /api/auth/service-account/token with valid service-account username/password returns long-lived bearer token (sat_ prefix) and expires_at timestamp ✅ (5) Service Account Token (Invalid Creds): Invalid credentials (wrong password and non-existent username) both correctly return 401 Unauthorized ✅ (6) Protected Endpoints (Service Token): Service account token successfully authenticates on protected endpoints /api/a0/non-ui/options and /api/conversations/search, both return 200 OK ✅ (7) JWT Auth Flows Still Functional: Existing JWT authentication remains fully functional on /api/auth/me, /api/conversations/search, and /api/a0/non-ui/options. Service account authentication system is production-ready and maintains backward compatibility with existing auth flows."
+
 frontend:
   - task: "Conversation search UI"
     implemented: true

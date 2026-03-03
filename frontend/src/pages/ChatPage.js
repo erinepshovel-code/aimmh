@@ -5,7 +5,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
-import { Settings, Send, ThumbsUp, ThumbsDown, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw, Search } from 'lucide-react';
+import { Settings, Send, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +16,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Separator } from '../components/ui/separator';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Switch } from '../components/ui/switch';
 import { Slider } from '../components/ui/slider';
@@ -122,7 +122,7 @@ const normalizeAttachmentForTransport = (attachment) => ({
   target_models: attachment.targetModels || []
 });
 
-const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread, onOpenPromptSettings, onOpenSynthesis, onCopyThread }) => {
+const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread, onOpenPromptSettings, onOpenSynthesis, onCopyThread, renderMode }) => {
   const scrollRef = useRef(null);
   const color = getModelColor(model);
   const modelType = getModelType(model);
@@ -223,6 +223,7 @@ const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, 
                         content={msg.content}
                         messageId={msg.id || `${model}-${idx}`}
                         streaming={msg.streaming}
+                        renderMode={renderMode}
                       />
                     </div>
                   </div>
@@ -342,11 +343,13 @@ export default function ChatPage() {
   const [panelSplit, setPanelSplit] = useState([50, 50]);
   const [carouselAnimating, setCarouselAnimating] = useState(false);
   const [refreshingFromLogs, setRefreshingFromLogs] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renderMode, setRenderMode] = useState('markdown');
   const fileInputRef = useRef(null);
   const swipeStartXRef = useRef(null);
+  const pointerStartXRef = useRef(null);
   const carouselWheelLastTickRef = useRef(0);
 
-  const [showPromptHistory, setShowPromptHistory] = useState(false);
   const [showConversationSearchDialog, setShowConversationSearchDialog] = useState(false);
   const [conversationSearchQuery, setConversationSearchQuery] = useState('');
   const [conversationSearchResults, setConversationSearchResults] = useState([]);
@@ -536,18 +539,39 @@ export default function ChatPage() {
     swipeStartXRef.current = null;
   };
 
+  const handlePointerDown = (event) => {
+    if (panelLock || selectedModels.length <= 2) {
+      pointerStartXRef.current = null;
+      return;
+    }
+    pointerStartXRef.current = event.clientX;
+  };
+
+  const handlePointerUp = (event) => {
+    if (panelLock || selectedModels.length <= 2 || pointerStartXRef.current === null) return;
+    const delta = event.clientX - pointerStartXRef.current;
+    const threshold = 48;
+    if (Math.abs(delta) >= threshold) {
+      if (delta > 0) {
+        handlePrevModel();
+      } else {
+        handleNextModel();
+      }
+    }
+    pointerStartXRef.current = null;
+  };
+
   const handleCarouselWheel = (event) => {
     if (panelLock || selectedModels.length <= 2) return;
 
     const now = Date.now();
     if (now - carouselWheelLastTickRef.current < 240) return;
 
-    if (Math.abs(event.deltaY) < 10 && Math.abs(event.deltaX) < 10) return;
+    if (Math.abs(event.deltaX) < 12 || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
     carouselWheelLastTickRef.current = now;
 
     event.preventDefault();
-    const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    if (delta > 0) {
+    if (event.deltaX > 0) {
       handleNextModel();
     } else {
       handlePrevModel();
@@ -1552,15 +1576,44 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Top Bar - Mobile Optimized */}
-      <div className="h-14 border-b border-border flex items-center justify-between px-2 bg-[#18181B]">
-        <h1 className="text-sm font-bold truncate" style={{ fontFamily: 'Manrope, sans-serif' }}>Multi-AI Hub</h1>
-        
-        <div className="flex items-center gap-1">
-          {/* Primary actions */}
+      {/* Top Bar */}
+      <div className="h-14 border-b border-border flex items-center justify-between px-2 bg-[#18181B]" data-testid="chat-top-bar">
+        <div className="flex items-center gap-2 min-w-0">
           <Button
             size="sm"
-            variant={autoExport ? "default" : "ghost"}
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={() => setMenuOpen(true)}
+            data-testid="chat-menu-trigger-btn"
+            title="Open workspace menu"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold truncate" style={{ fontFamily: 'Manrope, sans-serif' }}>Multi-AI Hub</h1>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide" data-testid="active-workspace-mode-label">
+              {activeTopTab} workspace
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Badge variant="outline" className="text-[10px] hidden sm:flex" data-testid="response-render-mode-indicator">
+            {renderMode === 'native' ? 'Native text' : 'Markdown'}
+          </Badge>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setRenderMode(prev => (prev === 'markdown' ? 'native' : 'markdown'))}
+            className="h-8 px-2"
+            data-testid="toggle-response-render-mode-btn"
+            title="Toggle response rendering mode"
+          >
+            {renderMode === 'markdown' ? 'MD' : 'RAW'}
+          </Button>
+          <Button
+            size="sm"
+            variant={autoExport ? 'default' : 'ghost'}
             onClick={() => setAutoExport(!autoExport)}
             className="h-8 w-8 p-0"
             data-testid="auto-export-btn"
@@ -1568,7 +1621,6 @@ export default function ChatPage() {
           >
             {autoExport ? '📥' : '📤'}
           </Button>
-
           <Button
             size="sm"
             variant="ghost"
@@ -1580,94 +1632,87 @@ export default function ChatPage() {
           >
             <RotateCcw className={`h-4 w-4 ${refreshingFromLogs ? 'animate-spin' : ''}`} />
           </Button>
-          
-          {/* More menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                <Menu className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setActiveTopTab('batch')} disabled={batchRunning}>
-                <FileText className="h-4 w-4 mr-2" />
-                {batchRunning ? `Batch ${currentBatchIndex}...` : 'Batch Prompts'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTopTab('cascade')}>
-                🔁 Cascade
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTopTab('scene')}>
-                🎛️ Scene
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTopTab('batch')} disabled={batchRunning}>
-                📋 Batch Prompts
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowRolesDialog(true)}>
-                🎭 Assign Roles
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleNewChat}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Chat
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleRestoreLatestConversation} data-testid="restore-latest-conversation-menu-item">
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Restore Latest Thread
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openConversationSearchDialog} data-testid="search-conversations-menu-item">
-                <Search className="h-4 w-4 mr-2" />
-                Search Threads
-              </DropdownMenuItem>
-              
-              {/* Export submenu */}
-              {conversationId && messages.length > 0 && (
-                <>
-                  <DropdownMenuItem onClick={() => handleExport('json')}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('txt')}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Export TXT
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('pdf')}>
-                    <File className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </DropdownMenuItem>
-                </>
-              )}
-              
-              {selectedMessages.length > 0 && (
-                <DropdownMenuItem onClick={handleClearSelection}>
-                  Clear Selection ({selectedMessages.length})
-                </DropdownMenuItem>
-              )}
-              
-              <DropdownMenuItem onClick={() => navigate('/settings')}>
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/dashboard')}>
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Dashboard
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/console')} data-testid="go-console-menu-item">
-                🧠 Console
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/pricing')} data-testid="go-pricing-menu-item">
-                💳 Pricing
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={logout}>
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
-      {/* Top Tabs */}
-      <div className="p-2 border-b border-border bg-[#18181B]">
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side="left" className="w-[86vw] sm:max-w-sm p-0" data-testid="workspace-side-menu">
+          <div className="h-full flex flex-col bg-[#111215]">
+            <SheetHeader className="px-4 pt-5 pb-3 border-b border-border">
+              <SheetTitle className="text-base" data-testid="workspace-side-menu-title">Workspace</SheetTitle>
+              <SheetDescription data-testid="workspace-side-menu-description">
+                OpenAI-style navigation with chat-first controls.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="p-3 space-y-4 overflow-y-auto flex-1">
+              <div className="space-y-2" data-testid="workspace-mode-group">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Mode</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant={activeTopTab === 'chat' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('chat'); setMenuOpen(false); }} data-testid="workspace-mode-chat-btn">Chat</Button>
+                  <Button size="sm" variant={activeTopTab === 'scene' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('scene'); setMenuOpen(false); }} data-testid="workspace-mode-scene-btn">Scene</Button>
+                  <Button size="sm" variant={activeTopTab === 'cascade' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('cascade'); setMenuOpen(false); }} data-testid="workspace-mode-cascade-btn">Cascade</Button>
+                  <Button size="sm" variant={activeTopTab === 'batch' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('batch'); setMenuOpen(false); }} disabled={batchRunning} data-testid="workspace-mode-batch-btn">{batchRunning ? `Batch ${currentBatchIndex}` : 'Batch'}</Button>
+                </div>
+              </div>
+
+              <div className="space-y-2" data-testid="workspace-actions-group">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Actions</div>
+                <Button variant="outline" className="w-full justify-start" onClick={() => { handleNewChat(); setMenuOpen(false); }} data-testid="workspace-new-chat-btn"><Plus className="h-4 w-4 mr-2" />New chat</Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => { openConversationSearchDialog(); setMenuOpen(false); }} data-testid="search-conversations-menu-item"><Search className="h-4 w-4 mr-2" />Search threads</Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => { handleRestoreLatestConversation(); setMenuOpen(false); }} data-testid="restore-latest-conversation-menu-item"><RotateCcw className="h-4 w-4 mr-2" />Restore latest thread</Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => setShowRolesDialog(true)} data-testid="workspace-assign-roles-btn">🎭 Assign roles</Button>
+                {selectedMessages.length > 0 && (
+                  <Button variant="outline" className="w-full justify-start" onClick={handleClearSelection} data-testid="workspace-clear-selection-btn">
+                    Clear selection ({selectedMessages.length})
+                  </Button>
+                )}
+              </div>
+
+              {conversationId && messages.length > 0 && (
+                <div className="space-y-2" data-testid="workspace-export-group">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Export</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleExport('json')} data-testid="workspace-export-json-btn"><Download className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="outline" onClick={() => handleExport('txt')} data-testid="workspace-export-txt-btn"><FileText className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="outline" onClick={() => handleExport('pdf')} data-testid="workspace-export-pdf-btn"><File className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2" data-testid="workspace-prompt-history-group">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Prompt history</div>
+                <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/15 p-1 space-y-1" data-testid="workspace-prompt-history-list">
+                  {promptHistory.length === 0 ? (
+                    <div className="text-xs text-muted-foreground px-2 py-1" data-testid="workspace-prompt-history-empty">No prompts yet.</div>
+                  ) : (
+                    promptHistory.map((prompt, idx) => (
+                      <PromptHistoryItem
+                        key={`${prompt.index}-${idx}`}
+                        prompt={prompt}
+                        onCopy={handleCopy}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 border-t border-border space-y-2" data-testid="workspace-navigation-group">
+              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/settings'); setMenuOpen(false); }} data-testid="workspace-go-settings-btn"><Settings className="h-4 w-4 mr-2" />Settings</Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/dashboard'); setMenuOpen(false); }} data-testid="workspace-go-dashboard-btn"><BarChart3 className="h-4 w-4 mr-2" />Dashboard</Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/console'); setMenuOpen(false); }} data-testid="go-console-menu-item">🧠 Console</Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/pricing'); setMenuOpen(false); }} data-testid="go-pricing-menu-item">💳 Pricing</Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={logout} data-testid="workspace-logout-btn">Logout</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Workspace Panels */}
+      <div className={`${activeTopTab === 'chat' ? 'p-2 border-b border-border' : 'flex-1 p-3 border-b border-border overflow-y-auto'} bg-[#18181B]`} data-testid="workspace-panel-shell">
         <Tabs value={activeTopTab} onValueChange={setActiveTopTab}>
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="hidden w-full grid grid-cols-4" data-testid="hidden-workspace-tablist">
             <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
             <TabsTrigger value="scene" className="text-xs">Scene</TabsTrigger>
             <TabsTrigger value="cascade" className="text-xs">Cascade</TabsTrigger>
@@ -2217,173 +2262,103 @@ export default function ChatPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-x-hidden overflow-y-auto flex">
-        {/* Prompt History Sidebar - Hidden by default on mobile */}
-        <div className={`${showPromptHistory ? 'w-48' : 'w-0'} transition-all duration-200 border-r border-border bg-[#18181B] overflow-hidden`}>
-          <div className="h-full flex flex-col">
-            <div className="p-2 border-b border-border flex items-center justify-between">
-              <span className="text-xs font-medium">Prompts</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowPromptHistory(false)}
-                className="h-6 w-6 p-0"
-              >
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-1 space-y-1">
-                {promptHistory.map((prompt, idx) => (
-                  <PromptHistoryItem
-                    key={`${prompt.index}-${idx}`}
-                    prompt={prompt}
-                    onCopy={handleCopy}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        </div>
-
-        {/* Show/Hide Prompt History Button */}
-        {!showPromptHistory && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setShowPromptHistory(true)}
-            className="absolute left-0 top-20 z-10 h-8 w-6 p-0 rounded-r"
-            data-testid="show-prompts-btn"
+      {activeTopTab === 'chat' && (
+        <div className="flex-1 overflow-x-hidden overflow-y-auto flex" data-testid="chat-response-shell">
+          <div
+            className={`flex-1 overflow-visible flex flex-col transition-all duration-200 ${carouselAnimating ? 'opacity-90 scale-[0.995]' : 'opacity-100 scale-100'}`}
+            onTouchStart={handleSwipeStart}
+            onTouchEnd={handleSwipeEnd}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onWheel={handleCarouselWheel}
+            data-testid="model-carousel-container"
+            style={{ minHeight: visibleModels.length > 1 ? dualPanelStackHeight : singlePanelHeight, touchAction: panelLock ? 'auto' : 'pan-y' }}
           >
-            <ChevronRight className="h-3 w-3" />
-          </Button>
-        )}
-
-        {/* Response Panels with Carousel */}
-        <div
-          className={`flex-1 overflow-visible flex flex-col transition-all duration-200 ${carouselAnimating ? 'opacity-90 scale-[0.995]' : 'opacity-100 scale-100'}`}
-          onTouchStart={handleSwipeStart}
-          onTouchEnd={handleSwipeEnd}
-          onWheel={handleCarouselWheel}
-          data-testid="model-carousel-container"
-          style={{ minHeight: visibleModels.length > 1 ? dualPanelStackHeight : singlePanelHeight }}
-        >
-          {selectedModels.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              Please select at least one AI model
-            </div>
-          ) : (
-            <>
-              {/* Carousel Navigation */}
-              {selectedModels.length > 2 && (
-                <div className="p-2 border-b border-border bg-[#18181B] space-y-2" data-testid="carousel-controls-bar">
-                  <div className="flex items-center justify-center gap-4">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handlePrevModel}
-                    disabled={panelLock}
-                    data-testid="prev-model-btn"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm text-muted-foreground" data-testid="carousel-position-indicator">
-                    Windows {visibleModelIndex + 1} & {((visibleModelIndex + 1) % selectedModels.length) + 1} of {selectedModels.length}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleNextModel}
-                    disabled={panelLock}
-                    data-testid="next-model-btn"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={panelLock ? 'default' : 'outline'}
-                    onClick={togglePanelLock}
-                    data-testid="carousel-lock-split-btn"
-                    title="Lock with 50/50 split (or two-finger touch)"
-                  >
-                    {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
-                    {panelLock ? 'Locked' : 'Lock split'}
-                  </Button>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 px-2">
-                    <div className="text-[10px] text-muted-foreground" data-testid="carousel-motion-hint">
-                      Swipe or wheel-scroll to rotate • Drag divider to resize • Two-finger touch toggles lock
+            {selectedModels.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-muted-foreground" data-testid="chat-no-models-selected-state">
+                Please select at least one AI model
+              </div>
+            ) : (
+              <>
+                {/* Carousel Navigation */}
+                {selectedModels.length > 2 && (
+                  <div className="p-2 border-b border-border bg-[#18181B] space-y-2" data-testid="carousel-controls-bar">
+                    <div className="flex items-center justify-center gap-4">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handlePrevModel}
+                      disabled={panelLock}
+                      data-testid="prev-model-btn"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground" data-testid="carousel-position-indicator">
+                      Windows {visibleModelIndex + 1} & {((visibleModelIndex + 1) % selectedModels.length) + 1} of {selectedModels.length}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleNextModel}
+                      disabled={panelLock}
+                      data-testid="next-model-btn"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={panelLock ? 'default' : 'outline'}
+                      onClick={togglePanelLock}
+                      data-testid="carousel-lock-split-btn"
+                      title="Lock with 50/50 split (or two-finger touch)"
+                    >
+                      {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
+                      {panelLock ? 'Locked' : 'Lock split'}
+                    </Button>
                     </div>
-                    <div className="flex items-center gap-2" data-testid="carousel-motion-indicators">
-                      <span className={`text-[10px] ${panelLock ? 'text-muted-foreground' : 'text-emerald-300'}`} data-testid="carousel-infinity-status">
-                        {panelLock ? '∞ Loop paused (locked)' : '∞ Loop active'}
-                      </span>
-                      {selectedModels.map((model, idx) => {
-                        const active = idx === visibleModelIndex || idx === ((visibleModelIndex + 1) % selectedModels.length);
-                        return (
-                          <span
-                            key={`dot-${model}-${idx}`}
-                            className={`h-1.5 rounded-full transition-all duration-300 ${active ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/50'}`}
-                            data-testid={`carousel-dot-${idx}`}
-                          />
-                        );
-                      })}
+                    <div className="flex items-center justify-between gap-2 px-2">
+                      <div className="text-[10px] text-muted-foreground" data-testid="carousel-motion-hint">
+                        Swipe left/right to rotate • horizontal trackpad swipe rotates • Drag divider to resize • Two-finger touch toggles lock
+                      </div>
+                      <div className="flex items-center gap-2" data-testid="carousel-motion-indicators">
+                        <span className={`text-[10px] ${panelLock ? 'text-muted-foreground' : 'text-emerald-300'}`} data-testid="carousel-infinity-status">
+                          {panelLock ? '∞ Loop paused (locked)' : '∞ Loop active'}
+                        </span>
+                        {selectedModels.map((model, idx) => {
+                          const active = idx === visibleModelIndex || idx === ((visibleModelIndex + 1) % selectedModels.length);
+                          return (
+                            <span
+                              key={`dot-${model}-${idx}`}
+                              className={`h-1.5 rounded-full transition-all duration-300 ${active ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/50'}`}
+                              data-testid={`carousel-dot-${idx}`}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {selectedModels.length <= 2 && visibleModels.length === 2 && (
-                <div className="p-2 border-b border-border bg-[#18181B] flex items-center justify-between gap-2" data-testid="dual-panel-lock-bar">
-                  <div className="text-[10px] text-muted-foreground" data-testid="dual-panel-lock-hint">
-                    Drag divider to resize • two-finger touch or button to lock 50/50 split
+                {selectedModels.length <= 2 && visibleModels.length === 2 && (
+                  <div className="p-2 border-b border-border bg-[#18181B] flex items-center justify-between gap-2" data-testid="dual-panel-lock-bar">
+                    <div className="text-[10px] text-muted-foreground" data-testid="dual-panel-lock-hint">
+                      Drag divider to resize • two-finger touch or button to lock 50/50 split
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={panelLock ? 'default' : 'outline'}
+                      onClick={togglePanelLock}
+                      data-testid="dual-panel-lock-btn"
+                    >
+                      {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
+                      {panelLock ? 'Locked' : 'Lock split'}
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant={panelLock ? 'default' : 'outline'}
-                    onClick={togglePanelLock}
-                    data-testid="dual-panel-lock-btn"
-                  >
-                    {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
-                    {panelLock ? 'Locked' : 'Lock split'}
-                  </Button>
-                </div>
-              )}
-              
-              {/* Response Panels */}
-              {visibleModels.length === 1 ? (
-                <div className="flex-1" style={{ minHeight: singlePanelHeight, height: singlePanelHeight }}>
-                  <ResponsePanel
-                    model={visibleModels[0]}
-                    messages={messages}
-                    onFeedback={handleFeedback}
-                    onCopy={handleCopy}
-                    onShare={handleShare}
-                    onAudio={handleAudio}
-                    onToggleSelect={handleToggleSelect}
-                    selectedMessages={selectedMessages}
-                    isPaused={pausedModels[visibleModels[0]]}
-                    onTogglePause={() => handleTogglePause(visibleModels[0])}
-                    messageIndexMap={messageIndexMap}
-                    onSaveThread={handleSaveThread}
-                    onOpenPromptSettings={openModelPromptDialog}
-                    onOpenSynthesis={handleOpenModelSynthesis}
-                    onCopyThread={handleCopyModelThread}
-                  />
-                </div>
-              ) : (
-                <PanelGroup
-                  direction="vertical"
-                  className="flex-1"
-                  style={{ minHeight: dualPanelStackHeight, height: dualPanelStackHeight }}
-                  onLayout={(sizes) => {
-                    if (!panelLock && Array.isArray(sizes) && sizes.length === 2) {
-                      setPanelSplit([Math.round(sizes[0]), Math.round(sizes[1])]);
-                    }
-                  }}
-                  data-testid="response-panel-group"
-                >
-                  <Panel defaultSize={panelLock ? 50 : panelSplit[0]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
+                )}
+                
+                {/* Response Panels */}
+                {visibleModels.length === 1 ? (
+                  <div className="flex-1" style={{ minHeight: singlePanelHeight, height: singlePanelHeight }}>
                     <ResponsePanel
                       model={visibleModels[0]}
                       messages={messages}
@@ -2400,39 +2375,75 @@ export default function ChatPage() {
                       onOpenPromptSettings={openModelPromptDialog}
                       onOpenSynthesis={handleOpenModelSynthesis}
                       onCopyThread={handleCopyModelThread}
+                      renderMode={renderMode}
                     />
-                  </Panel>
-                  {!panelLock && (
-                    <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" data-testid="response-panel-resize-handle" />
-                  )}
-                  <Panel defaultSize={panelLock ? 50 : panelSplit[1]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
-                    <ResponsePanel
-                      model={visibleModels[1]}
-                      messages={messages}
-                      onFeedback={handleFeedback}
-                      onCopy={handleCopy}
-                      onShare={handleShare}
-                      onAudio={handleAudio}
-                      onToggleSelect={handleToggleSelect}
-                      selectedMessages={selectedMessages}
-                      isPaused={pausedModels[visibleModels[1]]}
-                      onTogglePause={() => handleTogglePause(visibleModels[1])}
-                      messageIndexMap={messageIndexMap}
-                      onSaveThread={handleSaveThread}
-                      onOpenPromptSettings={openModelPromptDialog}
-                      onOpenSynthesis={handleOpenModelSynthesis}
-                      onCopyThread={handleCopyModelThread}
-                    />
-                  </Panel>
-                </PanelGroup>
-              )}
-            </>
-          )}
+                  </div>
+                ) : (
+                  <PanelGroup
+                    direction="vertical"
+                    className="flex-1"
+                    style={{ minHeight: dualPanelStackHeight, height: dualPanelStackHeight }}
+                    onLayout={(sizes) => {
+                      if (!panelLock && Array.isArray(sizes) && sizes.length === 2) {
+                        setPanelSplit([Math.round(sizes[0]), Math.round(sizes[1])]);
+                      }
+                    }}
+                    data-testid="response-panel-group"
+                  >
+                    <Panel defaultSize={panelLock ? 50 : panelSplit[0]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
+                      <ResponsePanel
+                        model={visibleModels[0]}
+                        messages={messages}
+                        onFeedback={handleFeedback}
+                        onCopy={handleCopy}
+                        onShare={handleShare}
+                        onAudio={handleAudio}
+                        onToggleSelect={handleToggleSelect}
+                        selectedMessages={selectedMessages}
+                        isPaused={pausedModels[visibleModels[0]]}
+                        onTogglePause={() => handleTogglePause(visibleModels[0])}
+                        messageIndexMap={messageIndexMap}
+                        onSaveThread={handleSaveThread}
+                        onOpenPromptSettings={openModelPromptDialog}
+                        onOpenSynthesis={handleOpenModelSynthesis}
+                        onCopyThread={handleCopyModelThread}
+                        renderMode={renderMode}
+                      />
+                    </Panel>
+                    {!panelLock && (
+                      <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" data-testid="response-panel-resize-handle" />
+                    )}
+                    <Panel defaultSize={panelLock ? 50 : panelSplit[1]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
+                      <ResponsePanel
+                        model={visibleModels[1]}
+                        messages={messages}
+                        onFeedback={handleFeedback}
+                        onCopy={handleCopy}
+                        onShare={handleShare}
+                        onAudio={handleAudio}
+                        onToggleSelect={handleToggleSelect}
+                        selectedMessages={selectedMessages}
+                        isPaused={pausedModels[visibleModels[1]]}
+                        onTogglePause={() => handleTogglePause(visibleModels[1])}
+                        messageIndexMap={messageIndexMap}
+                        onSaveThread={handleSaveThread}
+                        onOpenPromptSettings={openModelPromptDialog}
+                        onOpenSynthesis={handleOpenModelSynthesis}
+                        onCopyThread={handleCopyModelThread}
+                        renderMode={renderMode}
+                      />
+                    </Panel>
+                  </PanelGroup>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Input / Controls Area - Mobile Optimized */}
-      <div className="border-t border-border bg-[#18181B] pb-14 sm:pb-2">
+      {activeTopTab === 'chat' && (
+      <div className="border-t border-border bg-[#18181B] pb-14 sm:pb-2" data-testid="chat-input-shell">
         {/* Main Input */}
         <div className="p-2">
           <input
@@ -2544,6 +2555,9 @@ export default function ChatPage() {
             </div>
           </div>
         )}
+
+      </div>
+      )}
 
       <Dialog open={showConversationSearchDialog} onOpenChange={setShowConversationSearchDialog}>
         <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto" data-testid="conversation-search-dialog">
@@ -2768,7 +2782,6 @@ export default function ChatPage() {
           </div>
         </DialogContent>
       </Dialog>
-      </div>
 
       {/* Synthesis Dialog */}
       <Dialog

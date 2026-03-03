@@ -15,12 +15,21 @@ const formatJsonForDisplay = (raw = '') => {
   }
 };
 
-export const ResponseMessageContent = ({ content = '', messageId, streaming = false }) => {
-  const prettyJson = formatJsonForDisplay(content);
+export const ResponseMessageContent = ({ content = '', messageId, streaming = false, renderMode = 'markdown' }) => {
+  const prettyJson = renderMode === 'native' ? null : formatJsonForDisplay(content);
 
   return (
     <div className="prose prose-invert max-w-none text-sm leading-relaxed break-words" data-testid={`message-content-${messageId}`}>
-      {prettyJson ? (
+      {renderMode === 'native' ? (
+        <div className="space-y-1" data-testid={`message-format-native-wrap-${messageId}`}>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid={`message-format-native-badge-${messageId}`}>
+            Native text
+          </div>
+          <pre className="rounded-md bg-black/40 p-3 overflow-x-auto my-1">
+            <code className="font-mono text-xs whitespace-pre-wrap break-words">{content || ''}</code>
+          </pre>
+        </div>
+      ) : prettyJson ? (
         <div className="space-y-1">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid={`message-format-json-badge-${messageId}`}>
             JSON

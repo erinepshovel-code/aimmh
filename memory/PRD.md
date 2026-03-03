@@ -151,6 +151,13 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - One-token-per-bot enforcement: issuing a new token auto-revokes old active tokens for that bot when enabled
   - Settings UI toggle added for one-token-per-bot behavior
 - Iteration 10 backend+frontend testing pass completed (panel sizing + infinite carousel + refresh protection + append-only audit logs + one-token-per-bot policy)
+- Chat UX navigation refactor (Mar 3, 2026):
+  - Replaced fragmented dropdown with OpenAI-style left workspace menu (3-button convention) and grouped navigation/actions
+  - Added explicit Settings entry under the workspace menu and moved mode switching (Chat/Scene/Cascade/Batch) there
+  - Enforced chat-only response visibility: Scene/Cascade/Batch now expand into the main workspace area while response panels/input hide outside chat mode
+  - Ferris carousel interaction tuned for horizontal navigation (left/right swipe + horizontal trackpad gesture), ignoring vertical wheel scrolling
+  - Added response render mode toggle: Markdown (`MD`) vs native/plain text (`RAW`) without markdown transformation
+- Iteration 11 frontend testing pass completed (workspace menu, mode transitions, render toggle, carousel navigation, no runtime crashes)
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

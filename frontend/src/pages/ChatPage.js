@@ -2289,7 +2289,7 @@ export default function ChatPage() {
                       variant="ghost"
                       onClick={handlePrevModel}
                       disabled={panelLock}
-                      data-testid="prev-model-btn"
+                      data-testid="carousel-prev-btn"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -2301,7 +2301,7 @@ export default function ChatPage() {
                       variant="ghost"
                       onClick={handleNextModel}
                       disabled={panelLock}
-                      data-testid="next-model-btn"
+                      data-testid="carousel-next-btn"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>

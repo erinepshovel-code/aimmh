@@ -158,6 +158,11 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - Ferris carousel interaction tuned for horizontal navigation (left/right swipe + horizontal trackpad gesture), ignoring vertical wheel scrolling
   - Added response render mode toggle: Markdown (`MD`) vs native/plain text (`RAW`) without markdown transformation
 - Iteration 11 frontend testing pass completed (workspace menu, mode transitions, render toggle, carousel navigation, no runtime crashes)
+- Android compatibility patch (Mar 3, 2026):
+  - Restored always-visible workspace tab strip (`Chat / Scene / Cascade / Batch`) to prevent chat-mode lockout on mobile browsers
+  - Added non-chat banner + explicit `Return to chat` action so response panels/input are always recoverable
+  - Hardened `activeTopTab` state normalization in `ChatContext` (`roles` -> `scene`, invalid values -> `chat`)
+- Iteration 12 frontend testing pass completed on Android viewport (390x844): chat tab visibility, mode switching, return-to-chat flow, menu/settings access all verified
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

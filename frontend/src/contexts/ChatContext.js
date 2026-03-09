@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 
 const ChatContext = createContext(null);
 const STORAGE_KEY = 'multi_ai_hub_chat';
+const DEFAULT_MODELS = ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview'];
 
 export const useChat = () => {
   const context = useContext(ChatContext);
@@ -16,6 +17,37 @@ function loadFromStorage() {
   } catch {
     return null;
   }
+}
+
+function normalizeSavedState(saved) {
+  const raw = saved && typeof saved === 'object' ? saved : {};
+  const selectedModels = Array.isArray(raw.selectedModels) && raw.selectedModels.length > 0
+    ? raw.selectedModels
+    : DEFAULT_MODELS;
+
+  return {
+    activeTopTab: typeof raw.activeTopTab === 'string' ? raw.activeTopTab : 'chat',
+    selectedModels,
+    visibleModelIndex: Number.isInteger(raw.visibleModelIndex) ? raw.visibleModelIndex : 0,
+    input: typeof raw.input === 'string' ? raw.input : '',
+    messages: Array.isArray(raw.messages) ? raw.messages : [],
+    conversationId: typeof raw.conversationId === 'string' ? raw.conversationId : null,
+    selectedMessages: Array.isArray(raw.selectedMessages) ? raw.selectedMessages : [],
+    pausedModels: raw.pausedModels && typeof raw.pausedModels === 'object' && !Array.isArray(raw.pausedModels) ? raw.pausedModels : {},
+    promptHistory: Array.isArray(raw.promptHistory) ? raw.promptHistory : [],
+    messageIndexMap: raw.messageIndexMap && typeof raw.messageIndexMap === 'object' ? raw.messageIndexMap : {},
+    nextIndex: Number.isInteger(raw.nextIndex) && raw.nextIndex > 0 ? raw.nextIndex : 1,
+    globalContext: typeof raw.globalContext === 'string' ? raw.globalContext : '',
+    autoExport: Boolean(raw.autoExport),
+    modelRoles: raw.modelRoles && typeof raw.modelRoles === 'object' ? raw.modelRoles : {},
+    contextMode: ['compartmented', 'shared'].includes(raw.contextMode) ? raw.contextMode : 'compartmented',
+    sharedRoomMode: ['parallel_all', 'parallel_paired'].includes(raw.sharedRoomMode) ? raw.sharedRoomMode : 'parallel_all',
+    cascadeConfig: raw.cascadeConfig && typeof raw.cascadeConfig === 'object' ? raw.cascadeConfig : undefined,
+    cascadeRunning: Boolean(raw.cascadeRunning),
+    cascadeProgress: raw.cascadeProgress && typeof raw.cascadeProgress === 'object'
+      ? raw.cascadeProgress
+      : { round: 0, model: '', turn: 0, totalTurns: 0 },
+  };
 }
 
 function buildDefaultCascadeConfig(selectedModels, savedConfig) {
@@ -66,9 +98,9 @@ function buildDefaultCascadeConfig(selectedModels, savedConfig) {
 }
 
 export const ChatProvider = ({ children }) => {
-  const saved = loadFromStorage();
+  const saved = normalizeSavedState(loadFromStorage());
 
-  const [activeTopTab, setActiveTopTab] = useState(saved?.activeTopTab || 'chat');
+  const [activeTopTab, setActiveTopTab] = useState(saved.activeTopTab);
   useEffect(() => {
     if (activeTopTab === 'roles') {
       setActiveTopTab('scene');
@@ -79,30 +111,30 @@ export const ChatProvider = ({ children }) => {
     }
   }, [activeTopTab]);
 
-  const [selectedModels, setSelectedModels] = useState(saved?.selectedModels || ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview']);
-  const [visibleModelIndex, setVisibleModelIndex] = useState(saved?.visibleModelIndex || 0);
-  const [input, setInput] = useState(saved?.input || '');
-  const [messages, setMessages] = useState(saved?.messages || []);
-  const [conversationId, setConversationId] = useState(saved?.conversationId || null);
+  const [selectedModels, setSelectedModels] = useState(saved.selectedModels);
+  const [visibleModelIndex, setVisibleModelIndex] = useState(saved.visibleModelIndex);
+  const [input, setInput] = useState(saved.input);
+  const [messages, setMessages] = useState(saved.messages);
+  const [conversationId, setConversationId] = useState(saved.conversationId);
   const [streaming, setStreaming] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState(saved?.selectedMessages || []);
-  const [pausedModels, setPausedModels] = useState(saved?.pausedModels || {});
-  const [promptHistory, setPromptHistory] = useState(saved?.promptHistory || []);
-  const [messageIndexMap, setMessageIndexMap] = useState(saved?.messageIndexMap || {});
-  const [nextIndex, setNextIndex] = useState(saved?.nextIndex || 1);
-  const [globalContext, setGlobalContext] = useState(saved?.globalContext || '');
-  const [autoExport, setAutoExport] = useState(saved?.autoExport || false);
-  const [modelRoles, setModelRoles] = useState(saved?.modelRoles || {});
+  const [selectedMessages, setSelectedMessages] = useState(saved.selectedMessages);
+  const [pausedModels, setPausedModels] = useState(saved.pausedModels);
+  const [promptHistory, setPromptHistory] = useState(saved.promptHistory);
+  const [messageIndexMap, setMessageIndexMap] = useState(saved.messageIndexMap);
+  const [nextIndex, setNextIndex] = useState(saved.nextIndex);
+  const [globalContext, setGlobalContext] = useState(saved.globalContext);
+  const [autoExport, setAutoExport] = useState(saved.autoExport);
+  const [modelRoles, setModelRoles] = useState(saved.modelRoles);
 
 
-  const [contextMode, setContextMode] = useState(saved?.contextMode || 'compartmented');
-  const [sharedRoomMode, setSharedRoomMode] = useState(saved?.sharedRoomMode || 'parallel_all');
+  const [contextMode, setContextMode] = useState(saved.contextMode);
+  const [sharedRoomMode, setSharedRoomMode] = useState(saved.sharedRoomMode);
 
   const [cascadeConfig, setCascadeConfig] = useState(
-    buildDefaultCascadeConfig(saved?.selectedModels || ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview'], saved?.cascadeConfig)
+    buildDefaultCascadeConfig(saved.selectedModels || DEFAULT_MODELS, saved.cascadeConfig)
   );
-  const [cascadeRunning, setCascadeRunning] = useState(saved?.cascadeRunning || false);
-  const [cascadeProgress, setCascadeProgress] = useState(saved?.cascadeProgress || { round: 0, model: '', turn: 0, totalTurns: 0 });
+  const [cascadeRunning, setCascadeRunning] = useState(saved.cascadeRunning);
+  const [cascadeProgress, setCascadeProgress] = useState(saved.cascadeProgress);
 
   // Keep cascade config in sync when selected models change
   useEffect(() => {

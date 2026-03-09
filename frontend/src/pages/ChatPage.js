@@ -1712,12 +1712,27 @@ export default function ChatPage() {
       {/* Workspace Panels */}
       <div className={`${activeTopTab === 'chat' ? 'p-2 border-b border-border' : 'flex-1 p-3 border-b border-border overflow-y-auto'} bg-[#18181B]`} data-testid="workspace-panel-shell">
         <Tabs value={activeTopTab} onValueChange={setActiveTopTab}>
-          <TabsList className="hidden w-full grid grid-cols-4" data-testid="hidden-workspace-tablist">
+          <TabsList className="w-full grid grid-cols-4" data-testid="workspace-tablist">
             <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
             <TabsTrigger value="scene" className="text-xs">Scene</TabsTrigger>
             <TabsTrigger value="cascade" className="text-xs">Cascade</TabsTrigger>
             <TabsTrigger value="batch" className="text-xs">Batch</TabsTrigger>
           </TabsList>
+
+          {activeTopTab !== 'chat' && (
+            <div className="mt-2 mb-2 rounded-md border border-border bg-muted/20 px-2 py-1.5 flex items-center justify-between gap-2" data-testid="workspace-chat-return-banner">
+              <span className="text-[10px] text-muted-foreground">Chat responses are hidden in {activeTopTab} mode.</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[10px]"
+                onClick={() => setActiveTopTab('chat')}
+                data-testid="workspace-return-chat-btn"
+              >
+                Return to chat
+              </Button>
+            </div>
+          )}
 
           <TabsContent value="chat" className="mt-2">
             <div className="flex items-center justify-between gap-2">

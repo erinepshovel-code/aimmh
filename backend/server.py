@@ -34,10 +34,18 @@ app.include_router(edcm_router)
 app.include_router(payments_router)
 app.include_router(console_router)
 
+cors_origins_raw = os.environ.get('CORS_ORIGINS')
+if not cors_origins_raw:
+    raise RuntimeError('CORS_ORIGINS is required')
+
+cors_origins = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]
+allow_all_origins = '*' in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=[] if allow_all_origins else cors_origins,
+    allow_origin_regex=r'https?://.*' if allow_all_origins else None,
     allow_methods=["*"],
     allow_headers=["*"],
 )

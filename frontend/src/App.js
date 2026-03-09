@@ -13,6 +13,52 @@ import PricingPage from './pages/PricingPage';
 import { HmmmDoctrineBar } from './components/HmmmDoctrineBar';
 import './App.css';
 
+class RouteErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    // eslint-disable-next-line no-console
+    console.error('Route render error:', error);
+  }
+
+  handleReset = () => {
+    localStorage.removeItem('multi_ai_hub_chat');
+    window.location.href = '/chat';
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4" data-testid="route-error-boundary-state">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-4 space-y-3">
+            <h1 className="text-base font-semibold" data-testid="route-error-boundary-title">We hit a loading error</h1>
+            <p className="text-sm text-muted-foreground" data-testid="route-error-boundary-message">
+              Please reset local chat cache and reopen Chat.
+            </p>
+            <button
+              type="button"
+              className="w-full rounded-md bg-primary text-primary-foreground h-10 text-sm"
+              onClick={this.handleReset}
+              data-testid="route-error-boundary-reset-btn"
+            >
+              Reset local chat cache
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   
@@ -111,7 +157,9 @@ function App() {
       <ChatProvider>
         <BrowserRouter>
           <div className="App pb-8">
-            <AppRoutes />
+            <RouteErrorBoundary>
+              <AppRoutes />
+            </RouteErrorBoundary>
             <Toaster position="top-right" theme="dark" />
             <HmmmDoctrineBar />
           </div>

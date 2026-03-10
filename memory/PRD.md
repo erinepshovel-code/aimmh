@@ -174,6 +174,11 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - `ChatPage` now sanitizes conversation messages loaded from backend before rendering
   - Fixed critical `ChatPage` runtime bug by restoring missing `ThumbsUp` / `ThumbsDown` icon imports (root cause of route error boundary trigger on chat)
 - Iteration 16 frontend testing pass completed: malformed content scenarios, Android viewport render, and no-error-boundary chat load verified
+- Streaming reliability hardening (Mar 10, 2026):
+  - Refactored frontend SSE parsing in `ChatPage.handleSend()` to use buffered line assembly (`sseBuffer`) with partial-chunk/tail handling
+  - Added explicit non-OK/body checks for stream responses and clearer failure surfacing
+  - Preserves chunked model output reliably even when SSE JSON lines are split across network frames
+- Iteration 17 frontend testing pass completed: responses now render reliably after send on desktop + Android
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

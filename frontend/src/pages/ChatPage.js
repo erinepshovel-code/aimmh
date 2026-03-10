@@ -931,85 +931,104 @@ export default function ChatPage() {
         body: JSON.stringify(payload)
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Stream request failed with status ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Streaming response body is unavailable');
+      }
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let sseBuffer = '';
       
       const modelBuffers = {};
       modelsToQuery.forEach(model => {
         modelBuffers[model] = { id: '', content: '' };
       });
 
+      const processSseLine = (line) => {
+        if (!line || !line.startsWith('data:')) return;
+        try {
+          const data = JSON.parse(line.replace(/^data:\s*/, '').trim());
+
+          if (data.model && data.message_id) {
+            if (data.content) {
+              // Check if model is paused
+              if (pausedModels[data.model]) return;
+
+              // Chunk received
+              modelBuffers[data.model].id = data.message_id;
+              modelBuffers[data.model].content += data.content;
+
+              // Update messages
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === data.message_id);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === data.message_id
+                      ? { ...m, content: modelBuffers[data.model].content, streaming: true }
+                      : m
+                  );
+                }
+
+                // Assign index when message is created
+                const msgIndex = allocPromptIndex();
+                setMessageIndexMap(prevMap => ({ ...prevMap, [data.message_id]: msgIndex }));
+
+                return [...prev, {
+                  id: data.message_id,
+                  role: 'assistant',
+                  content: modelBuffers[data.model].content,
+                  model: data.model,
+                  streaming: true,
+                  timestamp: new Date()
+                }];
+              });
+            } else if (data.message_id) {
+              // Complete event
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === data.message_id
+                    ? { ...m, streaming: false }
+                    : m
+                )
+              );
+
+              // capture final content for return
+              if (data.model && modelBuffers[data.model]) {
+                finalContents[data.model] = modelBuffers[data.model].content;
+              }
+            }
+          }
+
+          if (data.error) {
+            toast.error(`${data.model}: ${data.error}`);
+          }
+        } catch {
+          // ignore partial/invalid JSON line
+        }
+      };
+
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data:')) {
-            try {
-              const data = JSON.parse(line.substring(5).trim());
-              
-              if (data.model && data.message_id) {
-                if (data.content) {
-                  // Check if model is paused
-                  if (pausedModels[data.model]) continue;
-                  
-                  // Chunk received
-                  modelBuffers[data.model].id = data.message_id;
-                  modelBuffers[data.model].content += data.content;
-                  
-                  // Update messages
-                  setMessages(prev => {
-                    const existing = prev.find(m => m.id === data.message_id);
-                    if (existing) {
-                      return prev.map(m =>
-                        m.id === data.message_id
-                          ? { ...m, content: modelBuffers[data.model].content, streaming: true }
-                          : m
-                      );
-                    } else {
-                      // Assign index when message is created
-                      const msgIndex = allocPromptIndex();
-                      setMessageIndexMap(prev => ({ ...prev, [data.message_id]: msgIndex }));
-                      
-                      return [...prev, {
-                        id: data.message_id,
-                        role: 'assistant',
-                        content: modelBuffers[data.model].content,
-                        model: data.model,
-                        streaming: true,
-                        timestamp: new Date()
-                      }];
-                    }
-                  });
-                } else if (data.message_id) {
-                  // Complete event
-                  setMessages(prev =>
-                    prev.map(m =>
-                      m.id === data.message_id
-                        ? { ...m, streaming: false }
-                        : m
-                    )
-                  );
-
-                  // capture final content for return
-                  if (data.model && modelBuffers[data.model]) {
-                    finalContents[data.model] = modelBuffers[data.model].content;
-                  }
-                }
-              }
-              
-              if (data.error) {
-                toast.error(`${data.model}: ${data.error}`);
-              }
-            } catch (e) {
-              // Skip invalid JSON
-            }
-          }
+          processSseLine(line.trim());
         }
+      }
+
+      const tail = `${sseBuffer}${decoder.decode()}`.trim();
+      if (tail) {
+        processSseLine(tail);
       }
       // Note: prompt indices allocated incrementally via allocPromptIndex()
 

@@ -163,6 +163,11 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - Added non-chat banner + explicit `Return to chat` action so response panels/input are always recoverable
   - Hardened `activeTopTab` state normalization in `ChatContext` (`roles` -> `scene`, invalid values -> `chat`)
 - Iteration 12 frontend testing pass completed on Android viewport (390x844): chat tab visibility, mode switching, return-to-chat flow, menu/settings access all verified
+- Deployment/runtime hardening pass (Mar 9, 2026):
+  - `ChatContext` now sanitizes persisted localStorage payload (`multi_ai_hub_chat`) to avoid blank-screen crashes from malformed or stale saved state on mobile browsers
+  - Added app-level route error boundary in `App.js` with one-tap local cache reset recovery path
+  - Updated backend CORS middleware behavior for wildcard-origin configs with credentials: wildcard now maps to origin-regex mode to prevent invalid `Access-Control-Allow-Origin: *` responses on credentialed requests
+- Iteration 13 frontend testing pass completed: corrupted localStorage recovery + Android viewport chat-tab visibility confirmed
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

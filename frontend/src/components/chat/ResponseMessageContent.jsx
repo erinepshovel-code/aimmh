@@ -15,23 +15,38 @@ const formatJsonForDisplay = (raw = '') => {
   }
 };
 
+const normalizeContentForDisplay = (raw) => {
+  if (typeof raw === 'string') return raw;
+  if (raw === null || raw === undefined) return '';
+  if (typeof raw === 'object') {
+    try {
+      return JSON.stringify(raw, null, 2);
+    } catch {
+      return String(raw);
+    }
+  }
+  return String(raw);
+};
+
 export const ResponseMessageContent = ({ content = '', messageId, streaming = false, renderMode = 'markdown' }) => {
-  const prettyJson = renderMode === 'native' ? null : formatJsonForDisplay(content);
+  const normalizedContent = normalizeContentForDisplay(content);
+  const safeMessageId = typeof messageId === 'string' || typeof messageId === 'number' ? messageId : 'unknown';
+  const prettyJson = renderMode === 'native' ? null : formatJsonForDisplay(normalizedContent);
 
   return (
-    <div className="prose prose-invert max-w-none text-sm leading-relaxed break-words" data-testid={`message-content-${messageId}`}>
+    <div className="prose prose-invert max-w-none text-sm leading-relaxed break-words" data-testid={`message-content-${safeMessageId}`}>
       {renderMode === 'native' ? (
-        <div className="space-y-1" data-testid={`message-format-native-wrap-${messageId}`}>
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid={`message-format-native-badge-${messageId}`}>
+        <div className="space-y-1" data-testid={`message-format-native-wrap-${safeMessageId}`}>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid={`message-format-native-badge-${safeMessageId}`}>
             Native text
           </div>
           <pre className="rounded-md bg-black/40 p-3 overflow-x-auto my-1">
-            <code className="font-mono text-xs whitespace-pre-wrap break-words">{content || ''}</code>
+            <code className="font-mono text-xs whitespace-pre-wrap break-words">{normalizedContent}</code>
           </pre>
         </div>
       ) : prettyJson ? (
         <div className="space-y-1">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid={`message-format-json-badge-${messageId}`}>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid={`message-format-json-badge-${safeMessageId}`}>
             JSON
           </div>
           <pre className="rounded-md bg-black/40 p-3 overflow-x-auto my-1">
@@ -61,7 +76,7 @@ export const ResponseMessageContent = ({ content = '', messageId, streaming = fa
             )
           }}
         >
-          {content || ''}
+          {normalizedContent}
         </ReactMarkdown>
       )}
       {streaming && <span className="streaming-cursor" />}

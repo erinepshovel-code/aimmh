@@ -5,7 +5,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
-import { Settings, Send, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw, Search } from 'lucide-react';
+import { Settings, Send, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -121,6 +121,31 @@ const normalizeAttachmentForTransport = (attachment) => ({
   target_mode: attachment.targetMode,
   target_models: attachment.targetModels || []
 });
+
+const sanitizeIncomingMessage = (message, fallbackId) => {
+  const raw = message && typeof message === 'object' ? message : {};
+  let safeContent = '';
+  if (typeof raw.content === 'string') {
+    safeContent = raw.content;
+  } else if (raw.content !== null && raw.content !== undefined) {
+    try {
+      safeContent = typeof raw.content === 'object'
+        ? JSON.stringify(raw.content, null, 2)
+        : String(raw.content);
+    } catch {
+      safeContent = String(raw.content);
+    }
+  }
+
+  return {
+    ...raw,
+    id: typeof raw.id === 'string' ? raw.id : fallbackId,
+    role: typeof raw.role === 'string' ? raw.role : 'assistant',
+    content: safeContent,
+    model: typeof raw.model === 'string' ? raw.model : '',
+    streaming: Boolean(raw.streaming),
+  };
+};
 
 const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread, onOpenPromptSettings, onOpenSynthesis, onCopyThread, renderMode }) => {
   const scrollRef = useRef(null);
@@ -615,7 +640,7 @@ export default function ChatPage() {
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
       const response = await axios.get(`${API}/conversations/${convId}/messages`, config);
       const serverMessages = Array.isArray(response.data)
-        ? response.data.map(msg => ({ ...msg, streaming: false }))
+        ? response.data.map((msg, idx) => sanitizeIncomingMessage({ ...msg, streaming: false }, `srv-${convId}-${idx}`))
         : [];
 
       setMessages(serverMessages);

@@ -21,32 +21,100 @@ function loadFromStorage() {
 
 function normalizeSavedState(saved) {
   const raw = saved && typeof saved === 'object' ? saved : {};
-  const selectedModels = Array.isArray(raw.selectedModels) && raw.selectedModels.length > 0
-    ? raw.selectedModels
+  const selectedModels = Array.isArray(raw.selectedModels)
+    ? raw.selectedModels.filter(model => typeof model === 'string' && model.trim())
     : DEFAULT_MODELS;
+
+  const safeSelectedModels = selectedModels.length > 0 ? selectedModels : DEFAULT_MODELS;
+
+  const safeMessages = Array.isArray(raw.messages)
+    ? raw.messages
+      .filter(message => message && typeof message === 'object')
+      .map((message, index) => ({
+        id: typeof message.id === 'string' ? message.id : `recovered-msg-${index}`,
+        role: typeof message.role === 'string' ? message.role : 'assistant',
+        content: typeof message.content === 'string' ? message.content : '',
+        model: typeof message.model === 'string' ? message.model : '',
+        timestamp: message.timestamp || null,
+        streaming: Boolean(message.streaming),
+      }))
+    : [];
+
+  const safeSelectedMessages = Array.isArray(raw.selectedMessages)
+    ? raw.selectedMessages.filter(item => typeof item === 'string')
+    : [];
+
+  const safePromptHistory = Array.isArray(raw.promptHistory)
+    ? raw.promptHistory
+      .filter(prompt => prompt && typeof prompt === 'object')
+      .map((prompt, index) => ({
+        index: Number.isInteger(prompt.index) ? prompt.index : index + 1,
+        content: typeof prompt.content === 'string' ? prompt.content : '',
+        timestamp: prompt.timestamp || null,
+      }))
+    : [];
+
+  const safePausedModels = raw.pausedModels
+    && typeof raw.pausedModels === 'object'
+    && !Array.isArray(raw.pausedModels)
+      ? Object.fromEntries(
+        Object.entries(raw.pausedModels)
+          .filter(([key]) => typeof key === 'string')
+          .map(([key, value]) => [key, Boolean(value)])
+      )
+      : {};
+
+  const safeModelRoles = raw.modelRoles
+    && typeof raw.modelRoles === 'object'
+    && !Array.isArray(raw.modelRoles)
+      ? Object.fromEntries(
+        Object.entries(raw.modelRoles)
+          .filter(([key, value]) => typeof key === 'string' && typeof value === 'string')
+      )
+      : {};
+
+  const safeMessageIndexMap = raw.messageIndexMap
+    && typeof raw.messageIndexMap === 'object'
+    && !Array.isArray(raw.messageIndexMap)
+      ? Object.fromEntries(
+        Object.entries(raw.messageIndexMap)
+          .filter(([key]) => typeof key === 'string')
+      )
+      : {};
+
+  const safeVisibleModelIndex = Number.isInteger(raw.visibleModelIndex)
+    ? Math.max(0, Math.min(raw.visibleModelIndex, Math.max(0, safeSelectedModels.length - 1)))
+    : 0;
+
+  const safeCascadeProgress = raw.cascadeProgress && typeof raw.cascadeProgress === 'object'
+    ? {
+      round: Number.isInteger(raw.cascadeProgress.round) ? raw.cascadeProgress.round : 0,
+      model: typeof raw.cascadeProgress.model === 'string' ? raw.cascadeProgress.model : '',
+      turn: Number.isInteger(raw.cascadeProgress.turn) ? raw.cascadeProgress.turn : 0,
+      totalTurns: Number.isInteger(raw.cascadeProgress.totalTurns) ? raw.cascadeProgress.totalTurns : 0,
+    }
+    : { round: 0, model: '', turn: 0, totalTurns: 0 };
 
   return {
     activeTopTab: typeof raw.activeTopTab === 'string' ? raw.activeTopTab : 'chat',
-    selectedModels,
-    visibleModelIndex: Number.isInteger(raw.visibleModelIndex) ? raw.visibleModelIndex : 0,
+    selectedModels: safeSelectedModels,
+    visibleModelIndex: safeVisibleModelIndex,
     input: typeof raw.input === 'string' ? raw.input : '',
-    messages: Array.isArray(raw.messages) ? raw.messages : [],
+    messages: safeMessages,
     conversationId: typeof raw.conversationId === 'string' ? raw.conversationId : null,
-    selectedMessages: Array.isArray(raw.selectedMessages) ? raw.selectedMessages : [],
-    pausedModels: raw.pausedModels && typeof raw.pausedModels === 'object' && !Array.isArray(raw.pausedModels) ? raw.pausedModels : {},
-    promptHistory: Array.isArray(raw.promptHistory) ? raw.promptHistory : [],
-    messageIndexMap: raw.messageIndexMap && typeof raw.messageIndexMap === 'object' ? raw.messageIndexMap : {},
+    selectedMessages: safeSelectedMessages,
+    pausedModels: safePausedModels,
+    promptHistory: safePromptHistory,
+    messageIndexMap: safeMessageIndexMap,
     nextIndex: Number.isInteger(raw.nextIndex) && raw.nextIndex > 0 ? raw.nextIndex : 1,
     globalContext: typeof raw.globalContext === 'string' ? raw.globalContext : '',
     autoExport: Boolean(raw.autoExport),
-    modelRoles: raw.modelRoles && typeof raw.modelRoles === 'object' ? raw.modelRoles : {},
+    modelRoles: safeModelRoles,
     contextMode: ['compartmented', 'shared'].includes(raw.contextMode) ? raw.contextMode : 'compartmented',
     sharedRoomMode: ['parallel_all', 'parallel_paired'].includes(raw.sharedRoomMode) ? raw.sharedRoomMode : 'parallel_all',
     cascadeConfig: raw.cascadeConfig && typeof raw.cascadeConfig === 'object' ? raw.cascadeConfig : undefined,
     cascadeRunning: Boolean(raw.cascadeRunning),
-    cascadeProgress: raw.cascadeProgress && typeof raw.cascadeProgress === 'object'
-      ? raw.cascadeProgress
-      : { round: 0, model: '', turn: 0, totalTurns: 0 },
+    cascadeProgress: safeCascadeProgress,
   };
 }
 

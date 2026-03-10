@@ -2322,104 +2322,30 @@ export default function ChatPage() {
 
       {/* Main Content */}
       {activeTopTab === 'chat' && (
-        <div className="flex-1 overflow-x-hidden overflow-y-auto flex" data-testid="chat-response-shell">
+        <div className="order-2 flex-1 overflow-x-hidden overflow-y-auto flex" data-testid="chat-response-shell">
           <div
-            className={`flex-1 overflow-visible flex flex-col transition-all duration-200 ${carouselAnimating ? 'opacity-90 scale-[0.995]' : 'opacity-100 scale-100'}`}
-            onTouchStart={handleSwipeStart}
-            onTouchEnd={handleSwipeEnd}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onWheel={handleCarouselWheel}
-            data-testid="model-carousel-container"
-            style={{ minHeight: visibleModels.length > 1 ? dualPanelStackHeight : singlePanelHeight, touchAction: panelLock ? 'auto' : 'pan-y' }}
+            className="flex-1 overflow-visible flex flex-col"
+            data-testid="model-stack-container"
+            style={{ minHeight: `${GALAXY_PANEL_DEFAULT_VH * Math.max(1, selectedModels.length)}vh` }}
           >
             {selectedModels.length === 0 ? (
               <div className="h-full flex items-center justify-center text-muted-foreground" data-testid="chat-no-models-selected-state">
                 Please select at least one AI model
               </div>
             ) : (
-              <>
-                {/* Carousel Navigation */}
-                {selectedModels.length > 2 && (
-                  <div className="p-2 border-b border-border bg-[#18181B] space-y-2" data-testid="carousel-controls-bar">
-                    <div className="flex items-center justify-center gap-4">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handlePrevModel}
-                      disabled={panelLock}
-                      data-testid="carousel-prev-btn"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-sm text-muted-foreground" data-testid="carousel-position-indicator">
-                      Windows {visibleModelIndex + 1} & {((visibleModelIndex + 1) % selectedModels.length) + 1} of {selectedModels.length}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleNextModel}
-                      disabled={panelLock}
-                      data-testid="carousel-next-btn"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={panelLock ? 'default' : 'outline'}
-                      onClick={togglePanelLock}
-                      data-testid="carousel-lock-split-btn"
-                      title="Lock with 50/50 split (or two-finger touch)"
-                    >
-                      {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
-                      {panelLock ? 'Locked' : 'Lock split'}
-                    </Button>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 px-2">
-                      <div className="text-[10px] text-muted-foreground" data-testid="carousel-motion-hint">
-                        Swipe left/right to rotate • horizontal trackpad swipe rotates • Drag divider to resize • Two-finger touch toggles lock
-                      </div>
-                      <div className="flex items-center gap-2" data-testid="carousel-motion-indicators">
-                        <span className={`text-[10px] ${panelLock ? 'text-muted-foreground' : 'text-emerald-300'}`} data-testid="carousel-infinity-status">
-                          {panelLock ? '∞ Loop paused (locked)' : '∞ Loop active'}
-                        </span>
-                        {selectedModels.map((model, idx) => {
-                          const active = idx === visibleModelIndex || idx === ((visibleModelIndex + 1) % selectedModels.length);
-                          return (
-                            <span
-                              key={`dot-${model}-${idx}`}
-                              className={`h-1.5 rounded-full transition-all duration-300 ${active ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/50'}`}
-                              data-testid={`carousel-dot-${idx}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {selectedModels.length <= 2 && visibleModels.length === 2 && (
-                  <div className="p-2 border-b border-border bg-[#18181B] flex items-center justify-between gap-2" data-testid="dual-panel-lock-bar">
-                    <div className="text-[10px] text-muted-foreground" data-testid="dual-panel-lock-hint">
-                      Drag divider to resize • two-finger touch or button to lock 50/50 split
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={panelLock ? 'default' : 'outline'}
-                      onClick={togglePanelLock}
-                      data-testid="dual-panel-lock-btn"
-                    >
-                      {panelLock ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
-                      {panelLock ? 'Locked' : 'Lock split'}
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Response Panels */}
-                {visibleModels.length === 1 ? (
-                  <div className="flex-1" style={{ minHeight: singlePanelHeight, height: singlePanelHeight }}>
+              <div className="space-y-2">
+                <div className="px-2 py-1 text-[10px] text-muted-foreground" data-testid="model-stack-layout-hint">
+                  Linear stack mode enabled • no carousel wraparound
+                </div>
+                {selectedModels.map((model, idx) => (
+                  <div
+                    key={`stack-panel-${model}-${idx}`}
+                    className="flex-1"
+                    style={{ minHeight: singlePanelHeight, height: singlePanelHeight }}
+                    data-testid={`stacked-response-panel-${idx}`}
+                  >
                     <ResponsePanel
-                      model={visibleModels[0]}
+                      model={model}
                       messages={messages}
                       onFeedback={handleFeedback}
                       onCopy={handleCopy}
@@ -2427,8 +2353,8 @@ export default function ChatPage() {
                       onAudio={handleAudio}
                       onToggleSelect={handleToggleSelect}
                       selectedMessages={selectedMessages}
-                      isPaused={pausedModels[visibleModels[0]]}
-                      onTogglePause={() => handleTogglePause(visibleModels[0])}
+                      isPaused={pausedModels[model]}
+                      onTogglePause={() => handleTogglePause(model)}
                       messageIndexMap={messageIndexMap}
                       onSaveThread={handleSaveThread}
                       onOpenPromptSettings={openModelPromptDialog}
@@ -2437,64 +2363,8 @@ export default function ChatPage() {
                       renderMode={renderMode}
                     />
                   </div>
-                ) : (
-                  <PanelGroup
-                    direction="vertical"
-                    className="flex-1"
-                    style={{ minHeight: dualPanelStackHeight, height: dualPanelStackHeight }}
-                    onLayout={(sizes) => {
-                      if (!panelLock && Array.isArray(sizes) && sizes.length === 2) {
-                        setPanelSplit([Math.round(sizes[0]), Math.round(sizes[1])]);
-                      }
-                    }}
-                    data-testid="response-panel-group"
-                  >
-                    <Panel defaultSize={panelLock ? 50 : panelSplit[0]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
-                      <ResponsePanel
-                        model={visibleModels[0]}
-                        messages={messages}
-                        onFeedback={handleFeedback}
-                        onCopy={handleCopy}
-                        onShare={handleShare}
-                        onAudio={handleAudio}
-                        onToggleSelect={handleToggleSelect}
-                        selectedMessages={selectedMessages}
-                        isPaused={pausedModels[visibleModels[0]]}
-                        onTogglePause={() => handleTogglePause(visibleModels[0])}
-                        messageIndexMap={messageIndexMap}
-                        onSaveThread={handleSaveThread}
-                        onOpenPromptSettings={openModelPromptDialog}
-                        onOpenSynthesis={handleOpenModelSynthesis}
-                        onCopyThread={handleCopyModelThread}
-                        renderMode={renderMode}
-                      />
-                    </Panel>
-                    {!panelLock && (
-                      <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" data-testid="response-panel-resize-handle" />
-                    )}
-                    <Panel defaultSize={panelLock ? 50 : panelSplit[1]} minSize={panelLock ? 50 : 20} maxSize={panelLock ? 50 : 80}>
-                      <ResponsePanel
-                        model={visibleModels[1]}
-                        messages={messages}
-                        onFeedback={handleFeedback}
-                        onCopy={handleCopy}
-                        onShare={handleShare}
-                        onAudio={handleAudio}
-                        onToggleSelect={handleToggleSelect}
-                        selectedMessages={selectedMessages}
-                        isPaused={pausedModels[visibleModels[1]]}
-                        onTogglePause={() => handleTogglePause(visibleModels[1])}
-                        messageIndexMap={messageIndexMap}
-                        onSaveThread={handleSaveThread}
-                        onOpenPromptSettings={openModelPromptDialog}
-                        onOpenSynthesis={handleOpenModelSynthesis}
-                        onCopyThread={handleCopyModelThread}
-                        renderMode={renderMode}
-                      />
-                    </Panel>
-                  </PanelGroup>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -2502,7 +2372,7 @@ export default function ChatPage() {
 
       {/* Input / Controls Area - Mobile Optimized */}
       {activeTopTab === 'chat' && (
-      <div className="border-t border-border bg-[#18181B] pb-14 sm:pb-2" data-testid="chat-input-shell">
+      <div className="order-1 border-y border-border bg-[#18181B] pb-2" data-testid="chat-input-shell">
         {/* Main Input */}
         <div className="p-2">
           <input

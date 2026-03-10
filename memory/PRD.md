@@ -184,6 +184,11 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - Added 3-attempt backoff retries for `stream_emergent_model` and `stream_openai_compatible`
   - Added clearer user-facing temporary outage error message after retry exhaustion
 - Iteration 18 backend testing pass completed: retry/backoff logic + stream regression checks all pass
+- Chat layout pivot (Mar 10, 2026):
+  - Removed ferris carousel UX in favor of linear vertical stack (no wraparound navigation)
+  - Chat now renders all selected model panels in-page, extending vertically (supports 3+ full-height boxes)
+  - Prompt composer moved above response panels for top-first workflow
+- Iteration 19 frontend testing pass completed: carousel removal + top prompt + 3 stacked model responses verified on desktop/mobile
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

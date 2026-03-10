@@ -168,6 +168,12 @@ Build a user interface for prompting multiple AI models simultaneously. Support 
   - Added app-level route error boundary in `App.js` with one-tap local cache reset recovery path
   - Updated backend CORS middleware behavior for wildcard-origin configs with credentials: wildcard now maps to origin-regex mode to prevent invalid `Access-Control-Allow-Origin: *` responses on credentialed requests
 - Iteration 13 frontend testing pass completed: corrupted localStorage recovery + Android viewport chat-tab visibility confirmed
+- OAuth incognito compatibility + chat render crash fix (Mar 10, 2026):
+  - Google OAuth callback now receives/stores backend-issued JWT fallback (`access_token`) to prevent incognito login loops when third-party cookies are blocked
+  - `ResponseMessageContent` now normalizes non-string payloads (objects/numbers/null/arrays) safely before markdown/native rendering
+  - `ChatPage` now sanitizes conversation messages loaded from backend before rendering
+  - Fixed critical `ChatPage` runtime bug by restoring missing `ThumbsUp` / `ThumbsDown` icon imports (root cause of route error boundary trigger on chat)
+- Iteration 16 frontend testing pass completed: malformed content scenarios, Android viewport render, and no-error-boundary chat load verified
 - Auto-export toggle
 - Export to JSON/TXT/PDF
 - **Backend refactoring** from monolithic server.py to modular routes/services/models (Feb 12, 2026)

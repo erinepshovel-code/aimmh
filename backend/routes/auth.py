@@ -479,7 +479,16 @@ async def process_google_session(request: Request, response: FastAPIResponse):
         max_age=7 * 24 * 60 * 60
     )
 
-    return GoogleAuthUser(user_id=user_id, email=email, name=name, picture=picture)
+    # Also issue JWT so auth works in browsers/environments blocking third-party cookies (e.g., incognito)
+    access_token = create_access_token(user_id)
+
+    return GoogleAuthUser(
+        user_id=user_id,
+        email=email,
+        name=name,
+        picture=picture,
+        access_token=access_token,
+    )
 
 
 @router.get("/me")

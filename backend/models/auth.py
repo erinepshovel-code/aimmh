@@ -30,6 +30,8 @@ class GoogleAuthUser(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
 
 
 class ServiceAccountCreateRequest(BaseModel):

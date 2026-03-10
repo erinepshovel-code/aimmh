@@ -42,9 +42,12 @@ export default function AuthCallback() {
         );
 
         const user = response.data;
-        
-        // Store auth flag
-        axios.defaults.headers.common['Authorization'] = ''; // Don't need JWT anymore
+        const accessToken = response.data?.access_token;
+
+        if (accessToken) {
+          localStorage.setItem('token', accessToken);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        }
         
         toast.success(`Welcome, ${user.name}!`);
         

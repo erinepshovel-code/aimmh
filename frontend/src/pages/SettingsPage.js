@@ -1,395 +1,334 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Switch } from '../components/ui/switch';
-import { ArrowLeft, ExternalLink, Key, Lock, BarChart3 } from 'lucide-react';
-import { toast } from 'sonner';
 import axios from 'axios';
-import A0Settings from '../components/A0Settings';
-import { ServiceAccountManager } from '../components/settings/ServiceAccountManager';
+import { ArrowLeft, Key, Plus, Trash2, Shield, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const UNIVERSAL_STATUS_KEY = 'universal_key_status';
-const UNIVERSAL_STATUS_TTL = 10 * 60 * 1000;
 
-// Configure axios to send cookies for authentication
-axios.defaults.withCredentials = true;
+function KeyManager() {
+  const [keys, setKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editDev, setEditDev] = useState(null);
+  const [editKey, setEditKey] = useState('');
 
-const API_KEY_GUIDES = {
-  gpt: {
-    name: 'OpenAI GPT',
-    url: 'https://platform.openai.com/api-keys',
-    color: '#10A37F',
-    universal: true
-  },
-  claude: {
-    name: 'Anthropic Claude',
-    url: 'https://console.anthropic.com/settings/keys',
-    color: '#D97757',
-    universal: true
-  },
-  gemini: {
-    name: 'Google Gemini',
-    url: 'https://makersuite.google.com/app/apikey',
-    color: '#4285F4',
-    universal: true
-  },
-  grok: {
-    name: 'xAI Grok',
-    url: 'https://console.x.ai/',
-    color: '#FFFFFF',
-    universal: false
-  },
-  deepseek: {
-    name: 'DeepSeek',
-    url: 'https://platform.deepseek.com/',
-    color: '#4D6BFE',
-    universal: false
-  },
-  perplexity: {
-    name: 'Perplexity',
-    url: 'https://www.perplexity.ai/settings/api',
-    color: '#22B8CF',
-    universal: false
-  }
-};
+  const fetchKeys = async () => {
+    try {
+      const res = await axios.get(`${API}/v1/keys`);
+      setKeys(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch keys:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-const UNIVERSAL_STATUS_META = {
-  valid: { label: 'Valid', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' },
-  invalid: { label: 'Invalid', className: 'border-red-500/40 bg-red-500/10 text-red-200' },
-  missing: { label: 'Missing', className: 'border-amber-500/40 bg-amber-500/10 text-amber-200' },
-  error: { label: 'Error', className: 'border-orange-500/40 bg-orange-500/10 text-orange-200' }
-};
+  useEffect(() => { fetchKeys(); }, []);
+
+  const handleSave = async (developerId) => {
+    try {
+      await axios.post(`${API}/v1/keys`, { developer_id: developerId, api_key: editKey });
+      setEditDev(null);
+      setEditKey('');
+      fetchKeys();
+    } catch (err) {
+      console.error('Failed to save key:', err);
+    }
+  };
+
+  const handleRemove = async (developerId) => {
+    try {
+      await axios.delete(`${API}/v1/keys/${developerId}`);
+      fetchKeys();
+    } catch (err) {
+      console.error('Failed to remove key:', err);
+    }
+  };
+
+  if (loading) return <div className="text-zinc-500 text-sm">Loading keys...</div>;
+
+  return (
+    <div className="space-y-3" data-testid="key-manager">
+      {keys.map(k => (
+        <div key={k.developer_id} className="flex items-center justify-between p-3 rounded-lg border border-zinc-800 bg-zinc-900/40">
+          <div className="flex items-center gap-3">
+            <Key size={16} className="text-zinc-500" />
+            <div>
+              <div className="text-sm font-medium text-zinc-200">{k.developer_id}</div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {k.status === 'configured' && (
+                  <span className="flex items-center gap-1 text-xs text-emerald-400">
+                    <CheckCircle size={10} /> {k.masked_key}
+                  </span>
+                )}
+                {k.status === 'universal' && (
+                  <span className="flex items-center gap-1 text-xs text-blue-400">
+                    <Shield size={10} /> Universal Key
+                  </span>
+                )}
+                {k.status === 'missing' && (
+                  <span className="flex items-center gap-1 text-xs text-amber-400">
+                    <AlertCircle size={10} /> Not configured
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {editDev === k.developer_id ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={editKey}
+                  onChange={e => setEditKey(e.target.value)}
+                  placeholder="API key"
+                  className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-200 w-48 focus:outline-none focus:border-emerald-500/50"
+                  data-testid={`key-input-${k.developer_id}`}
+                />
+                <button
+                  onClick={() => handleSave(k.developer_id)}
+                  className="px-2 py-1 rounded bg-emerald-600 text-xs text-white hover:bg-emerald-500"
+                  data-testid={`save-key-${k.developer_id}`}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => { setEditDev(null); setEditKey(''); }}
+                  className="text-xs text-zinc-500 hover:text-zinc-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setEditDev(k.developer_id)}
+                  className="px-2 py-1 rounded text-xs border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"
+                  data-testid={`edit-key-${k.developer_id}`}
+                >
+                  {k.status === 'missing' ? 'Add Key' : 'Change'}
+                </button>
+                {k.status === 'configured' && (
+                  <button
+                    onClick={() => handleRemove(k.developer_id)}
+                    className="p-1 rounded text-zinc-500 hover:text-red-400"
+                    data-testid={`remove-key-${k.developer_id}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RegistryManager() {
+  const [registry, setRegistry] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [addingDev, setAddingDev] = useState(false);
+  const [newDev, setNewDev] = useState({ developer_id: '', name: '', base_url: '' });
+  const [addingModel, setAddingModel] = useState(null);
+  const [newModel, setNewModel] = useState('');
+
+  const fetchRegistry = async () => {
+    try {
+      const res = await axios.get(`${API}/v1/registry`);
+      setRegistry(res.data.developers || []);
+    } catch (err) {
+      console.error('Failed to fetch registry:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchRegistry(); }, []);
+
+  const handleAddDev = async () => {
+    if (!newDev.developer_id || !newDev.name || !newDev.base_url) return;
+    try {
+      await axios.post(`${API}/v1/registry/developer`, {
+        developer_id: newDev.developer_id,
+        name: newDev.name,
+        auth_type: 'openai_compatible',
+        base_url: newDev.base_url,
+        models: [],
+      });
+      setAddingDev(false);
+      setNewDev({ developer_id: '', name: '', base_url: '' });
+      fetchRegistry();
+    } catch (err) {
+      console.error('Failed to add developer:', err);
+    }
+  };
+
+  const handleAddModel = async (devId) => {
+    if (!newModel.trim()) return;
+    try {
+      await axios.post(`${API}/v1/registry/developer/${devId}/model`, {
+        model_id: newModel.trim(),
+      });
+      setAddingModel(null);
+      setNewModel('');
+      fetchRegistry();
+    } catch (err) {
+      console.error('Failed to add model:', err);
+    }
+  };
+
+  const handleRemoveModel = async (devId, modelId) => {
+    try {
+      await axios.delete(`${API}/v1/registry/developer/${devId}/model/${modelId}`);
+      fetchRegistry();
+    } catch (err) {
+      console.error('Failed to remove model:', err);
+    }
+  };
+
+  if (loading) return <div className="text-zinc-500 text-sm">Loading registry...</div>;
+
+  return (
+    <div className="space-y-4" data-testid="registry-manager">
+      {registry && registry.map(dev => (
+        <div key={dev.developer_id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+          <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-zinc-200">{dev.name}</div>
+              <div className="text-xs text-zinc-500">{dev.auth_type} {dev.base_url ? `| ${dev.base_url}` : ''}</div>
+            </div>
+          </div>
+          <div className="p-3 space-y-1">
+            {dev.models.map(m => (
+              <div key={m.model_id} className="flex items-center justify-between px-2 py-1 rounded hover:bg-zinc-800/40">
+                <span className="text-sm text-zinc-300">{m.display_name || m.model_id}</span>
+                <button
+                  onClick={() => handleRemoveModel(dev.developer_id, m.model_id)}
+                  className="text-zinc-600 hover:text-red-400"
+                  data-testid={`remove-model-${m.model_id}`}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+            {addingModel === dev.developer_id ? (
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  value={newModel}
+                  onChange={e => setNewModel(e.target.value)}
+                  placeholder="model-id"
+                  className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+                  data-testid={`new-model-input-${dev.developer_id}`}
+                />
+                <button
+                  onClick={() => handleAddModel(dev.developer_id)}
+                  className="px-2 py-1 rounded bg-emerald-600 text-xs text-white"
+                >
+                  Add
+                </button>
+                <button onClick={() => setAddingModel(null)} className="text-xs text-zinc-500">Cancel</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingModel(dev.developer_id)}
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 mt-1 px-2"
+                data-testid={`add-model-btn-${dev.developer_id}`}
+              >
+                <Plus size={12} /> Add Model
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {addingDev ? (
+        <div className="rounded-lg border border-zinc-800 p-4 space-y-3">
+          <div className="text-sm font-medium text-zinc-200">Add Developer</div>
+          <input
+            value={newDev.developer_id}
+            onChange={e => setNewDev(p => ({ ...p, developer_id: e.target.value }))}
+            placeholder="developer-id (e.g., mistral)"
+            className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+          />
+          <input
+            value={newDev.name}
+            onChange={e => setNewDev(p => ({ ...p, name: e.target.value }))}
+            placeholder="Display Name (e.g., Mistral AI)"
+            className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+          />
+          <input
+            value={newDev.base_url}
+            onChange={e => setNewDev(p => ({ ...p, base_url: e.target.value }))}
+            placeholder="Base URL (e.g., https://api.mistral.ai/v1)"
+            className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+          />
+          <div className="flex gap-2">
+            <button onClick={handleAddDev} className="px-3 py-1.5 rounded bg-emerald-600 text-sm text-white hover:bg-emerald-500">Add</button>
+            <button onClick={() => setAddingDev(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAddingDev(true)}
+          className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200"
+          data-testid="add-developer-btn"
+        >
+          <Plus size={14} /> Add Developer
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const [keys, setKeys] = useState({});
-  const [useUniversal, setUseUniversal] = useState({});
-  const [editingKey, setEditingKey] = useState(null);
-  const [keyInput, setKeyInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [universalStatus, setUniversalStatus] = useState(null);
-  const [checkingUniversal, setCheckingUniversal] = useState(false);
-
-  useEffect(() => {
-    loadKeys();
-    loadUniversalStatus();
-  }, []);
-
-  const loadKeys = async () => {
-    try {
-      // Don't add Authorization header - let axios use cookies automatically
-      const response = await axios.get(`${API}/keys`);
-      const loadedKeys = response.data;
-      setKeys(loadedKeys);
-      
-      // Set universal flags (default ON for GPT/Claude/Gemini unless explicitly DISABLED)
-      const universalFlags = {};
-      Object.entries(loadedKeys).forEach(([provider, key]) => {
-        if (API_KEY_GUIDES[provider]?.universal) {
-          universalFlags[provider] = key !== 'DISABLED' && (key === 'UNIVERSAL' || !key);
-        } else {
-          universalFlags[provider] = false;
-        }
-      });
-      setUseUniversal(universalFlags);
-    } catch (error) {
-      console.error('Load keys error:', error);
-      toast.error(error.response?.data?.detail || 'Failed to load API keys. Please login again.');
-    }
-  };
-
-  const loadUniversalStatus = () => {
-    try {
-      const raw = sessionStorage.getItem(UNIVERSAL_STATUS_KEY);
-      if (!raw) {
-        checkUniversalStatus();
-        return;
-      }
-      const cached = JSON.parse(raw);
-      const checkedAt = cached?.checked_at ? new Date(cached.checked_at).getTime() : 0;
-      if (Date.now() - checkedAt < UNIVERSAL_STATUS_TTL) {
-        setUniversalStatus(cached);
-        return;
-      }
-      checkUniversalStatus();
-    } catch {
-      checkUniversalStatus();
-    }
-  };
-
-  const checkUniversalStatus = async () => {
-    setCheckingUniversal(true);
-    try {
-      const res = await axios.get(`${API}/keys/universal/status`);
-      const payload = { ...res.data, checked_at: new Date().toISOString() };
-      setUniversalStatus(payload);
-      sessionStorage.setItem(UNIVERSAL_STATUS_KEY, JSON.stringify(payload));
-    } catch (error) {
-      const payload = {
-        status: 'error',
-        message: error.response?.data?.detail || 'Unable to validate universal key',
-        checked_at: new Date().toISOString()
-      };
-      setUniversalStatus(payload);
-      sessionStorage.setItem(UNIVERSAL_STATUS_KEY, JSON.stringify(payload));
-      toast.error('Universal key check failed');
-    } finally {
-      setCheckingUniversal(false);
-    }
-  };
-
-  const handleSaveKey = async (provider) => {
-    setLoading(true);
-    try {
-      // Don't add Authorization header - let axios use cookies automatically
-      await axios.put(`${API}/keys`, {
-        provider,
-        api_key: keyInput,
-        use_universal: false
-      });
-      toast.success('API key saved');
-      setEditingKey(null);
-      setKeyInput('');
-      loadKeys();
-    } catch (error) {
-      toast.error('Failed to save API key');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleUniversal = async (provider, enabled) => {
-    setLoading(true);
-    
-    // Optimistically update UI
-    setUseUniversal(prev => ({
-      ...prev,
-      [provider]: enabled
-    }));
-    
-    try {
-      // Don't add Authorization header - let axios use cookies automatically
-      await axios.put(`${API}/keys`, {
-        provider,
-        use_universal: enabled
-      });
-      
-      toast.success(
-        enabled 
-          ? `✓ ${API_KEY_GUIDES[provider].name} - Using universal key` 
-          : `${API_KEY_GUIDES[provider].name} - Universal key disabled`
-      );
-      
-      // Reload to confirm from server
-      await loadKeys();
-    } catch (error) {
-      console.error('Toggle error:', error);
-      toast.error(error.response?.data?.detail || 'Failed to update key setting');
-      
-      // Revert optimistic update on error
-      setUseUniversal(prev => ({
-        ...prev,
-        [provider]: !enabled
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [tab, setTab] = useState('keys');
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto p-4 md:p-6">
-        {/* Header */}
-        <div className="mb-6 flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/chat')}
-            data-testid="back-to-chat-btn"
+    <div className="min-h-screen bg-zinc-950 text-zinc-200" data-testid="settings-page">
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
+        <button onClick={() => navigate('/chat')} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400" data-testid="back-btn">
+          <ArrowLeft size={18} />
+        </button>
+        <h1 className="text-base font-semibold">Settings</h1>
+      </header>
+      <div className="max-w-2xl mx-auto p-4 space-y-6">
+        <div className="flex gap-1 border-b border-zinc-800 pb-1">
+          <button
+            onClick={() => setTab('keys')}
+            className={`px-4 py-2 text-sm rounded-t transition-colors ${tab === 'keys' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+            data-testid="tab-keys"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Chat
-          </Button>
-          <h1 className="text-3xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Settings
-          </h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/dashboard')}
-            className="ml-auto"
-            data-testid="go-to-dashboard-btn"
+            API Keys
+          </button>
+          <button
+            onClick={() => setTab('registry')}
+            className={`px-4 py-2 text-sm rounded-t transition-colors ${tab === 'registry' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+            data-testid="tab-registry"
           >
-            <BarChart3 className="h-4 w-4 mr-1" />
-            Dashboard
-          </Button>
+            Model Registry
+          </button>
         </div>
 
-        {/* Universal Key Info */}
-        <Card className="mb-6 border-primary/20 bg-card" data-testid="universal-key-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Universal Key
-            </CardTitle>
-            <CardDescription>
-              Use the Emergent universal key for GPT, Claude, and Gemini models without providing your own API keys.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                <div className="text-sm font-medium" data-testid="universal-key-status-text">
-                  {universalStatus ? (UNIVERSAL_STATUS_META[universalStatus.status]?.label || 'Unknown') : 'Not checked'}
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={checkUniversalStatus}
-                disabled={checkingUniversal}
-                data-testid="universal-key-check-btn"
-              >
-                {checkingUniversal ? 'Checking…' : 'Check key'}
-              </Button>
+        {tab === 'keys' && (
+          <div className="space-y-4">
+            <div className="text-sm text-zinc-400">
+              Emergent-supported models (OpenAI, Anthropic, Google) use the universal key by default.
+              Add your own keys for custom providers (xAI, DeepSeek, Perplexity) or to override defaults.
             </div>
-            {universalStatus && (
-              <div
-                className={`rounded border p-2 text-xs ${UNIVERSAL_STATUS_META[universalStatus.status]?.className || 'border-border'}`}
-                data-testid="universal-key-status-banner"
-              >
-                {universalStatus.status === 'valid' && 'Universal key validated successfully.'}
-                {universalStatus.status === 'missing' && 'Universal key missing. Update EMERGENT_LLM_KEY in deployment secrets.'}
-                {universalStatus.status === 'invalid' && 'Universal key invalid. Reset EMERGENT_LLM_KEY and redeploy.'}
-                {universalStatus.status === 'error' && (universalStatus.message || 'Universal key check failed. Try again.')}
-              </div>
-            )}
-            <div className="text-[10px] text-muted-foreground" data-testid="universal-key-help-text">
-              Validation runs a lightweight model ping to confirm the universal key is active.
+            <KeyManager />
+          </div>
+        )}
+
+        {tab === 'registry' && (
+          <div className="space-y-4">
+            <div className="text-sm text-zinc-400">
+              Manage available model developers and their models. Add any OpenAI-compatible API provider.
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Agent Zero Integration */}
-        <div className="mb-6">
-          <A0Settings />
-        </div>
-
-        {/* Service Accounts */}
-        <div className="mb-6">
-          <ServiceAccountManager />
-        </div>
-
-        {/* API Keys */}
-        <div className="space-y-4">
-          {Object.entries(API_KEY_GUIDES).map(([provider, info]) => (
-            <Card key={provider} className="border-border" data-testid={`api-key-card-${provider}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="h-10 w-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: info.color + '20', borderColor: info.color + '40' }}
-                    >
-                      <Lock className="h-5 w-5" style={{ color: info.color }} />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{info.name}</CardTitle>
-                      <CardDescription>
-                        {keys[provider] && keys[provider] !== 'UNIVERSAL' ? (
-                          <span className="text-xs font-mono">{keys[provider]}</span>
-                        ) : useUniversal[provider] ? (
-                          <span className="text-xs text-muted-foreground">Using universal key</span>
-                        ) : keys[provider] === 'DISABLED' ? (
-                          <span className="text-xs text-muted-foreground">Universal key disabled</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No key configured</span>
-                        )}
-                      </CardDescription>
-                    </div>
-                  </div>
-                  <a
-                    href={info.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-primary hover:underline"
-                    data-testid={`api-guide-link-${provider}`}
-                  >
-                    Get API Key
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {info.universal && (
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <Label htmlFor={`universal-${provider}`} className="text-sm">
-                      Use Universal Key (Emergent)
-                    </Label>
-                    <Switch
-                      id={`universal-${provider}`}
-                      checked={useUniversal[provider] || false}
-                      onCheckedChange={(checked) => handleToggleUniversal(provider, checked)}
-                      disabled={loading}
-                      data-testid={`universal-switch-${provider}`}
-                    />
-                  </div>
-                )}
-
-                {!useUniversal[provider] && (
-                  <>
-                    {editingKey === provider ? (
-                      <div className="space-y-2">
-                        <Input
-                          type="password"
-                          placeholder="Enter your API key"
-                          value={keyInput}
-                          onChange={(e) => setKeyInput(e.target.value)}
-                          className="font-mono text-sm"
-                          data-testid={`api-key-input-${provider}`}
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleSaveKey(provider)}
-                            disabled={loading || !keyInput}
-                            data-testid={`save-key-btn-${provider}`}
-                          >
-                            Save Key
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditingKey(null);
-                              setKeyInput('');
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingKey(provider)}
-                        data-testid={`edit-key-btn-${provider}`}
-                      >
-                        {keys[provider] && keys[provider] !== 'UNIVERSAL' ? 'Update Key' : 'Add Key'}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+            <RegistryManager />
+          </div>
+        )}
       </div>
     </div>
   );

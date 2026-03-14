@@ -10,35 +10,34 @@ load_dotenv(ROOT_DIR / '.env')
 
 from db import client
 from routes.auth import router as auth_router
+from routes.v1_a0 import router as v1_a0_router
+from routes.v1_edcm import router as v1_edcm_router
+from routes.v1_system import router as v1_system_router
+from routes.registry import router as registry_router
 from routes.keys import router as keys_router
-from routes.chat import router as chat_router
-from routes.export import router as export_router
-from routes.agent_zero import router as a0_router
-from routes.edcm import router as edcm_router
-from routes.payments import router as payments_router
-from routes.console import router as console_router
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-app = FastAPI()
+app = FastAPI(title="Multi-Model Hub", version="1.0.2-S9")
 
+# Auth (kept from existing)
 app.include_router(auth_router)
+
+# V1 API surface
+app.include_router(v1_a0_router)
+app.include_router(v1_edcm_router)
+app.include_router(v1_system_router)
+app.include_router(registry_router)
 app.include_router(keys_router)
-app.include_router(chat_router)
-app.include_router(export_router)
-app.include_router(a0_router)
-app.include_router(edcm_router)
-app.include_router(payments_router)
-app.include_router(console_router)
 
 cors_origins_raw = os.environ.get('CORS_ORIGINS')
 if not cors_origins_raw:
     raise RuntimeError('CORS_ORIGINS is required')
 
-cors_origins = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]
+cors_origins = [o.strip() for o in cors_origins_raw.split(',') if o.strip()]
 allow_all_origins = '*' in cors_origins
 
 app.add_middleware(
@@ -53,7 +52,7 @@ app.add_middleware(
 
 @app.get("/api/")
 async def root():
-    return {"message": "Multi-AI Chat API"}
+    return {"message": "Multi-Model Hub API", "version": "v1.0.2-S9", "spec": "interdependentway.org/canon/spec.md"}
 
 
 @app.on_event("shutdown")

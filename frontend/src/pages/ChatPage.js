@@ -1,2874 +1,417 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { Button } from '../components/ui/button';
-import { Textarea } from '../components/ui/textarea';
-import { Input } from '../components/ui/input';
-import { ScrollArea } from '../components/ui/scroll-area';
-import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
-import { Settings, Send, Copy, Share2, Volume2, Plus, ChevronLeft, ChevronRight, Download, Pause, Play, Wand2, FileText, File, CheckCheck, Menu, BarChart3, SlidersHorizontal, Paperclip, X, Lock, Unlock, RotateCcw, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { toast } from 'sonner';
-import axios from 'axios';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
-import ModelSelector from '../components/ModelSelector';
-import { Badge } from '../components/ui/badge';
-import { Checkbox } from '../components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Label } from '../components/ui/label';
-import { Separator } from '../components/ui/separator';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Switch } from '../components/ui/switch';
-import { Slider } from '../components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { ResponseMessageContent } from '../components/chat/ResponseMessageContent';
-import { PromptHistoryItem } from '../components/chat/PromptHistoryItem';
+import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
+  Send, Plus, Settings, LogOut, ChevronDown, ChevronRight,
+  ThumbsUp, ThumbsDown, Copy, Clock, Menu, X, LayoutGrid, List,
+  MessageSquare, Loader2
+} from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const UNIVERSAL_STATUS_KEY = 'universal_key_status';
-const UNIVERSAL_STATUS_TTL = 10 * 60 * 1000;
 
-// Configure axios to send cookies
-axios.defaults.withCredentials = true;
+// ---- Model Selector with Developer Tabs ----
+function ModelSelector({ registry, selected, onToggle }) {
+  const [expandedDev, setExpandedDev] = useState({});
 
-const MODEL_COLORS = {
-  gpt: '#10A37F',
-  claude: '#D97757',
-  gemini: '#4285F4',
-  perplexity: '#22B8CF',
-  grok: '#FFFFFF',
-  deepseek: '#4D6BFE'
-};
+  if (!registry.length) return null;
 
-const getModelColor = (model) => {
-  if (!model) return '#FFFFFF';
-  const lower = model.toLowerCase();
-  for (const [key, color] of Object.entries(MODEL_COLORS)) {
-    if (lower.includes(key)) return color;
-  }
-  return '#FFFFFF';
-};
-
-const getModelType = (model) => {
-  if (!model) return 'unknown';
-  const lower = model.toLowerCase();
-  if (lower.includes('gpt') || lower.startsWith('o')) return 'gpt';
-  if (lower.includes('claude')) return 'claude';
-  if (lower.includes('gemini')) return 'gemini';
-  if (lower.includes('perplexity') || lower.includes('sonar')) return 'perplexity';
-  if (lower.includes('grok')) return 'grok';
-  if (lower.includes('deepseek')) return 'deepseek';
-  return 'unknown';
-};
-
-const MAX_ATTACHMENT_CHARS = 12000;
-const GALAXY_PANEL_DEFAULT_VH = 75;
-const DUAL_PANEL_STACK_DEFAULT_VH = GALAXY_PANEL_DEFAULT_VH * 2;
-
-const formatBytes = (bytes = 0) => {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / (1024 ** index);
-  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-};
-
-const isTextLikeFile = (file) => {
-  if (file.type.startsWith('text/')) return true;
-  return ['application/json', 'application/xml', 'application/javascript', 'application/x-python-code'].includes(file.type)
-    || /\.(txt|md|csv|json|xml|js|jsx|ts|tsx|py|html|css)$/i.test(file.name);
-};
-
-const readFileAsText = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result || ''));
-  reader.onerror = reject;
-  reader.readAsText(file);
-});
-
-const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result || ''));
-  reader.onerror = reject;
-  reader.readAsDataURL(file);
-});
-
-const attachmentTargetsModel = (attachment, model) => {
-  if (attachment.targetMode === 'all') return true;
-  return (attachment.targetModels || []).includes(model);
-};
-
-const buildAttachmentPromptBlock = (attachments, model) => {
-  const targeted = attachments.filter(att => attachmentTargetsModel(att, model));
-  if (targeted.length === 0) return '';
-
-  const blocks = targeted.map((att) => {
-    const header = `- ${att.name} (${att.kind}, ${att.mimeType || 'unknown'}, ${formatBytes(att.size)})`;
-    if (!att.content) return header;
-    return `${header}\n  Content excerpt:\n${att.content.slice(0, 3000)}`;
-  });
-
-  return `[ATTACHMENTS]\n${blocks.join('\n\n')}`;
-};
-
-const normalizeAttachmentForTransport = (attachment) => ({
-  id: attachment.id,
-  name: attachment.name,
-  mime_type: attachment.mimeType,
-  kind: attachment.kind,
-  size: attachment.size,
-  content: (attachment.content || '').slice(0, MAX_ATTACHMENT_CHARS),
-  target_mode: attachment.targetMode,
-  target_models: attachment.targetModels || []
-});
-
-const sanitizeIncomingMessage = (message, fallbackId) => {
-  const raw = message && typeof message === 'object' ? message : {};
-  let safeContent = '';
-  if (typeof raw.content === 'string') {
-    safeContent = raw.content;
-  } else if (raw.content !== null && raw.content !== undefined) {
-    try {
-      safeContent = typeof raw.content === 'object'
-        ? JSON.stringify(raw.content, null, 2)
-        : String(raw.content);
-    } catch {
-      safeContent = String(raw.content);
-    }
-  }
-
-  return {
-    ...raw,
-    id: typeof raw.id === 'string' ? raw.id : fallbackId,
-    role: typeof raw.role === 'string' ? raw.role : 'assistant',
-    content: safeContent,
-    model: typeof raw.model === 'string' ? raw.model : '',
-    streaming: Boolean(raw.streaming),
+  const toggleDev = (devId) => {
+    setExpandedDev(prev => ({ ...prev, [devId]: !prev[devId] }));
   };
-};
-
-const ResponsePanel = ({ model, messages, onFeedback, onCopy, onShare, onAudio, onToggleSelect, selectedMessages, isPaused, onTogglePause, messageIndexMap, onSaveThread, onOpenPromptSettings, onOpenSynthesis, onCopyThread, renderMode }) => {
-  const scrollRef = useRef(null);
-  const color = getModelColor(model);
-  const modelType = getModelType(model);
-
-  useEffect(() => {
-    if (scrollRef.current && !isPaused) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isPaused]);
-
-  const modelMessages = messages.filter(m => m.model === model);
 
   return (
-    <div className="h-full flex flex-col bg-[#18181B] border-l border-border" data-testid={`response-panel-${model}`}>
-      {/* Header */}
-      <div 
-        className="p-3 border-b flex items-center justify-between"
-        style={{ borderBottomColor: color + '20' }}
-      >
-        <Badge 
-          variant="outline" 
-          className={`model-badge-${modelType} text-xs font-medium`}
-          data-testid={`model-badge-${model}`}
-        >
-          {model}
-        </Badge>
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onOpenSynthesis(model)}
-            className="h-7 w-7 p-0"
-            title="Synthesize from this model"
-            data-testid={`model-synthesis-btn-${model}`}
+    <div className="space-y-1" data-testid="model-selector">
+      {registry.map(dev => (
+        <div key={dev.developer_id} className="rounded-md border border-zinc-800 overflow-hidden">
+          <button
+            onClick={() => toggleDev(dev.developer_id)}
+            className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+            data-testid={`dev-tab-${dev.developer_id}`}
           >
-            <Wand2 className="h-3 w-3" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onCopyThread(model)}
-            className="h-7 w-7 p-0"
-            title="Copy this model thread"
-            data-testid={`model-copy-thread-btn-${model}`}
-          >
-            <Copy className="h-3 w-3" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onOpenPromptSettings(model)}
-            className="h-7 w-7 p-0"
-            title="Customize this model"
-            data-testid={`model-prompt-settings-btn-${model}`}
-          >
-            <SlidersHorizontal className="h-3 w-3" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onTogglePause}
-            className="h-7 w-7 p-0"
-            data-testid={`pause-btn-${model}`}
-          >
-            {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-4">
-          {modelMessages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              {isPaused ? 'Paused' : 'Waiting for response...'}
+            <span>{dev.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">
+                {dev.models.filter(m => selected.includes(m.model_id)).length}/{dev.models.length}
+              </span>
+              {expandedDev[dev.developer_id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </div>
-          ) : (
-            modelMessages.map((msg, idx) => {
-              const msgIndex = messageIndexMap[msg.id] || `${model}-${idx}`;
-              const isSelected = selectedMessages.includes(msg.id);
-              
-              return (
-                <div key={msg.id || idx} className="chat-message space-y-2">
-                  <div className="flex items-start gap-2">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => onToggleSelect(msg.id)}
-                      className="mt-1"
-                      data-testid={`select-msg-${msg.id}`}
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs" style={{ borderColor: color + '40', color: color }}>
-                          #{msgIndex}
-                        </Badge>
-                      </div>
-                      <ResponseMessageContent
-                        content={msg.content}
-                        messageId={msg.id || `${model}-${idx}`}
-                        streaming={msg.streaming}
-                        renderMode={renderMode}
-                      />
-                    </div>
-                  </div>
-                  {!msg.streaming && (
-                    <div className="flex items-center gap-2 pl-8">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onCopy(msg.content)}
-                        className="h-7 px-2"
-                        data-testid={`copy-btn-${msg.id}`}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onFeedback(msg.id, 'up')}
-                        className="h-7 px-2"
-                        data-testid={`thumbs-up-btn-${msg.id}`}
-                      >
-                        <ThumbsUp className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onFeedback(msg.id, 'down')}
-                        className="h-7 px-2"
-                        data-testid={`thumbs-down-btn-${msg.id}`}
-                      >
-                        <ThumbsDown className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onAudio(msg.content)}
-                        className="h-7 px-2"
-                        data-testid={`audio-btn-${msg.id}`}
-                      >
-                        <Volume2 className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onShare(msg.content, model)}
-                        className="h-7 px-2"
-                        data-testid={`share-btn-${msg.id}`}
-                      >
-                        <Share2 className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onSaveThread(model)}
-                        className="h-7 px-2"
-                        title="Save this model's thread"
-                        data-testid={`save-thread-btn-${model}`}
-                      >
-                        <Download className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+          </button>
+          {expandedDev[dev.developer_id] && (
+            <div className="px-3 pb-2 space-y-1 bg-zinc-900/40">
+              {dev.models.map(m => (
+                <label
+                  key={m.model_id}
+                  className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-zinc-800/40 text-sm"
+                  data-testid={`model-checkbox-${m.model_id}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(m.model_id)}
+                    onChange={() => onToggle(m.model_id)}
+                    className="rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500/30"
+                  />
+                  <span className="text-zinc-300">{m.display_name || m.model_id}</span>
+                </label>
+              ))}
+            </div>
           )}
         </div>
-      </ScrollArea>
+      ))}
     </div>
   );
-};
+}
 
-export default function ChatPage() {
-  const { logout, isAuthenticated, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
-  const {
-    activeTopTab, setActiveTopTab,
-    selectedModels, setSelectedModels,
-    visibleModelIndex, setVisibleModelIndex,
-    input, setInput,
-    messages, setMessages,
-    conversationId, setConversationId,
-    streaming, setStreaming,
-    selectedMessages, setSelectedMessages,
-    pausedModels, setPausedModels,
-    promptHistory, setPromptHistory,
-    messageIndexMap, setMessageIndexMap,
-    nextIndex, setNextIndex,
-    allocPromptIndex,
-    globalContext, setGlobalContext,
-    autoExport, setAutoExport,
-    modelRoles, setModelRoles,
-    contextMode, setContextMode,
-    sharedRoomMode, setSharedRoomMode,
-    cascadeConfig, setCascadeConfig,
-    cascadeRunning, setCascadeRunning,
-    cascadeProgress, setCascadeProgress,
-    resetChat,
-  } = useChat();
+// ---- Response Panel ----
+function ResponsePanel({ model, content, messageId, responseTime, feedback, onFeedback, isStreaming }) {
+  const [copied, setCopied] = useState(false);
 
-  const cascadeRunningRef = useRef(cascadeRunning);
-  useEffect(() => {
-    cascadeRunningRef.current = cascadeRunning;
-  }, [cascadeRunning]);
-
-  // UI-only state (fine to reset on remount)
-  const [showSynthesisDialog, setShowSynthesisDialog] = useState(false);
-  const [synthesisModels, setSynthesisModels] = useState([]);
-  const [synthesisPrompt, setSynthesisPrompt] = useState('');
-  const [synthesisSourceModel, setSynthesisSourceModel] = useState('');
-  const [showRolesDialog, setShowRolesDialog] = useState(false);
-  const [universalStatus, setUniversalStatus] = useState(null);
-  const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
-  const [attachments, setAttachments] = useState([]);
-  const [modelPromptDialog, setModelPromptDialog] = useState({ open: false, model: '' });
-  const [panelLock, setPanelLock] = useState(false);
-  const [panelSplit, setPanelSplit] = useState([50, 50]);
-  const [carouselAnimating, setCarouselAnimating] = useState(false);
-  const [refreshingFromLogs, setRefreshingFromLogs] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [renderMode, setRenderMode] = useState('markdown');
-  const fileInputRef = useRef(null);
-  const swipeStartXRef = useRef(null);
-  const pointerStartXRef = useRef(null);
-  const carouselWheelLastTickRef = useRef(0);
-
-  const [showConversationSearchDialog, setShowConversationSearchDialog] = useState(false);
-  const [conversationSearchQuery, setConversationSearchQuery] = useState('');
-  const [conversationSearchResults, setConversationSearchResults] = useState([]);
-  const [conversationSearchLoading, setConversationSearchLoading] = useState(false);
-  
-  // Research features
-  const [batchPrompts, setBatchPrompts] = useState('');
-  const [showBatchDialog, setShowBatchDialog] = useState(false);
-  const [batchRunning, setBatchRunning] = useState(false);
-  const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
-  
-  // NOTE: Global Context + Roles are now handled via top tabs
-
-  // Get visible models for carousel (show 2 at a time)
-  const getVisibleModels = () => {
-    if (selectedModels.length <= 2) return selectedModels;
-    return [
-      selectedModels[visibleModelIndex],
-      selectedModels[(visibleModelIndex + 1) % selectedModels.length]
-    ];
-  };
-
-  const triggerCarouselMotion = () => {
-    setCarouselAnimating(true);
-    setTimeout(() => setCarouselAnimating(false), 220);
-  };
-
-  const togglePanelLock = () => {
-    setPanelLock(prev => {
-      const next = !prev;
-      if (next) {
-        setPanelSplit([50, 50]);
-      }
-      toast(next ? 'Window lock enabled: forced 50/50 split' : 'Window lock disabled: drag divider to resize');
-      return next;
-    });
-  };
-
-  const handlePrevModel = () => {
-    if (panelLock) {
-      toast('Unlock window stack to rotate carousel');
-      return;
-    }
-    triggerCarouselMotion();
-    setVisibleModelIndex((prev) => 
-      prev === 0 ? selectedModels.length - 1 : prev - 1
-    );
-  };
-
-  const handleNextModel = () => {
-    if (panelLock) {
-      toast('Unlock window stack to rotate carousel');
-      return;
-    }
-    triggerCarouselMotion();
-    setVisibleModelIndex((prev) => 
-      (prev + 1) % selectedModels.length
-    );
-  };
-
-  const openModelPromptDialog = (model) => {
-    setModelPromptDialog({ open: true, model });
-    setActiveTopTab('scene');
-  };
-
-  const updateModelSetting = (model, updates) => {
-    setCascadeConfig(prev => ({
-      ...prev,
-      modelSettings: {
-        ...(prev.modelSettings || {}),
-        [model]: {
-          ...(prev.modelSettings?.[model] || {}),
-          ...updates
-        }
-      }
-    }));
-  };
-
-  const handleAttachmentButton = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleAddAttachments = async (event) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    const parsed = [];
-    for (const file of files) {
-      try {
-        let content = '';
-        let kind = 'file';
-
-        if (file.type.startsWith('image/')) {
-          kind = 'image';
-          const dataUrl = await readFileAsDataUrl(file);
-          content = dataUrl.slice(0, MAX_ATTACHMENT_CHARS);
-        } else if (isTextLikeFile(file)) {
-          kind = 'text';
-          const text = await readFileAsText(file);
-          content = text.slice(0, MAX_ATTACHMENT_CHARS);
-        } else {
-          const dataUrl = await readFileAsDataUrl(file);
-          content = dataUrl.slice(0, MAX_ATTACHMENT_CHARS);
-        }
-
-        parsed.push({
-          id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          name: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          size: file.size,
-          kind,
-          content,
-          targetMode: 'all',
-          targetModels: []
-        });
-      } catch {
-        toast.error(`Could not read ${file.name}`);
-      }
-    }
-
-    if (parsed.length > 0) {
-      setAttachments(prev => [...prev, ...parsed]);
-      setAttachmentDialogOpen(true);
-      toast.success(`${parsed.length} attachment(s) added`);
-    }
-
-    event.target.value = '';
-  };
-
-  const removeAttachment = (attachmentId) => {
-    setAttachments(prev => prev.filter(att => att.id !== attachmentId));
-  };
-
-  const updateAttachmentTargetMode = (attachmentId, targetMode) => {
-    setAttachments(prev => prev.map(att => {
-      if (att.id !== attachmentId) return att;
-      return {
-        ...att,
-        targetMode,
-        targetModels: targetMode === 'all' ? [] : att.targetModels
-      };
-    }));
-  };
-
-  const toggleAttachmentModel = (attachmentId, model) => {
-    setAttachments(prev => prev.map(att => {
-      if (att.id !== attachmentId) return att;
-      const exists = att.targetModels.includes(model);
-      return {
-        ...att,
-        targetModels: exists
-          ? att.targetModels.filter(m => m !== model)
-          : [...att.targetModels, model]
-      };
-    }));
-  };
-
-  const handleSwipeStart = (event) => {
-    if (event.touches && event.touches.length >= 2) {
-      togglePanelLock();
-      swipeStartXRef.current = null;
-      return;
-    }
-
-    if (panelLock) {
-      swipeStartXRef.current = null;
-      return;
-    }
-
-    swipeStartXRef.current = event.changedTouches?.[0]?.clientX ?? null;
-  };
-
-  const handleSwipeEnd = (event) => {
-    if (panelLock || selectedModels.length <= 2 || swipeStartXRef.current === null) return;
-    const endX = event.changedTouches?.[0]?.clientX ?? swipeStartXRef.current;
-    const delta = endX - swipeStartXRef.current;
-    const threshold = 40;
-
-    if (Math.abs(delta) >= threshold) {
-      if (delta > 0) {
-        handlePrevModel();
-      } else {
-        handleNextModel();
-      }
-    }
-
-    swipeStartXRef.current = null;
-  };
-
-  const handlePointerDown = (event) => {
-    if (panelLock || selectedModels.length <= 2) {
-      pointerStartXRef.current = null;
-      return;
-    }
-    pointerStartXRef.current = event.clientX;
-  };
-
-  const handlePointerUp = (event) => {
-    if (panelLock || selectedModels.length <= 2 || pointerStartXRef.current === null) return;
-    const delta = event.clientX - pointerStartXRef.current;
-    const threshold = 48;
-    if (Math.abs(delta) >= threshold) {
-      if (delta > 0) {
-        handlePrevModel();
-      } else {
-        handleNextModel();
-      }
-    }
-    pointerStartXRef.current = null;
-  };
-
-  const handleCarouselWheel = (event) => {
-    if (panelLock || selectedModels.length <= 2) return;
-
-    const now = Date.now();
-    if (now - carouselWheelLastTickRef.current < 240) return;
-
-    if (Math.abs(event.deltaX) < 12 || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
-    carouselWheelLastTickRef.current = now;
-
-    event.preventDefault();
-    if (event.deltaX > 0) {
-      handleNextModel();
-    } else {
-      handlePrevModel();
-    }
-  };
-
-  const buildSharedPairs = (models = []) => {
-    const pairMap = {};
-    models.forEach(model => {
-      pairMap[model] = [];
-    });
-
-    for (let index = 0; index < models.length; index += 2) {
-      const first = models[index];
-      const second = models[index + 1];
-
-      if (first && second) {
-        pairMap[first] = [second];
-        pairMap[second] = [first];
-      } else if (first && index > 0) {
-        const fallback = models[index - 1];
-        pairMap[first] = [fallback];
-        pairMap[fallback] = Array.from(new Set([...(pairMap[fallback] || []), first]));
-      }
-    }
-
-    return pairMap;
-  };
-
-  const getSharedRoomPairsForPayload = (models) => {
-    if (contextMode !== 'shared' || sharedRoomMode !== 'parallel_paired') {
-      return undefined;
-    }
-    return buildSharedPairs(models);
-  };
-
-  const syncConversationMessages = useCallback(async (convId, silent = true) => {
-    if (!convId) return false;
-    try {
-      const token = localStorage.getItem('token');
-      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
-      const response = await axios.get(`${API}/conversations/${convId}/messages`, config);
-      const serverMessages = Array.isArray(response.data)
-        ? response.data.map((msg, idx) => sanitizeIncomingMessage({ ...msg, streaming: false }, `srv-${convId}-${idx}`))
-        : [];
-
-      setMessages(serverMessages);
-      if (!silent && serverMessages.length === 0) {
-        toast('No persisted messages found for this conversation yet');
-      }
-      return true;
-    } catch (error) {
-      if (!silent) {
-        toast.error('Unable to refresh conversation from server');
-      }
-      return false;
-    }
-  }, [setMessages]);
-
-  const handleRefreshFromLogs = async () => {
-    if (refreshingFromLogs) return;
-    if (streaming) {
-      toast('Wait for current streaming to finish before refreshing logs');
-      return;
-    }
-    setRefreshingFromLogs(true);
-    try {
-      if (conversationId) {
-        await syncConversationMessages(conversationId, false);
-        toast.success('Conversation refreshed from logs');
-      } else {
-        toast.error('No active conversation selected yet');
-      }
-    } finally {
-      setRefreshingFromLogs(false);
-    }
-  };
-
-  const handleRestoreLatestConversation = async () => {
-    if (refreshingFromLogs) return;
-    if (streaming) {
-      toast('Wait for current streaming to finish before restoring latest thread');
-      return;
-    }
-    setRefreshingFromLogs(true);
-    try {
-      const token = localStorage.getItem('token');
-      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
-      const response = await axios.get(`${API}/conversations`, config);
-      const latestConversationId = response.data?.[0]?.id;
-
-      if (!latestConversationId) {
-        toast.error('No saved conversations available');
-        return;
-      }
-
-      setConversationId(latestConversationId);
-      await syncConversationMessages(latestConversationId, true);
-      toast.success('Latest conversation restored');
-    } catch {
-      toast.error('Unable to restore latest conversation');
-    } finally {
-      setRefreshingFromLogs(false);
-    }
-  };
-
-  const fetchConversationSearch = useCallback(async (queryText = '') => {
-    setConversationSearchLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
-      const response = await axios.get(`${API}/conversations/search`, {
-        ...(config || {}),
-        params: {
-          q: queryText,
-          offset: 0,
-          limit: 20
-        }
-      });
-      setConversationSearchResults(response.data?.conversations || []);
-    } catch {
-      setConversationSearchResults([]);
-      toast.error('Failed to search conversation history');
-    } finally {
-      setConversationSearchLoading(false);
-    }
-  }, []);
-
-  const openConversationSearchDialog = () => {
-    setShowConversationSearchDialog(true);
-    setConversationSearchQuery('');
-    fetchConversationSearch('');
-  };
-
-  const handleSelectConversationFromSearch = async (convId) => {
-    if (!convId) return;
-    setConversationId(convId);
-    await syncConversationMessages(convId, true);
-    setShowConversationSearchDialog(false);
-    toast.success('Conversation loaded from search');
-  };
-
-  useEffect(() => {
-    if (!authLoading && isAuthenticated && conversationId && !streaming) {
-      syncConversationMessages(conversationId, true);
-    }
-  }, [authLoading, isAuthenticated, conversationId, streaming, syncConversationMessages]);
-
-  useEffect(() => {
-    if (!conversationId || !isAuthenticated) return undefined;
-    const handleWindowFocus = () => {
-      if (!streaming) {
-        syncConversationMessages(conversationId, true);
-      }
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    return () => window.removeEventListener('focus', handleWindowFocus);
-  }, [conversationId, isAuthenticated, streaming, syncConversationMessages]);
-
-  useEffect(() => {
-    if (!showConversationSearchDialog) return undefined;
-    const timer = setTimeout(() => {
-      fetchConversationSearch(conversationSearchQuery);
-    }, 220);
-
-    return () => clearTimeout(timer);
-  }, [showConversationSearchDialog, conversationSearchQuery, fetchConversationSearch]);
-
-  const handleSend = async (customMessage = null, targetModels = null, skipAutoExport = false, skipWrap = false, options = {}) => {
-    const {
-      persistUserMessage = true,
-      suppressUserMessage = false,
-      suppressPromptHistory = false,
-      historyLimit = null,
-      skipInputClear = false,
-      conversationIdOverride = null,
-      includeAttachments = true
-    } = options || {};
-
-    let baseMessage = customMessage || input;
-    if (!baseMessage.trim() || streaming) return null;
-
-    let finalContents = {};
-    
-    const modelsToQuery = targetModels || selectedModels.filter(m => !pausedModels[m]);
-    if (modelsToQuery.length === 0) {
-      toast.error('All models are paused or no models selected');
-      return null;
-    }
-    
-    if (!customMessage && !skipInputClear) setInput('');
-    const pendingAttachments = includeAttachments ? [...attachments] : [];
-
-    const unroutedAttachments = pendingAttachments.filter(
-      att => att.targetMode === 'selected' && (!att.targetModels || att.targetModels.length === 0)
-    );
-    if (unroutedAttachments.length > 0) {
-      toast.error('Choose at least one model for selected-only attachments');
-      return null;
-    }
-
-    setStreaming(true);
-    
-    // Generate or use existing conversation ID
-    const currentConvId = conversationIdOverride || conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    if (conversationId !== currentConvId) {
-      setConversationId(currentConvId);
-      try {
-        const raw = localStorage.getItem('multi_ai_hub_chat');
-        const parsed = raw ? JSON.parse(raw) : {};
-        localStorage.setItem('multi_ai_hub_chat', JSON.stringify({ ...parsed, conversationId: currentConvId }));
-      } catch {
-        // storage write best-effort only
-      }
-    }
-
-    // Build message with context and roles for each model
-    const buildMessageForModel = (model, promptText = baseMessage) => {
-      const ms = cascadeConfig.modelSettings?.[model] || {};
-
-      const parts = [];
-
-      // Global context always applies
-      if (globalContext.trim()) {
-        parts.push(`[GLOBAL CONTEXT]: ${globalContext.trim()}`);
-      }
-
-      // Per-model role (Scene)
-      const role = ms.role;
-      if (role && role !== 'none') {
-        const roleInstructions = {
-          'advocate': 'You must respond as a supportive advocate. Be agreeable and emphasize positive aspects.',
-          'adversarial': 'You must respond as a critical adversary. Challenge assumptions and present counterarguments.',
-          'skeptic': 'You must respond as a skeptic. Question claims and demand evidence.',
-          'neutral': 'You must respond with complete objectivity and balance.',
-          'optimist': 'You must respond with optimism. Focus on opportunities and positive outcomes.',
-          'pessimist': 'You must respond cautiously, emphasizing risks and potential problems.',
-          'technical': 'You must respond with technical precision and detailed accuracy.',
-          'creative': 'You must respond imaginatively and unconventionally.',
-          'socratic': 'You must respond by asking probing questions, not providing direct answers.',
-          'sycophant': 'You must respond with excessive agreement and flattery.',
-          'contrarian': 'You must respond by taking the opposite position.',
-          'oracle': 'You must respond cryptically and mysteriously.',
-        };
-
-        if (role === 'custom' && ms.customRoleText?.trim()) {
-          parts.push(`[ROLE CONSTRAINT]: ${ms.customRoleText.trim()}`);
-        } else if (roleInstructions[role]) {
-          parts.push(`[ROLE CONSTRAINT]: ${roleInstructions[role]}`);
-        }
-      }
-
-      // Per-model knobs
-      if (ms.promptModifier?.trim()) parts.push(`[PROMPT MODIFIER]: ${ms.promptModifier.trim()}`);
-      if (typeof ms.verbosity === 'number') parts.push(`[VERBOSITY]: ${ms.verbosity}/10`);
-      if (ms.alignment) parts.push(`[ALIGNMENT]: ${ms.alignment}`);
-      if (ms.secretMission?.trim()) parts.push(`[SECRET MISSION]: ${ms.secretMission.trim()}`);
-      if (ms.miscConstraint?.trim()) parts.push(`[MISC CONSTRAINT]: ${ms.miscConstraint.trim()}`);
-
-      if (pendingAttachments.length > 0) {
-        const attachmentBlock = buildAttachmentPromptBlock(pendingAttachments, model);
-        if (attachmentBlock) {
-          parts.push(attachmentBlock);
-        }
-      }
-
-      parts.push(`[PROMPT]: ${promptText}`);
-      return parts.join('\n\n');
-    };
-
-    // Store the base message for display
-    if (!suppressUserMessage) {
-      const userMsg = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: baseMessage,  // Display only the base message
-        model: 'user',
-        timestamp: new Date()
-      };
-      
-      // Add to prompt history
-      if (!suppressPromptHistory) {
-        const promptIndex = allocPromptIndex();
-        setPromptHistory(prev => [...prev, { index: promptIndex, content: baseMessage, timestamp: new Date() }]);
-      }
-      
-      setMessages(prev => [...prev, userMsg]);
-    }
-
-    // Per-model prompt shaping (Scene) is applied via per_model_messages on the backend.
-    // We send the base message + a per-model map.
-    const messageToSend = skipWrap ? baseMessage : baseMessage;
-
-    const perModelMessages = skipWrap ? null : Object.fromEntries(
-      modelsToQuery.map(m => [m, buildMessageForModel(m, baseMessage)])
-    );
-
-    try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      
-      // Add JWT token if available (for traditional auth)
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const payload = {
-        message: messageToSend,
-        models: modelsToQuery,
-        conversation_id: currentConvId,
-        context_mode: contextMode,
-        shared_room_mode: contextMode === 'shared' ? sharedRoomMode : undefined,
-        shared_pairs: getSharedRoomPairsForPayload(modelsToQuery),
-        global_context: globalContext,
-        model_roles: modelRoles,
-        per_model_messages: perModelMessages || undefined,
-        persist_user_message: persistUserMessage,
-        attachments: pendingAttachments.map(normalizeAttachmentForTransport)
-      };
-
-      if (typeof historyLimit === 'number') {
-        payload.history_limit = Math.max(0, historyLimit);
-      }
-
-      const response = await fetch(`${API}/chat/stream`, {
-        method: 'POST',
-        headers: headers,
-        credentials: 'include',  // Important for cookie-based auth
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Stream request failed with status ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('Streaming response body is unavailable');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let sseBuffer = '';
-      
-      const modelBuffers = {};
-      modelsToQuery.forEach(model => {
-        modelBuffers[model] = { id: '', content: '' };
-      });
-
-      const processSseLine = (line) => {
-        if (!line || !line.startsWith('data:')) return;
-        try {
-          const data = JSON.parse(line.replace(/^data:\s*/, '').trim());
-
-          if (data.model && data.message_id) {
-            if (data.content) {
-              // Check if model is paused
-              if (pausedModels[data.model]) return;
-
-              // Chunk received
-              modelBuffers[data.model].id = data.message_id;
-              modelBuffers[data.model].content += data.content;
-
-              // Update messages
-              setMessages(prev => {
-                const existing = prev.find(m => m.id === data.message_id);
-                if (existing) {
-                  return prev.map(m =>
-                    m.id === data.message_id
-                      ? { ...m, content: modelBuffers[data.model].content, streaming: true }
-                      : m
-                  );
-                }
-
-                // Assign index when message is created
-                const msgIndex = allocPromptIndex();
-                setMessageIndexMap(prevMap => ({ ...prevMap, [data.message_id]: msgIndex }));
-
-                return [...prev, {
-                  id: data.message_id,
-                  role: 'assistant',
-                  content: modelBuffers[data.model].content,
-                  model: data.model,
-                  streaming: true,
-                  timestamp: new Date()
-                }];
-              });
-            } else if (data.message_id) {
-              // Complete event
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === data.message_id
-                    ? { ...m, streaming: false }
-                    : m
-                )
-              );
-
-              // capture final content for return
-              if (data.model && modelBuffers[data.model]) {
-                finalContents[data.model] = modelBuffers[data.model].content;
-              }
-            }
-          }
-
-          if (data.error) {
-            toast.error(`${data.model}: ${data.error}`);
-          }
-        } catch {
-          // ignore partial/invalid JSON line
-        }
-      };
-
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        sseBuffer += decoder.decode(value, { stream: true });
-        const lines = sseBuffer.split('\n');
-        sseBuffer = lines.pop() || '';
-
-        for (const line of lines) {
-          processSseLine(line.trim());
-        }
-      }
-
-      const tail = `${sseBuffer}${decoder.decode()}`.trim();
-      if (tail) {
-        processSseLine(tail);
-      }
-      // Note: prompt indices allocated incrementally via allocPromptIndex()
-
-      if (includeAttachments && pendingAttachments.length > 0) {
-        setAttachments([]);
-      }
-
-      await syncConversationMessages(currentConvId, true);
-      
-      // Auto-export if enabled
-      if (autoExport && !skipAutoExport && conversationId) {
-        setTimeout(() => handleExport('json'), 1000);
-      }
-      
-    } catch (error) {
-      console.error('Stream error:', error);
-      toast.error('Failed to send message');
-      return null;
-    } finally {
-      setStreaming(false);
-    }
-
-    return finalContents;
-  };
-
-  const loadUniversalStatus = () => {
-    try {
-      const raw = sessionStorage.getItem(UNIVERSAL_STATUS_KEY);
-      if (raw) {
-        const cached = JSON.parse(raw);
-        const checkedAt = cached?.checked_at ? new Date(cached.checked_at).getTime() : 0;
-        if (Date.now() - checkedAt < UNIVERSAL_STATUS_TTL) {
-          setUniversalStatus(cached);
-          return;
-        }
-      }
-    } catch {
-      // ignore and re-check
-    }
-    checkUniversalStatus();
-  };
-
-  const checkUniversalStatus = async () => {
-    try {
-      const res = await axios.get(`${API}/keys/universal/status`);
-      const payload = { ...res.data, checked_at: new Date().toISOString() };
-      setUniversalStatus(payload);
-      sessionStorage.setItem(UNIVERSAL_STATUS_KEY, JSON.stringify(payload));
-    } catch (error) {
-      const payload = {
-        status: 'error',
-        message: error.response?.data?.detail || 'Universal key validation failed',
-        checked_at: new Date().toISOString()
-      };
-      setUniversalStatus(payload);
-      sessionStorage.setItem(UNIVERSAL_STATUS_KEY, JSON.stringify(payload));
-    }
-  };
-
-  useEffect(() => {
-    loadUniversalStatus();
-  }, []);
-
-  const handleOpenModelSynthesis = (model) => {
-    const modelMessageIds = messages
-      .filter(m => m.role === 'assistant' && m.model === model && m.id)
-      .map(m => m.id);
-
-    if (modelMessageIds.length === 0) {
-      toast.error('No responses available for synthesis in this panel');
-      return;
-    }
-
-    const selectedForModel = selectedMessages.filter(id => modelMessageIds.includes(id));
-    const fallbackMessageId = modelMessageIds[modelMessageIds.length - 1];
-    const nextSelected = selectedForModel.length > 0 ? selectedForModel : [fallbackMessageId];
-    const targetDefaults = selectedModels.filter(m => m !== model);
-
-    setSelectedMessages(nextSelected);
-    setSynthesisSourceModel(model);
-    setSynthesisModels(targetDefaults.length > 0 ? targetDefaults : [model]);
-    setShowSynthesisDialog(true);
-  };
-
-  const closeSynthesisDialog = () => {
-    setShowSynthesisDialog(false);
-    setSynthesisPrompt('');
-    setSynthesisModels([]);
-    setSynthesisSourceModel('');
-  };
-
-  const handleSynthesis = async () => {
-    if (selectedMessages.length === 0) {
-      toast.error('Please select at least one response');
-      return;
-    }
-    
-    if (synthesisModels.length === 0) {
-      toast.error('Please select at least one model for synthesis');
-      return;
-    }
-    
-    // Build synthesis prompt
-    const selectedMsgs = messages.filter(m => {
-      if (!selectedMessages.includes(m.id)) return false;
-      if (!synthesisSourceModel) return true;
-      return m.model === synthesisSourceModel;
-    });
-
-    if (selectedMsgs.length === 0) {
-      toast.error('No selected responses available for this model');
-      return;
-    }
-
-    const responsesText = selectedMsgs.map((msg, idx) => {
-      const msgIndex = messageIndexMap[msg.id] || idx;
-      return `Response #${msgIndex} from ${msg.model}:\n${msg.content}`;
-    }).join('\n\n');
-    
-    const fullPrompt = synthesisPrompt || 'Synthesize and analyze these AI responses:';
-    const synthesisMessage = `${fullPrompt}\n\n${responsesText}`;
-    
-    closeSynthesisDialog();
-    setSelectedMessages([]);
-    
-    // Send to selected models
-    await handleSend(synthesisMessage, synthesisModels);
-  };
-
-  const handleExport = async (format = 'json') => {
-    if (!conversationId) {
-      toast.error('No conversation to export');
-      return;
-    }
-    
-    try {
-      const response = await axios.get(`${API}/conversations/${conversationId}/export`, {
-        params: { format },
-        responseType: 'blob'
-      });
-      
-      const blob = new Blob([response.data], { 
-        type: format === 'pdf' ? 'application/pdf' : format === 'txt' ? 'text/plain' : 'application/json'
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `conversation-${new Date().toISOString().split('T')[0]}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      toast.success(`Conversation exported as ${format.toUpperCase()}`);
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Failed to export conversation');
-    }
-  };
-
-  const handleSelectAll = () => {
-    const allAssistantMsgIds = messages
-      .filter(m => m.role === 'assistant' && m.id)
-      .map(m => m.id);
-    setSelectedMessages(allAssistantMsgIds);
-    toast.success(`Selected ${allAssistantMsgIds.length} responses`);
-  };
-
-  const handleClearSelection = () => {
-    setSelectedMessages([]);
-  };
-
-  const handleCatchup = async (newModels) => {
-    if (!conversationId) {
-      toast.error('No conversation to catch up');
-      return;
-    }
-
-    try {
-      const messageIds = selectedMessages.length > 0 ? selectedMessages : undefined;
-      
-      await axios.post(`${API}/chat/catchup`, {
-        conversation_id: conversationId,
-        new_models: newModels,
-        message_ids: messageIds
-      });
-      
-      // Now send the catchup through regular chat
-      const catchupMessages = selectedMessages.length > 0 
-        ? messages.filter(m => selectedMessages.includes(m.id))
-        : messages;
-      
-      const catchupText = catchupMessages.map(m => {
-        if (m.role === 'user') return `User: ${m.content}`;
-        return `${m.model}: ${m.content}`;
-      }).join('\n\n');
-      
-      const catchupPrompt = `Here is the conversation history to catch you up:\n\n${catchupText}\n\nYou are now caught up. Please acknowledge that you understand the conversation context.`;
-      
-      await handleSend(catchupPrompt, newModels);
-      
-      toast.success(`Catching up ${newModels.length} model(s)`);
-    } catch (error) {
-      console.error('Catchup error:', error);
-      toast.error('Failed to catch up models');
-    }
-  };
-
-  const handleFeedback = async (messageId, feedback) => {
-    try {
-      const token = localStorage.getItem('token');
-      const config = token
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : undefined;
-
-      await axios.post(`${API}/chat/feedback`, {
-        message_id: messageId,
-        feedback
-      }, config);
-      toast.success('Feedback submitted');
-    } catch (error) {
-      toast.error('Failed to submit feedback');
-    }
-  };
-
-  const handleCopy = (content) => {
+  const handleCopy = () => {
     navigator.clipboard.writeText(content);
-    toast.success('Copied to clipboard');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
-
-  const handleCopyModelThread = (model) => {
-    const modelThread = messages
-      .filter(m => m.model === model || m.role === 'user')
-      .map(m => `${m.role === 'user' ? 'User' : m.model}: ${m.content}`)
-      .join('\n\n');
-
-    if (!modelThread.trim()) {
-      toast.error('No thread content to copy');
-      return;
-    }
-
-    handleCopy(modelThread);
-  };
-
-  const handleShare = async (content, model) => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Response from ${model}`,
-          text: content
-        });
-      } catch (error) {
-        handleCopy(content);
-      }
-    } else {
-      handleCopy(content);
-    }
-  };
-
-  const handleAudio = (content) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(content);
-      window.speechSynthesis.speak(utterance);
-      toast.success('Playing audio');
-    } else {
-      toast.error('Text-to-speech not supported');
-    }
-  };
-
-  const handleNewChat = () => {
-    resetChat();
-  };
-
-  const handleBatchRun = async () => {
-    if (!batchPrompts.trim()) {
-      toast.error('Please enter batch prompts');
-      return;
-    }
-    
-    const prompts = batchPrompts.split('\n').filter(p => p.trim());
-    if (prompts.length === 0) {
-      toast.error('No valid prompts found');
-      return;
-    }
-    
-    setBatchRunning(true);
-    setShowBatchDialog(false);
-    
-    for (let i = 0; i < prompts.length; i++) {
-      setCurrentBatchIndex(i + 1);
-      toast.info(`Running prompt ${i + 1} of ${prompts.length}`);
-      
-      await handleSend(prompts[i], null, true, false); // Skip auto-export for batch
-      
-      // Wait for streaming to complete
-      while (streaming) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // Delay between prompts to avoid rate limits
-      if (i < prompts.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-    
-    setBatchRunning(false);
-    setCurrentBatchIndex(0);
-    
-    // Auto-export batch results
-    if (autoExport && conversationId) {
-      await handleExport('json');
-    }
-    
-    toast.success('Batch processing complete');
-  };
-
-  const handleRoleAssignment = (model, role) => {
-    setModelRoles(prev => ({
-      ...prev,
-      [model]: role
-    }));
-  };
-
-  const handleSaveThread = (model) => {
-    try {
-      // Get all messages for this specific model
-      const modelMessages = messages.filter(m => m.model === model || m.model === 'user');
-      
-      if (modelMessages.length === 0) {
-        toast.error('No messages to save');
-        return;
-      }
-      
-      // Create export data
-      const threadData = {
-        model: model,
-        exported_at: new Date().toISOString(),
-        message_count: modelMessages.length,
-        messages: modelMessages.map(m => ({
-          index: messageIndexMap[m.id] || 'N/A',
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp
-        }))
-      };
-      
-      // Download as JSON
-      const blob = new Blob([JSON.stringify(threadData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${model.replace(/[^a-z0-9]/gi, '_')}-thread-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      toast.success(`${model} thread saved`);
-    } catch (error) {
-      toast.error('Failed to save thread');
-    }
-  };
-
-  const buildCascadeMessageForModel = (model, baseText) => {
-    const ms = cascadeConfig.modelSettings?.[model] || {};
-
-    const parts = [];
-
-    // Global cascade toggles
-    if (cascadeConfig.roleplayEnabled && cascadeConfig.roleplayText.trim()) {
-      parts.push(`[ROLEPLAY]: ${cascadeConfig.roleplayText.trim()}`);
-    }
-    // Global context applies to everything (Scene)
-    if (globalContext.trim()) {
-      parts.push(`[GLOBAL CONTEXT]: ${globalContext.trim()}`);
-    }
-
-    // Per-model role (reuse existing defaults + allow custom)
-    const role = ms.role;
-    if (role && role !== 'none') {
-      const roleInstructions = {
-        'advocate': 'You must respond as a supportive advocate. Be agreeable and emphasize positive aspects.',
-        'adversarial': 'You must respond as a critical adversary. Challenge assumptions and present counterarguments.',
-        'skeptic': 'You must respond as a skeptic. Question claims and demand evidence.',
-        'neutral': 'You must respond with complete objectivity and balance.',
-        'optimist': 'You must respond with optimism. Focus on opportunities and positive outcomes.',
-        'pessimist': 'You must respond cautiously, emphasizing risks and potential problems.',
-        'technical': 'You must respond with technical precision and detailed accuracy.',
-        'creative': 'You must respond imaginatively and unconventionally.',
-        'socratic': 'You must respond by asking probing questions, not providing direct answers.',
-        'sycophant': 'You must respond with excessive agreement and flattery.',
-        'contrarian': 'You must respond by taking the opposite position.',
-        'oracle': 'You must respond cryptically and mysteriously.',
-      };
-
-      if (role === 'custom' && ms.customRoleText?.trim()) {
-        parts.push(`[ROLE CONSTRAINT]: ${ms.customRoleText.trim()}`);
-      } else if (roleInstructions[role]) {
-        parts.push(`[ROLE CONSTRAINT]: ${roleInstructions[role]}`);
-      }
-    }
-
-    // Per-model knobs
-    if (ms.promptModifier?.trim()) parts.push(`[PROMPT MODIFIER]: ${ms.promptModifier.trim()}`);
-    if (typeof ms.verbosity === 'number') parts.push(`[VERBOSITY]: ${ms.verbosity}/10`);
-    if (ms.alignment) parts.push(`[ALIGNMENT]: ${ms.alignment}`);
-    if (ms.secretMission?.trim()) parts.push(`[SECRET MISSION]: ${ms.secretMission.trim()}`);
-    if (ms.miscConstraint?.trim()) parts.push(`[MISC CONSTRAINT]: ${ms.miscConstraint.trim()}`);
-
-    parts.push(`[PROMPT]: ${baseText}`);
-    return parts.join('\n\n');
-  };
-
-  const handleCascade = async () => {
-    const included = selectedModels.filter(model => {
-      const ms = cascadeConfig.modelSettings?.[model];
-      return ms?.included !== false;
-    });
-
-    if (included.length === 0) {
-      toast.error('Select at least one model for cascade');
-      return;
-    }
-
-    if (cascadeRunning) return;
-
-    setCascadeRunning(true);
-    cascadeRunningRef.current = true; // Immediately update ref to prevent immediate "Cascade stopped" error
-
-    // Get a stable snapshot of messages before starting
-    const initialMessages = messages;
-
-    try {
-      // Seed prompt
-      let seedText = '';
-      
-      if (cascadeConfig.seedMode === 'custom') {
-        seedText = cascadeConfig.seedCustomText || '';
-      } else {
-        const lastUser = [...initialMessages].reverse().find(m => m.role === 'user');
-        seedText = lastUser?.content || '';
-      }
-
-
-      if (!seedText.trim()) {
-        toast.error('Cascade needs a seed prompt (send a user prompt first or set a custom seed)');
-        setCascadeRunning(false);
-        cascadeRunningRef.current = false;
-        return;
-      }
-      
-
-      // Ensure we have a conversation id for cascade messages
-      const cascadeConvId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // If using a custom seed, add it as a user message once
-      if (cascadeConfig.seedMode === 'custom') {
-        const userMsg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: seedText,
-          model: 'user',
-          timestamp: new Date()
-        };
-        const promptIndex = allocPromptIndex();
-        setPromptHistory(prev => [...prev, { index: promptIndex, content: seedText, timestamp: new Date() }]);
-        setMessages(prev => [...prev, userMsg]);
-      }
-
-      const responseHistory = [];
-      let seedPersisted = false;
-      const contextWindow = Math.max(1, parseInt(cascadeConfig.sequentialContextCount || 1) || 1);
-
-      for (let round = 1; round <= cascadeConfig.rounds; round++) {
-        // order for this round
-        let order = (cascadeConfig.order || included).filter(m => included.includes(m));
-        if (cascadeConfig.randomOrderPerRound) {
-          order = [...order].sort(() => Math.random() - 0.5);
-        }
-
-        // total turns for progress
-        const totalTurns = order.reduce((sum, model) => {
-          const ms = cascadeConfig.modelSettings?.[model] || {};
-          const turns = (typeof ms.turnsPerRound === 'number')
-            ? ms.turnsPerRound
-            : cascadeConfig.defaultTurnsPerModelPerRound;
-          return sum + Math.max(0, turns);
-        }, 0);
-
-        let doneTurns = 0;
-        toast.info(`Cascade round ${round}/${cascadeConfig.rounds}`);
-
-        for (const model of order) {
-          const ms = cascadeConfig.modelSettings?.[model] || {};
-          const turns = (typeof ms.turnsPerRound === 'number')
-            ? ms.turnsPerRound
-            : cascadeConfig.defaultTurnsPerModelPerRound;
-
-          for (let t = 1; t <= turns; t++) {
-            if (!cascadeRunningRef.current) throw new Error('Cascade stopped');
-
-            doneTurns += 1;
-            setCascadeProgress({ round, model, turn: doneTurns, totalTurns });
-
-            const recentResponses = responseHistory.slice(-contextWindow);
-            const responseBlock = recentResponses.length 
-              ? recentResponses.map((resp, idx) => {
-                  const ordinal = responseHistory.length - recentResponses.length + idx + 1;
-                  return `Response ${ordinal} (${resp.model}):\n${resp.content}`;
-                }).join('\n\n')
-              : `Seed prompt:\n${seedText}`;
-
-            const base = `[CASCADE]\n[ROUND ${round}/${cascadeConfig.rounds}]\n[MODEL ${model}]\n[TURN ${t}/${turns}]\n\n${recentResponses.length ? 'PREVIOUS RESPONSES:\n' + responseBlock : responseBlock}`;
-            const perModelPrompt = buildCascadeMessageForModel(model, base);
-
-            const persistSeed = cascadeConfig.seedMode === 'custom' && !seedPersisted;
-            const out = await handleSend(perModelPrompt, [model], true, true, {
-              persistUserMessage: persistSeed,
-              suppressUserMessage: true,
-              suppressPromptHistory: true,
-              historyLimit: 0,
-              conversationIdOverride: cascadeConvId,
-              includeAttachments: false
-            });
-
-            if (persistSeed) seedPersisted = true;
-
-            const latest = out?.[model];
-            if (latest) responseHistory.push({ model, content: latest });
-          }
-        }
-      }
-
-      toast.success('Cascade complete');
-
-      if (autoExport && conversationId) {
-        await handleExport('json');
-      }
-
-    } catch (error) {
-      if (String(error?.message || '').includes('Cascade stopped')) {
-        toast('Cascade stopped');
-      } else {
-        toast.error('Cascade interrupted');
-      }
-    } finally {
-      setCascadeRunning(false);
-      setCascadeProgress({ round: 0, model: '', turn: 0, totalTurns: 0 });
-    }
-  };
-
-  // (Legacy quick-cascade removed; cascade is configured via the Cascade tab)
-
-  // Keep legacy roles dialog in sync with Scene roles (so EDCM ingest stays consistent)
-  useEffect(() => {
-    const rolesFromScene = {};
-    for (const m of selectedModels) {
-      const role = cascadeConfig.modelSettings?.[m]?.role;
-      if (role && role !== 'none') rolesFromScene[m] = role;
-    }
-    setModelRoles(rolesFromScene);
-  }, [selectedModels, cascadeConfig.modelSettings, setModelRoles]);
-
-  const handleToggleSelect = (messageId) => {
-    setSelectedMessages(prev => 
-      prev.includes(messageId)
-        ? prev.filter(id => id !== messageId)
-        : [...prev, messageId]
-    );
-  };
-
-  const handleTogglePause = (model) => {
-    setPausedModels(prev => ({
-      ...prev,
-      [model]: !prev[model]
-    }));
-  };
-
-  const visibleModels = getVisibleModels();
-  const singlePanelHeight = `${GALAXY_PANEL_DEFAULT_VH}vh`;
-  const dualPanelStackHeight = `${DUAL_PANEL_STACK_DEFAULT_VH}vh`;
-  const activeModelSettings = modelPromptDialog.model
-    ? (cascadeConfig.modelSettings?.[modelPromptDialog.model] || {})
-    : {};
-  const synthesisTargetOptions = synthesisSourceModel
-    ? selectedModels.filter(model => model !== synthesisSourceModel)
-    : selectedModels;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Top Bar */}
-      <div className="h-14 border-b border-border flex items-center justify-between px-2 bg-[#18181B]" data-testid="chat-top-bar">
-        <div className="flex items-center gap-2 min-w-0">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0"
-            onClick={() => setMenuOpen(true)}
-            data-testid="chat-menu-trigger-btn"
-            title="Open workspace menu"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold truncate" style={{ fontFamily: 'Manrope, sans-serif' }}>Multi-AI Hub</h1>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wide" data-testid="active-workspace-mode-label">
-              {activeTopTab} workspace
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Badge variant="outline" className="text-[10px] hidden sm:flex" data-testid="response-render-mode-indicator">
-            {renderMode === 'native' ? 'Native text' : 'Markdown'}
-          </Badge>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setRenderMode(prev => (prev === 'markdown' ? 'native' : 'markdown'))}
-            className="h-8 px-2"
-            data-testid="toggle-response-render-mode-btn"
-            title="Toggle response rendering mode"
-          >
-            {renderMode === 'markdown' ? 'MD' : 'RAW'}
-          </Button>
-          <Button
-            size="sm"
-            variant={autoExport ? 'default' : 'ghost'}
-            onClick={() => setAutoExport(!autoExport)}
-            className="h-8 w-8 p-0"
-            data-testid="auto-export-btn"
-            title="Auto-export after each prompt"
-          >
-            {autoExport ? '📥' : '📤'}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleRefreshFromLogs}
-            className="h-8 w-8 p-0"
-            data-testid="refresh-from-logs-btn"
-            title="Refresh from conversation logs"
-            disabled={refreshingFromLogs || streaming}
-          >
-            <RotateCcw className={`h-4 w-4 ${refreshingFromLogs ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
-
-      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="left" className="w-[86vw] sm:max-w-sm p-0" data-testid="workspace-side-menu">
-          <div className="h-full flex flex-col bg-[#111215]">
-            <SheetHeader className="px-4 pt-5 pb-3 border-b border-border">
-              <SheetTitle className="text-base" data-testid="workspace-side-menu-title">Workspace</SheetTitle>
-              <SheetDescription data-testid="workspace-side-menu-description">
-                OpenAI-style navigation with chat-first controls.
-              </SheetDescription>
-            </SheetHeader>
-
-            <div className="p-3 space-y-4 overflow-y-auto flex-1">
-              <div className="space-y-2" data-testid="workspace-mode-group">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Mode</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant={activeTopTab === 'chat' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('chat'); setMenuOpen(false); }} data-testid="workspace-mode-chat-btn">Chat</Button>
-                  <Button size="sm" variant={activeTopTab === 'scene' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('scene'); setMenuOpen(false); }} data-testid="workspace-mode-scene-btn">Scene</Button>
-                  <Button size="sm" variant={activeTopTab === 'cascade' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('cascade'); setMenuOpen(false); }} data-testid="workspace-mode-cascade-btn">Cascade</Button>
-                  <Button size="sm" variant={activeTopTab === 'batch' ? 'default' : 'outline'} onClick={() => { setActiveTopTab('batch'); setMenuOpen(false); }} disabled={batchRunning} data-testid="workspace-mode-batch-btn">{batchRunning ? `Batch ${currentBatchIndex}` : 'Batch'}</Button>
-                </div>
-              </div>
-
-              <div className="space-y-2" data-testid="workspace-actions-group">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Actions</div>
-                <Button variant="outline" className="w-full justify-start" onClick={() => { handleNewChat(); setMenuOpen(false); }} data-testid="workspace-new-chat-btn"><Plus className="h-4 w-4 mr-2" />New chat</Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => { openConversationSearchDialog(); setMenuOpen(false); }} data-testid="search-conversations-menu-item"><Search className="h-4 w-4 mr-2" />Search threads</Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => { handleRestoreLatestConversation(); setMenuOpen(false); }} data-testid="restore-latest-conversation-menu-item"><RotateCcw className="h-4 w-4 mr-2" />Restore latest thread</Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => setShowRolesDialog(true)} data-testid="workspace-assign-roles-btn">🎭 Assign roles</Button>
-                {selectedMessages.length > 0 && (
-                  <Button variant="outline" className="w-full justify-start" onClick={handleClearSelection} data-testid="workspace-clear-selection-btn">
-                    Clear selection ({selectedMessages.length})
-                  </Button>
-                )}
-              </div>
-
-              {conversationId && messages.length > 0 && (
-                <div className="space-y-2" data-testid="workspace-export-group">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Export</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleExport('json')} data-testid="workspace-export-json-btn"><Download className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="outline" onClick={() => handleExport('txt')} data-testid="workspace-export-txt-btn"><FileText className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="outline" onClick={() => handleExport('pdf')} data-testid="workspace-export-pdf-btn"><File className="h-4 w-4" /></Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2" data-testid="workspace-prompt-history-group">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Prompt history</div>
-                <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/15 p-1 space-y-1" data-testid="workspace-prompt-history-list">
-                  {promptHistory.length === 0 ? (
-                    <div className="text-xs text-muted-foreground px-2 py-1" data-testid="workspace-prompt-history-empty">No prompts yet.</div>
-                  ) : (
-                    promptHistory.map((prompt, idx) => (
-                      <PromptHistoryItem
-                        key={`${prompt.index}-${idx}`}
-                        prompt={prompt}
-                        onCopy={handleCopy}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3 border-t border-border space-y-2" data-testid="workspace-navigation-group">
-              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/settings'); setMenuOpen(false); }} data-testid="workspace-go-settings-btn"><Settings className="h-4 w-4 mr-2" />Settings</Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/dashboard'); setMenuOpen(false); }} data-testid="workspace-go-dashboard-btn"><BarChart3 className="h-4 w-4 mr-2" />Dashboard</Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/console'); setMenuOpen(false); }} data-testid="go-console-menu-item">🧠 Console</Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/pricing'); setMenuOpen(false); }} data-testid="go-pricing-menu-item">💳 Pricing</Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={logout} data-testid="workspace-logout-btn">Logout</Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Workspace Panels */}
-      <div className={`${activeTopTab === 'chat' ? 'p-2 border-b border-border' : 'flex-1 p-3 border-b border-border overflow-y-auto'} bg-[#18181B]`} data-testid="workspace-panel-shell">
-        <Tabs value={activeTopTab} onValueChange={setActiveTopTab}>
-          <TabsList className="w-full grid grid-cols-4" data-testid="workspace-tablist">
-            <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
-            <TabsTrigger value="scene" className="text-xs">Scene</TabsTrigger>
-            <TabsTrigger value="cascade" className="text-xs">Cascade</TabsTrigger>
-            <TabsTrigger value="batch" className="text-xs">Batch</TabsTrigger>
-          </TabsList>
-
-          {activeTopTab !== 'chat' && (
-            <div className="mt-2 mb-2 rounded-md border border-border bg-muted/20 px-2 py-1.5 flex items-center justify-between gap-2" data-testid="workspace-chat-return-banner">
-              <span className="text-[10px] text-muted-foreground">Chat responses are hidden in {activeTopTab} mode.</span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-[10px]"
-                onClick={() => setActiveTopTab('chat')}
-                data-testid="workspace-return-chat-btn"
-              >
-                Return to chat
-              </Button>
-            </div>
-          )}
-
-          <TabsContent value="chat" className="mt-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <ModelSelector
-                  selectedModels={selectedModels}
-                  onChange={setSelectedModels}
-                  maxModels={6}
-                />
-              </div>
-
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {messages.filter(m => m.role === 'assistant').length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleSelectAll}
-                    className="h-8 px-2 text-xs"
-                    data-testid="select-all-btn"
-                  >
-                    <CheckCheck className="h-3 w-3" />
-                  </Button>
-                )}
-
-                {selectedMessages.length > 0 && (
-                  <div className="text-[10px] text-muted-foreground" data-testid="synthesis-selection-indicator">
-                    {selectedMessages.length} selected
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="cascade" className="mt-2">
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Rounds</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={cascadeConfig.rounds}
-                    onChange={(e) => setCascadeConfig(p => ({ ...p, rounds: Math.max(1, parseInt(e.target.value) || 1) }))}
-                    className="h-8 text-xs font-mono"
-                    data-testid="cascade-rounds-input"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Default turns/model/round</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={cascadeConfig.defaultTurnsPerModelPerRound}
-                    onChange={(e) => setCascadeConfig(p => ({ ...p, defaultTurnsPerModelPerRound: Math.max(0, parseInt(e.target.value) || 0) }))}
-                    className="h-8 text-xs font-mono"
-                    data-testid="cascade-default-turns-input"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Include last N responses</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={cascadeConfig.sequentialContextCount}
-                  onChange={(e) => setCascadeConfig(p => ({ ...p, sequentialContextCount: Math.max(1, parseInt(e.target.value) || 1) }))}
-                  className="h-8 text-xs font-mono"
-                  data-testid="cascade-context-count-input"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
-                <div>
-                  <Label className="text-xs">Random order per round</Label>
-                  <p className="text-[10px] text-muted-foreground">Shuffle included models each round</p>
-                </div>
-                <Switch
-                  checked={cascadeConfig.randomOrderPerRound}
-                  onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, randomOrderPerRound: v }))}
-                  data-testid="cascade-random-order-switch"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
-                <div>
-                  <Label className="text-xs">Roleplay</Label>
-                  <p className="text-[10px] text-muted-foreground">Cascade-only</p>
-                </div>
-                <Switch
-                  checked={cascadeConfig.roleplayEnabled}
-                  onCheckedChange={(v) => setCascadeConfig(p => ({ ...p, roleplayEnabled: v }))}
-                  data-testid="cascade-roleplay-switch"
-                />
-              </div>
-
-              {cascadeConfig.roleplayEnabled && (
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Roleplay text</Label>
-                  <Textarea
-                    value={cascadeConfig.roleplayText}
-                    onChange={(e) => setCascadeConfig(p => ({ ...p, roleplayText: e.target.value }))}
-                    rows={2}
-                    className="text-xs"
-                    placeholder="Define scenario/voice to maintain..."
-                    data-testid="cascade-roleplay-textarea"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Seed</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Select
-                    value={cascadeConfig.seedMode}
-                    onValueChange={(v) => setCascadeConfig(p => ({ ...p, seedMode: v }))}
-                  >
-                    <SelectTrigger className="h-8 text-xs" data-testid="cascade-seed-select">
-                      <SelectValue placeholder="Seed mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="last_user">Use last user prompt</SelectItem>
-                      <SelectItem value="custom">Custom seed text</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setCascadeConfig(p => ({ ...p, order: selectedModels }))}
-                    className="h-8 text-xs"
-                    title="Reset order to selected models"
-                    data-testid="cascade-reset-order-btn"
-                  >
-                    Reset order
-                  </Button>
-                </div>
-
-                {cascadeConfig.seedMode === 'custom' && (
-                  <Textarea
-                    value={cascadeConfig.seedCustomText}
-                    onChange={(e) => setCascadeConfig(p => ({ ...p, seedCustomText: e.target.value }))}
-                    rows={2}
-                    className="text-xs mt-2"
-                    placeholder="Seed the cascade with this text..."
-                    data-testid="cascade-seed-textarea"
-                  />
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Turn order (per round)</Label>
-                  <div className="text-[10px] text-muted-foreground">{cascadeConfig.order?.length || 0} models</div>
-                </div>
-                <div className="space-y-1">
-                  {(cascadeConfig.order || []).map((m, idx) => (
-                    <div key={m} className="flex items-center gap-2 rounded border border-border bg-muted/30 p-2">
-                      <div className="text-xs font-mono flex-1 truncate">{m}</div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0"
-                        disabled={idx === 0}
-                        onClick={() => setCascadeConfig(p => {
-                          const arr = [...(p.order || [])];
-                          [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-                          return { ...p, order: arr };
-                        })}
-                        title="Move up"
-                        data-testid={`cascade-order-up-${m.replace(/[^a-z0-9]+/gi, '-')}`}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0"
-                        disabled={idx === (cascadeConfig.order || []).length - 1}
-                        onClick={() => setCascadeConfig(p => {
-                          const arr = [...(p.order || [])];
-                          [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
-                          return { ...p, order: arr };
-                        })}
-                        title="Move down"
-                        data-testid={`cascade-order-down-${m.replace(/[^a-z0-9]+/gi, '-')}`}
-                      >
-                        ↓
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Per-model turns / include (cascade-only)</Label>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {selectedModels.map(model => {
-                    const ms = cascadeConfig.modelSettings?.[model] || {};
-                    return (
-                      <div key={model} className="rounded border border-border bg-muted/20 p-2 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-medium truncate">{model}</div>
-                          <Switch
-                            checked={!!ms.included}
-                            onCheckedChange={(v) => setCascadeConfig(p => ({
-                              ...p,
-                              modelSettings: {
-                                ...(p.modelSettings || {}),
-                                [model]: { ...(p.modelSettings?.[model] || {}), included: v }
-                              }
-                            }))}
-                            data-testid={`cascade-include-switch-${model.replace(/[^a-z0-9]+/gi, '-')}`}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Turns/round override</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={ms.turnsPerRound ?? ''}
-                            onChange={(e) => {
-                              const raw = e.target.value;
-                              const parsed = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
-                              setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), turnsPerRound: parsed }
-                                }
-                              }));
-                            }}
-                            className="h-8 text-xs font-mono"
-                            placeholder="(default)"
-                            data-testid={`cascade-turns-input-${model.replace(/[^a-z0-9]+/gi, '-')}`}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleCascade}
-                  disabled={cascadeRunning}
-                  className="flex-1"
-                  data-testid="cascade-start-btn"
-                >
-                  {cascadeRunning ? 'Running…' : 'Start cascade'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => { setCascadeRunning(false); cascadeRunningRef.current = false; }}
-                  disabled={!cascadeRunning}
-                  className="w-24"
-                  data-testid="cascade-stop-btn"
-                >
-                  Stop
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="scene" className="mt-2">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
-                <div>
-                  <Label className="text-xs">Context mode</Label>
-                  <p className="text-[10px] text-muted-foreground">Compartmented vs shared room</p>
-                </div>
-                <Select value={contextMode} onValueChange={setContextMode}>
-                  <SelectTrigger className="h-8 w-40 text-xs" data-testid="scene-context-mode-select">
-                    <SelectValue placeholder="Context mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="compartmented">Compartmented</SelectItem>
-                    <SelectItem value="shared">Shared room</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {contextMode === 'shared' && (
-                <div className="space-y-2 rounded border border-border bg-muted/20 p-2" data-testid="shared-room-mode-card">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <Label className="text-xs">Shared room mode</Label>
-                      <p className="text-[10px] text-muted-foreground">Control which model responses become visible context</p>
-                    </div>
-                    <Select value={sharedRoomMode} onValueChange={setSharedRoomMode}>
-                      <SelectTrigger className="h-8 w-44 text-xs" data-testid="shared-room-mode-select">
-                        <SelectValue placeholder="Shared mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="parallel_all">Parallel all (everyone sees all)</SelectItem>
-                        <SelectItem value="parallel_paired">Parallel paired (pair-only sharing)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {sharedRoomMode === 'parallel_paired' && (
-                    <div className="space-y-1" data-testid="shared-room-pair-preview">
-                      <Label className="text-[10px] text-muted-foreground">Auto pairing preview</Label>
-                      <div className="space-y-1">
-                        {Object.entries(buildSharedPairs(selectedModels)).map(([model, peers]) => (
-                          <div key={`pair-${model}`} className="flex items-center justify-between rounded border border-border/70 bg-background px-2 py-1 text-[10px]" data-testid={`shared-pair-row-${model.replace(/[^a-z0-9]+/gi, '-')}`}>
-                            <span className="truncate max-w-[55%]">{model}</span>
-                            <span className="text-muted-foreground truncate max-w-[40%]">{peers.length > 0 ? peers.join(', ') : 'No pair'}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Global context (applies to all prompts)</Label>
-                <Textarea
-                  value={globalContext}
-                  onChange={(e) => setGlobalContext(e.target.value)}
-                  placeholder="Constraints / framing prepended to every prompt (including cascade)"
-                  className="resize-none bg-background text-xs"
-                  rows={2}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Per-model prompt properties</Label>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {selectedModels.map(model => {
-                    const ms = cascadeConfig.modelSettings?.[model] || {};
-                    const pop = (v) => {
-                      if (v <= 2) return 'Whisper (Mr. Rogers)';
-                      if (v <= 4) return 'Concise (Spock)';
-                      if (v <= 6) return 'Balanced (Hermione)';
-                      if (v <= 8) return 'Verbose (Tony Stark)';
-                      return 'Maximalist (JoJo narrator)';
-                    };
-
-                    return (
-                      <div key={model} className="rounded border border-border bg-muted/20 p-2 space-y-2">
-                        <div className="text-xs font-medium truncate">{model}</div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Role</Label>
-                          <Select
-                            value={ms.role || 'none'}
-                            onValueChange={(v) => setCascadeConfig(p => ({
-                              ...p,
-                              modelSettings: {
-                                ...(p.modelSettings || {}),
-                                [model]: { ...(p.modelSettings?.[model] || {}), role: v }
-                              }
-                            }))}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="advocate">Advocate</SelectItem>
-                              <SelectItem value="adversarial">Adversarial</SelectItem>
-                              <SelectItem value="skeptic">Skeptic</SelectItem>
-                              <SelectItem value="neutral">Neutral</SelectItem>
-                              <SelectItem value="optimist">Optimist</SelectItem>
-                              <SelectItem value="pessimist">Pessimist</SelectItem>
-                              <SelectItem value="technical">Technical</SelectItem>
-                              <SelectItem value="creative">Creative</SelectItem>
-                              <SelectItem value="socratic">Socratic</SelectItem>
-                              <SelectItem value="sycophant">Sycophant</SelectItem>
-                              <SelectItem value="contrarian">Contrarian</SelectItem>
-                              <SelectItem value="oracle">Oracle</SelectItem>
-                              <SelectItem value="custom">Custom…</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {ms.role === 'custom' && (
-                            <Input
-                              value={ms.customRoleText || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), customRoleText: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono mt-1"
-                              placeholder="Enter custom role constraint..."
-                            />
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Alignment</Label>
-                            <Select
-                              value={ms.alignment || 'true_neutral'}
-                              onValueChange={(v) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), alignment: v }
-                                }
-                              }))}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Alignment" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="lawful_good">Lawful Good</SelectItem>
-                                <SelectItem value="neutral_good">Neutral Good</SelectItem>
-                                <SelectItem value="chaotic_good">Chaotic Good</SelectItem>
-                                <SelectItem value="lawful_neutral">Lawful Neutral</SelectItem>
-                                <SelectItem value="true_neutral">True Neutral</SelectItem>
-                                <SelectItem value="chaotic_neutral">Chaotic Neutral</SelectItem>
-                                <SelectItem value="lawful_evil">Lawful Evil</SelectItem>
-                                <SelectItem value="neutral_evil">Neutral Evil</SelectItem>
-                                <SelectItem value="chaotic_evil">Chaotic Evil</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Prompt modifier</Label>
-                            <Input
-                              value={ms.promptModifier || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), promptModifier: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono"
-                              placeholder="E.g., 'be brutally concise'"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Verbosity: {ms.verbosity ?? 5}/10 — {pop(ms.verbosity ?? 5)}</Label>
-                          <Slider
-                            value={[ms.verbosity ?? 5]}
-                            min={1}
-                            max={10}
-                            step={1}
-                            onValueChange={(vals) => {
-                              const v = vals?.[0] ?? 5;
-                              setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), verbosity: v }
-                                }
-                              }));
-                            }}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Secret mission</Label>
-                            <Input
-                              value={ms.secretMission || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), secretMission: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono"
-                              placeholder="Hidden objective..."
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Misc constraint</Label>
-                            <Input
-                              value={ms.miscConstraint || ''}
-                              onChange={(e) => setCascadeConfig(p => ({
-                                ...p,
-                                modelSettings: {
-                                  ...(p.modelSettings || {}),
-                                  [model]: { ...(p.modelSettings?.[model] || {}), miscConstraint: e.target.value }
-                                }
-                              }))}
-                              className="h-8 text-xs font-mono"
-                              placeholder="Extra constraint..."
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="text-[10px] text-muted-foreground">
-                  Roles dialog still exists for EDCM; Scene tab controls prompt shaping.
-                </div>
-                <Button size="sm" variant="outline" onClick={() => setShowRolesDialog(true)}>
-                  Open roles
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="batch" className="mt-2">
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setShowBatchDialog(true)} disabled={batchRunning}>
-                <FileText className="h-4 w-4 mr-2" />
-                {batchRunning ? `Batch ${currentBatchIndex}...` : 'Open batch runner'}
-              </Button>
-              <div className="text-[10px] text-muted-foreground">
-                Batch prompts run sequentially.
-              </div>
-            </div>
-          </TabsContent>
-
-
-        </Tabs>
-      </div>
-
-      {universalStatus && ['invalid', 'missing', 'error'].includes(universalStatus.status) && (
-        <div className="px-2 pb-2" data-testid="universal-key-warning">
-          <div className="flex items-center justify-between gap-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-[10px] text-red-200">
-            <span>
-              Universal key {universalStatus.status === 'invalid' ? 'invalid' : universalStatus.status === 'missing' ? 'missing' : 'check failed'}. Update in Settings.
+    <div
+      className="rounded-lg border border-zinc-800 bg-zinc-900/60 overflow-hidden"
+      data-testid={`response-panel-${model}`}
+    >
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900/80">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-emerald-400" data-testid={`response-model-${model}`}>{model}</span>
+          {isStreaming && <Loader2 size={14} className="animate-spin text-emerald-400" />}
+          {responseTime && !isStreaming && (
+            <span className="flex items-center gap-1 text-xs text-zinc-500">
+              <Clock size={10} /> {(responseTime / 1000).toFixed(1)}s
             </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => navigate('/settings')}
-              data-testid="universal-key-settings-btn"
-            >
-              Settings
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      {activeTopTab === 'chat' && (
-        <div className="order-2 flex-1 overflow-x-hidden overflow-y-auto flex" data-testid="chat-response-shell">
-          <div
-            className="flex-1 overflow-visible flex flex-col"
-            data-testid="model-stack-container"
-            style={{ minHeight: `${GALAXY_PANEL_DEFAULT_VH * Math.max(1, selectedModels.length)}vh` }}
-          >
-            {selectedModels.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground" data-testid="chat-no-models-selected-state">
-                Please select at least one AI model
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="px-2 py-1 text-[10px] text-muted-foreground" data-testid="model-stack-layout-hint">
-                  Linear stack mode enabled • no carousel wraparound
-                </div>
-                {selectedModels.map((model, idx) => (
-                  <div
-                    key={`stack-panel-${model}-${idx}`}
-                    className="flex-1"
-                    style={{ minHeight: singlePanelHeight, height: singlePanelHeight }}
-                    data-testid={`stacked-response-panel-${idx}`}
-                  >
-                    <ResponsePanel
-                      model={model}
-                      messages={messages}
-                      onFeedback={handleFeedback}
-                      onCopy={handleCopy}
-                      onShare={handleShare}
-                      onAudio={handleAudio}
-                      onToggleSelect={handleToggleSelect}
-                      selectedMessages={selectedMessages}
-                      isPaused={pausedModels[model]}
-                      onTogglePause={() => handleTogglePause(model)}
-                      messageIndexMap={messageIndexMap}
-                      onSaveThread={handleSaveThread}
-                      onOpenPromptSettings={openModelPromptDialog}
-                      onOpenSynthesis={handleOpenModelSynthesis}
-                      onCopyThread={handleCopyModelThread}
-                      renderMode={renderMode}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Input / Controls Area - Mobile Optimized */}
-      {activeTopTab === 'chat' && (
-      <div className="order-1 border-y border-border bg-[#18181B] pb-2" data-testid="chat-input-shell">
-        {/* Main Input */}
-        <div className="p-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleAddAttachments}
-            data-testid="attachment-file-input"
-          />
-
-          {attachments.length > 0 && (
-            <div className="mb-2 rounded-md border border-border bg-muted/20 p-2" data-testid="attachment-preview-list">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-muted-foreground">
-                  {attachments.length} attachment(s) ready
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => setAttachmentDialogOpen(true)}
-                  data-testid="attachment-routing-open-btn"
-                >
-                  Route attachments
-                </Button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {attachments.map(att => (
-                  <Badge key={att.id} variant="outline" className="text-[10px] max-w-full" data-testid={`attachment-badge-${att.id}`}>
-                    <span className="truncate max-w-[140px]">{att.name}</span>
-                    <button
-                      onClick={() => removeAttachment(att.id)}
-                      className="ml-1"
-                      data-testid={`remove-attachment-${att.id}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
           )}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleCopy}
+            className="p-1.5 rounded hover:bg-zinc-700/60 text-zinc-400 hover:text-zinc-200 transition-colors"
+            data-testid={`copy-btn-${model}`}
+            title="Copy"
+          >
+            <Copy size={14} />
+          </button>
+          {messageId && (
+            <>
+              <button
+                onClick={() => onFeedback(messageId, 'up')}
+                className={`p-1.5 rounded hover:bg-zinc-700/60 transition-colors ${feedback === 'up' ? 'text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'}`}
+                data-testid={`thumbsup-btn-${model}`}
+              >
+                <ThumbsUp size={14} />
+              </button>
+              <button
+                onClick={() => onFeedback(messageId, 'down')}
+                className={`p-1.5 rounded hover:bg-zinc-700/60 transition-colors ${feedback === 'down' ? 'text-red-400' : 'text-zinc-400 hover:text-zinc-200'}`}
+                data-testid={`thumbsdown-btn-${model}`}
+              >
+                <ThumbsDown size={14} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="p-4 prose prose-invert prose-sm max-w-none min-h-[120px] max-h-[600px] overflow-y-auto">
+        {content ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        ) : isStreaming ? (
+          <span className="text-zinc-500 animate-pulse">Thinking...</span>
+        ) : (
+          <span className="text-zinc-600">No response</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
-          <div className="flex gap-1">
-            <div className="flex-1 flex flex-col gap-1">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your prompt... (Ctrl+Enter to send)"
-                className="resize-none bg-background text-sm"
-                rows={2}
-                onKeyDown={(e) => {
-                  // Ctrl+Enter or Cmd+Enter to send
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                  // Regular Enter adds new line (default behavior)
-                }}
-                disabled={streaming}
-                data-testid="chat-input"
-              />
-              <div className="text-[10px] text-muted-foreground">
-                Ctrl+Enter to send • Enter for new line • Mobile: Use buttons →
+// ---- Sidebar ----
+function Sidebar({ threads, currentThread, onSelect, onNew, open, onClose }) {
+  return (
+    <>
+      {open && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={onClose} />}
+      <div className={`fixed top-0 left-0 h-full w-72 bg-zinc-950 border-r border-zinc-800 z-40 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:relative lg:z-0`}>
+        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+          <span className="text-sm font-semibold text-zinc-200">Threads</span>
+          <button
+            onClick={onNew}
+            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+            data-testid="new-thread-btn"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+        <div className="overflow-y-auto h-[calc(100%-60px)] p-2 space-y-1">
+          {threads.map(t => (
+            <button
+              key={t.thread_id}
+              onClick={() => { onSelect(t.thread_id); onClose(); }}
+              className={`w-full text-left px-3 py-2 rounded-md text-sm truncate transition-colors ${
+                currentThread === t.thread_id
+                  ? 'bg-zinc-800 text-zinc-100'
+                  : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+              }`}
+              data-testid={`thread-item-${t.thread_id}`}
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquare size={14} className="flex-shrink-0" />
+                <span className="truncate">{t.title || 'Untitled'}</span>
               </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Button
-                onClick={handleAttachmentButton}
-                variant="outline"
-                className="h-[33%] px-2"
-                title="Attach files/images"
-                data-testid="add-attachment-btn"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={() => setInput(prev => prev + '\n')}
-                variant="outline"
-                className="h-[33%] px-2"
-                title="Add line break"
-                data-testid="add-linebreak-btn"
-              >
-                ↵
-              </Button>
-              <Button
-                onClick={() => handleSend()}
-                disabled={streaming || !input.trim()}
-                className="h-[33%] px-2"
-                data-testid="send-btn"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+              <div className="text-xs text-zinc-600 mt-0.5">{t.models_used?.join(', ') || ''}</div>
+            </button>
+          ))}
+          {threads.length === 0 && (
+            <div className="text-center text-xs text-zinc-600 py-8">No threads yet</div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ---- Main ChatPage ----
+export default function ChatPage() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const {
+    threads, currentThread, messages, loading, streaming,
+    fetchThreads, loadThread, sendPrompt, newThread, submitFeedback,
+  } = useChat();
+
+  const [input, setInput] = useState('');
+  const [registry, setRegistry] = useState([]);
+  const [selectedModels, setSelectedModels] = useState(['gpt-4o-mini']);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showModels, setShowModels] = useState(true);
+  const responseEndRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    fetchThreads();
+    axios.get(`${API}/v1/models`).then(res => {
+      setRegistry(res.data.developers || []);
+    }).catch(() => {});
+  }, [fetchThreads]);
+
+  useEffect(() => {
+    if (responseEndRef.current) {
+      responseEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, streaming]);
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || selectedModels.length === 0 || loading) return;
+    setInput('');
+    sendPrompt(trimmed, selectedModels);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const toggleModel = (modelId) => {
+    setSelectedModels(prev =>
+      prev.includes(modelId) ? prev.filter(m => m !== modelId) : [...prev, modelId]
+    );
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/auth');
+  };
+
+  // Group assistant messages by their source prompt (by clustering around user messages)
+  const renderConversation = () => {
+    const groups = [];
+    let currentGroup = null;
+
+    for (const msg of messages) {
+      if (msg.role === 'user') {
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = { userMsg: msg, responses: [] };
+      } else if (msg.role === 'assistant' && currentGroup) {
+        currentGroup.responses.push(msg);
+      }
+    }
+    if (currentGroup) groups.push(currentGroup);
+
+    return groups.map((group, gi) => (
+      <div key={gi} className="space-y-3">
+        {/* User message */}
+        <div className="flex justify-end">
+          <div
+            className="max-w-[85%] rounded-xl px-4 py-3 bg-emerald-600/20 border border-emerald-600/30 text-zinc-200 text-sm"
+            data-testid={`user-message-${gi}`}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{group.userMsg.content}</ReactMarkdown>
           </div>
         </div>
-
-        {/* Cascade running status */}
-        {cascadeRunning && (
-          <div className="px-2 pb-2">
-            <div className="flex items-center justify-between rounded border border-border bg-muted/30 p-2">
-              <div className="text-[10px] text-muted-foreground" data-testid="cascade-status-text">
-                Cascade: Round {cascadeProgress.round}/{cascadeConfig.rounds} • {cascadeProgress.model || '—'} • Turn {cascadeProgress.turn}/{cascadeProgress.totalTurns}
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setCascadeRunning(false)} className="h-7 px-2 text-[10px]" data-testid="cascade-stop-inline-btn">
-                Stop
-              </Button>
-            </div>
-          </div>
-        )}
-
-      </div>
-      )}
-
-      <Dialog open={showConversationSearchDialog} onOpenChange={setShowConversationSearchDialog}>
-        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto" data-testid="conversation-search-dialog">
-          <DialogHeader>
-            <DialogTitle className="text-base">Search Conversation Threads</DialogTitle>
-            <DialogDescription>
-              Find older conversations quickly by title or prompt text prefix.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <Input
-              value={conversationSearchQuery}
-              onChange={(e) => setConversationSearchQuery(e.target.value)}
-              placeholder="Search by title..."
-              data-testid="conversation-search-input"
+        {/* Model responses - vertical stack */}
+        <div className="space-y-3">
+          {group.responses.map(resp => (
+            <ResponsePanel
+              key={resp.message_id}
+              model={resp.model}
+              content={resp.content}
+              messageId={resp.message_id}
+              responseTime={resp.response_time_ms}
+              feedback={resp.feedback}
+              onFeedback={submitFeedback}
+              isStreaming={false}
             />
+          ))}
+        </div>
+      </div>
+    ));
+  };
 
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1" data-testid="conversation-search-results-list">
-              {conversationSearchLoading ? (
-                <div className="text-xs text-muted-foreground" data-testid="conversation-search-loading-state">Searching…</div>
-              ) : conversationSearchResults.length === 0 ? (
-                <div className="text-xs text-muted-foreground" data-testid="conversation-search-empty-state">No conversations found</div>
-              ) : (
-                conversationSearchResults.map((conv) => (
-                  <button
-                    key={conv.id}
-                    type="button"
-                    className="w-full rounded-md border border-border bg-muted/20 p-2 text-left hover:bg-muted/35 transition-colors"
-                    onClick={() => handleSelectConversationFromSearch(conv.id)}
-                    data-testid={`conversation-search-result-${conv.id}`}
-                  >
-                    <div className="text-sm font-medium truncate">{conv.title || 'Untitled conversation'}</div>
-                    <div className="text-[10px] text-muted-foreground mt-1">Updated: {conv.updated_at ? new Date(conv.updated_at).toLocaleString() : 'N/A'}</div>
-                  </button>
-                ))
-              )}
-            </div>
+  // Streaming responses (currently being generated)
+  const renderStreaming = () => {
+    const streamEntries = Object.entries(streaming);
+    if (streamEntries.length === 0) return null;
+
+    return (
+      <div className="space-y-3">
+        {streamEntries.map(([model, data]) => (
+          <ResponsePanel
+            key={`streaming-${model}`}
+            model={model}
+            content={data.content}
+            messageId={null}
+            responseTime={null}
+            feedback={null}
+            onFeedback={() => {}}
+            isStreaming={true}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const handleTextareaInput = (e) => {
+    setInput(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+  };
+
+  return (
+    <div className="flex h-screen bg-zinc-950 text-zinc-200" data-testid="chat-page">
+      {/* Sidebar */}
+      <Sidebar
+        threads={threads}
+        currentThread={currentThread}
+        onSelect={loadThread}
+        onNew={() => { newThread(); setSidebarOpen(false); }}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Main Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <header className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-1.5 rounded hover:bg-zinc-800 text-zinc-400"
+              data-testid="sidebar-toggle"
+            >
+              <Menu size={20} />
+            </button>
+            <h1 className="text-base font-semibold tracking-tight">Multi-Model Hub</h1>
+            <span className="text-xs text-zinc-600 hidden sm:inline">v1.0.2-S9</span>
           </div>
-        </DialogContent>
-      </Dialog>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/settings')}
+              className="p-2 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              data-testid="settings-btn"
+            >
+              <Settings size={18} />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              data-testid="logout-btn"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        </header>
 
-      <Dialog
-        open={modelPromptDialog.open}
-        onOpenChange={(open) => setModelPromptDialog(prev => ({ ...prev, open }))}
-      >
-        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto" data-testid="model-prompt-customization-dialog">
-          <DialogHeader>
-            <DialogTitle className="text-base">Model Prompt Customization</DialogTitle>
-            <DialogDescription>
-              Fine-tune prompt behavior for <span className="font-mono">{modelPromptDialog.model || 'model'}</span>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Role</Label>
-              <Select
-                value={activeModelSettings.role || 'none'}
-                onValueChange={(value) => updateModelSetting(modelPromptDialog.model, { role: value })}
-              >
-                <SelectTrigger className="h-8 text-xs" data-testid="model-prompt-role-select">
-                  <SelectValue placeholder="Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="advocate">Advocate</SelectItem>
-                  <SelectItem value="adversarial">Adversarial</SelectItem>
-                  <SelectItem value="skeptic">Skeptic</SelectItem>
-                  <SelectItem value="neutral">Neutral</SelectItem>
-                  <SelectItem value="optimist">Optimist</SelectItem>
-                  <SelectItem value="pessimist">Pessimist</SelectItem>
-                  <SelectItem value="technical">Technical</SelectItem>
-                  <SelectItem value="creative">Creative</SelectItem>
-                  <SelectItem value="socratic">Socratic</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Prompt Input Area */}
+        <div className="px-4 py-4 border-b border-zinc-800 space-y-3 bg-zinc-950/60">
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleTextareaInput}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter your prompt... (Ctrl+Enter to send)"
+                rows={2}
+                className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 resize-none transition-colors"
+                data-testid="prompt-input"
+              />
             </div>
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || selectedModels.length === 0 || loading}
+              className="self-end px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium text-sm transition-colors flex items-center gap-2"
+              data-testid="send-btn"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              <span className="hidden sm:inline">Send</span>
+            </button>
+          </div>
 
-            {activeModelSettings.role === 'custom' && (
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Custom role text</Label>
-                <Textarea
-                  value={activeModelSettings.customRoleText || ''}
-                  onChange={(e) => updateModelSetting(modelPromptDialog.model, { customRoleText: e.target.value })}
-                  rows={2}
-                  className="text-xs"
-                  data-testid="model-prompt-custom-role-textarea"
+          {/* Model Selection Toggle */}
+          <div>
+            <button
+              onClick={() => setShowModels(!showModels)}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200"
+              data-testid="toggle-models-btn"
+            >
+              {showModels ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              Models ({selectedModels.length} selected)
+            </button>
+            {showModels && (
+              <div className="mt-2 max-h-[300px] overflow-y-auto">
+                <ModelSelector
+                  registry={registry}
+                  selected={selectedModels}
+                  onToggle={toggleModel}
                 />
               </div>
             )}
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Prompt modifier</Label>
-              <Input
-                value={activeModelSettings.promptModifier || ''}
-                onChange={(e) => updateModelSetting(modelPromptDialog.model, { promptModifier: e.target.value })}
-                className="h-8 text-xs"
-                placeholder="e.g., prioritize concise bullets"
-                data-testid="model-prompt-modifier-input"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Verbosity: {activeModelSettings.verbosity ?? 5}/10</Label>
-              <Slider
-                value={[activeModelSettings.verbosity ?? 5]}
-                min={1}
-                max={10}
-                step={1}
-                onValueChange={(vals) => updateModelSetting(modelPromptDialog.model, { verbosity: vals?.[0] ?? 5 })}
-                data-testid="model-prompt-verbosity-slider"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Alignment</Label>
-              <Select
-                value={activeModelSettings.alignment || 'true_neutral'}
-                onValueChange={(value) => updateModelSetting(modelPromptDialog.model, { alignment: value })}
-              >
-                <SelectTrigger className="h-8 text-xs" data-testid="model-prompt-alignment-select">
-                  <SelectValue placeholder="Alignment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lawful_good">Lawful Good</SelectItem>
-                  <SelectItem value="neutral_good">Neutral Good</SelectItem>
-                  <SelectItem value="true_neutral">True Neutral</SelectItem>
-                  <SelectItem value="chaotic_neutral">Chaotic Neutral</SelectItem>
-                  <SelectItem value="neutral_evil">Neutral Evil</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setModelPromptDialog({ open: false, model: '' })}
-              data-testid="model-prompt-dialog-close-btn"
-            >
-              Done
-            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
 
-      <Dialog open={attachmentDialogOpen} onOpenChange={setAttachmentDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto" data-testid="attachment-routing-dialog">
-          <DialogHeader>
-            <DialogTitle className="text-base">Attachment Routing</DialogTitle>
-            <DialogDescription>
-              Choose whether each file/image goes to all selected models or specific ones.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            {attachments.length === 0 ? (
-              <div className="text-sm text-muted-foreground" data-testid="attachment-empty-state">
-                No attachments selected.
-              </div>
-            ) : (
-              attachments.map(att => (
-                <div key={att.id} className="rounded border border-border bg-muted/20 p-2 space-y-2" data-testid={`attachment-routing-item-${att.id}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium truncate">{att.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{att.mimeType || 'unknown'} • {formatBytes(att.size)}</div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0"
-                      onClick={() => removeAttachment(att.id)}
-                      data-testid={`attachment-routing-remove-${att.id}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  <Select value={att.targetMode} onValueChange={(value) => updateAttachmentTargetMode(att.id, value)}>
-                    <SelectTrigger className="h-8 text-xs" data-testid={`attachment-target-mode-${att.id}`}>
-                      <SelectValue placeholder="Target mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Send to all selected models</SelectItem>
-                      <SelectItem value="selected">Send only to chosen models</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {att.targetMode === 'selected' && (
-                    <div className="space-y-1" data-testid={`attachment-model-selector-${att.id}`}>
-                      {selectedModels.map(model => (
-                        <label key={`${att.id}-${model}`} className="flex items-center gap-2 text-xs">
-                          <Checkbox
-                            checked={att.targetModels.includes(model)}
-                            onCheckedChange={() => toggleAttachmentModel(att.id, model)}
-                            data-testid={`attachment-target-model-${att.id}-${model}`}
-                          />
-                          <span className="truncate">{model}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setAttachments([])}
-                disabled={attachments.length === 0}
-                data-testid="attachment-clear-all-btn"
-              >
-                Clear all
-              </Button>
-              <Button onClick={() => setAttachmentDialogOpen(false)} data-testid="attachment-dialog-done-btn">
-                Done
-              </Button>
+        {/* Responses Area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+          {messages.length === 0 && Object.keys(streaming).length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-zinc-600 space-y-3">
+              <MessageSquare size={48} strokeWidth={1} />
+              <p className="text-sm">Select models and send a prompt to begin</p>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Synthesis Dialog */}
-      <Dialog
-        open={showSynthesisDialog}
-        onOpenChange={(open) => {
-          if (open) {
-            setShowSynthesisDialog(true);
-          } else {
-            closeSynthesisDialog();
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Synthesize Responses</DialogTitle>
-            <DialogDescription>
-              {synthesisSourceModel
-                ? `Source panel: ${synthesisSourceModel}. Select targets for ${selectedMessages.length} selected response(s).`
-                : `Select models to synthesize ${selectedMessages.length} selected response(s).`}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label>Synthesis Prompt (optional)</Label>
-              <Textarea
-                value={synthesisPrompt}
-                onChange={(e) => setSynthesisPrompt(e.target.value)}
-                placeholder="E.g., Compare these responses and identify key differences..."
-                className="mt-2"
-                rows={3}
-              />
-            </div>
-            
-            <Separator />
-            
-            <div>
-              <Label>Target Models</Label>
-              <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
-                {synthesisTargetOptions.map(model => (
-                  <div key={model} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`synthesis-${model}`}
-                      checked={synthesisModels.includes(model)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSynthesisModels(prev => [...prev, model]);
-                        } else {
-                          setSynthesisModels(prev => prev.filter(m => m !== model));
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor={`synthesis-${model}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {model}
-                    </label>
-                  </div>
-                ))}
-                {synthesisTargetOptions.length === 0 && (
-                  <div className="text-xs text-muted-foreground" data-testid="synthesis-no-targets-hint">
-                    Add another model to run synthesis from this panel.
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={closeSynthesisDialog} data-testid="synthesis-cancel-btn">
-                Cancel
-              </Button>
-              <Button onClick={handleSynthesis} data-testid="synthesis-submit-btn">
-                <Wand2 className="h-4 w-4 mr-2" />
-                Synthesize
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Batch Prompts Dialog - Mobile Optimized */}
-      <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
-        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base">📋 Batch Prompts</DialogTitle>
-            <DialogDescription className="text-xs">
-              One prompt per line. Sequential processing for EDCM analysis.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-3">
-            <Textarea
-              value={batchPrompts}
-              onChange={(e) => setBatchPrompts(e.target.value)}
-              placeholder="Enter prompts (one per line)&#10;Example:&#10;What is consciousness?&#10;Define intelligence."
-              rows={8}
-              className="font-mono text-xs"
-            />
-            <div className="text-[10px] text-muted-foreground">
-              {batchPrompts.split('\n').filter(p => p.trim()).length} prompts × {selectedModels.length} models = {batchPrompts.split('\n').filter(p => p.trim()).length * selectedModels.length} queries
-            </div>
-            
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowBatchDialog(false)} size="sm">
-                Cancel
-              </Button>
-              <Button onClick={handleBatchRun} disabled={batchRunning} size="sm">
-                <FileText className="h-3 w-3 mr-1" />
-                Run
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Role Assignment Dialog - Mobile Optimized */}
-      <Dialog open={showRolesDialog} onOpenChange={setShowRolesDialog}>
-        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base">🎭 Model Roles</DialogTitle>
-            <DialogDescription className="text-xs">
-              Assign behavioral roles for EDCM dissonance testing
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {selectedModels.map(model => (
-              <div key={model} className="space-y-1">
-                <Label className="text-[10px] font-medium">{model}</Label>
-                <select
-                  value={modelRoles[model] || 'none'}
-                  onChange={(e) => handleRoleAssignment(model, e.target.value)}
-                  className="w-full p-1.5 rounded bg-background border border-border text-xs"
-                >
-                  <option value="none">No specific role</option>
-                  <option value="advocate">Advocate</option>
-                  <option value="adversarial">Adversarial</option>
-                  <option value="skeptic">Skeptic</option>
-                  <option value="neutral">Neutral</option>
-                  <option value="optimist">Optimist</option>
-                  <option value="pessimist">Pessimist</option>
-                  <option value="technical">Technical</option>
-                  <option value="creative">Creative</option>
-                  <option value="socratic">Socratic</option>
-                  <option value="sycophant">Sycophant</option>
-                  <option value="contrarian">Contrarian</option>
-                  <option value="oracle">Oracle</option>
-                </select>
-              </div>
-            ))}
-          </div>
-
-          <Button variant="outline" onClick={() => setShowRolesDialog(false)} size="sm" className="w-full">
-            Done
-          </Button>
-        </DialogContent>
-      </Dialog>
+          )}
+          {renderConversation()}
+          {renderStreaming()}
+          <div ref={responseEndRef} />
+        </div>
+      </div>
     </div>
   );
 }

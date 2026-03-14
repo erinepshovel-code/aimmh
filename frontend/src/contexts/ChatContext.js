@@ -1,282 +1,182 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import axios from 'axios';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const ChatContext = createContext(null);
-const STORAGE_KEY = 'multi_ai_hub_chat';
-const DEFAULT_MODELS = ['gpt-5.2', 'claude-sonnet-4-5-20250929', 'gemini-3-flash-preview'];
 
 export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) throw new Error('useChat must be used within ChatProvider');
-  return context;
+  const ctx = useContext(ChatContext);
+  if (!ctx) throw new Error('useChat must be inside ChatProvider');
+  return ctx;
 };
 
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeSavedState(saved) {
-  const raw = saved && typeof saved === 'object' ? saved : {};
-  const selectedModels = Array.isArray(raw.selectedModels)
-    ? raw.selectedModels.filter(model => typeof model === 'string' && model.trim())
-    : DEFAULT_MODELS;
-
-  const safeSelectedModels = selectedModels.length > 0 ? selectedModels : DEFAULT_MODELS;
-
-  const safeMessages = Array.isArray(raw.messages)
-    ? raw.messages
-      .filter(message => message && typeof message === 'object')
-      .map((message, index) => ({
-        id: typeof message.id === 'string' ? message.id : `recovered-msg-${index}`,
-        role: typeof message.role === 'string' ? message.role : 'assistant',
-        content: typeof message.content === 'string' ? message.content : '',
-        model: typeof message.model === 'string' ? message.model : '',
-        timestamp: message.timestamp || null,
-        streaming: Boolean(message.streaming),
-      }))
-    : [];
-
-  const safeSelectedMessages = Array.isArray(raw.selectedMessages)
-    ? raw.selectedMessages.filter(item => typeof item === 'string')
-    : [];
-
-  const safePromptHistory = Array.isArray(raw.promptHistory)
-    ? raw.promptHistory
-      .filter(prompt => prompt && typeof prompt === 'object')
-      .map((prompt, index) => ({
-        index: Number.isInteger(prompt.index) ? prompt.index : index + 1,
-        content: typeof prompt.content === 'string' ? prompt.content : '',
-        timestamp: prompt.timestamp || null,
-      }))
-    : [];
-
-  const safePausedModels = raw.pausedModels
-    && typeof raw.pausedModels === 'object'
-    && !Array.isArray(raw.pausedModels)
-      ? Object.fromEntries(
-        Object.entries(raw.pausedModels)
-          .filter(([key]) => typeof key === 'string')
-          .map(([key, value]) => [key, Boolean(value)])
-      )
-      : {};
-
-  const safeModelRoles = raw.modelRoles
-    && typeof raw.modelRoles === 'object'
-    && !Array.isArray(raw.modelRoles)
-      ? Object.fromEntries(
-        Object.entries(raw.modelRoles)
-          .filter(([key, value]) => typeof key === 'string' && typeof value === 'string')
-      )
-      : {};
-
-  const safeMessageIndexMap = raw.messageIndexMap
-    && typeof raw.messageIndexMap === 'object'
-    && !Array.isArray(raw.messageIndexMap)
-      ? Object.fromEntries(
-        Object.entries(raw.messageIndexMap)
-          .filter(([key]) => typeof key === 'string')
-      )
-      : {};
-
-  const safeVisibleModelIndex = Number.isInteger(raw.visibleModelIndex)
-    ? Math.max(0, Math.min(raw.visibleModelIndex, Math.max(0, safeSelectedModels.length - 1)))
-    : 0;
-
-  const safeCascadeProgress = raw.cascadeProgress && typeof raw.cascadeProgress === 'object'
-    ? {
-      round: Number.isInteger(raw.cascadeProgress.round) ? raw.cascadeProgress.round : 0,
-      model: typeof raw.cascadeProgress.model === 'string' ? raw.cascadeProgress.model : '',
-      turn: Number.isInteger(raw.cascadeProgress.turn) ? raw.cascadeProgress.turn : 0,
-      totalTurns: Number.isInteger(raw.cascadeProgress.totalTurns) ? raw.cascadeProgress.totalTurns : 0,
-    }
-    : { round: 0, model: '', turn: 0, totalTurns: 0 };
-
-  return {
-    activeTopTab: typeof raw.activeTopTab === 'string' ? raw.activeTopTab : 'chat',
-    selectedModels: safeSelectedModels,
-    visibleModelIndex: safeVisibleModelIndex,
-    input: typeof raw.input === 'string' ? raw.input : '',
-    messages: safeMessages,
-    conversationId: typeof raw.conversationId === 'string' ? raw.conversationId : null,
-    selectedMessages: safeSelectedMessages,
-    pausedModels: safePausedModels,
-    promptHistory: safePromptHistory,
-    messageIndexMap: safeMessageIndexMap,
-    nextIndex: Number.isInteger(raw.nextIndex) && raw.nextIndex > 0 ? raw.nextIndex : 1,
-    globalContext: typeof raw.globalContext === 'string' ? raw.globalContext : '',
-    autoExport: Boolean(raw.autoExport),
-    modelRoles: safeModelRoles,
-    contextMode: ['compartmented', 'shared'].includes(raw.contextMode) ? raw.contextMode : 'compartmented',
-    sharedRoomMode: ['parallel_all', 'parallel_paired'].includes(raw.sharedRoomMode) ? raw.sharedRoomMode : 'parallel_all',
-    cascadeConfig: raw.cascadeConfig && typeof raw.cascadeConfig === 'object' ? raw.cascadeConfig : undefined,
-    cascadeRunning: Boolean(raw.cascadeRunning),
-    cascadeProgress: safeCascadeProgress,
-  };
-}
-
-function buildDefaultCascadeConfig(selectedModels, savedConfig) {
-  const defaults = {
-    rounds: 3,
-    defaultTurnsPerModelPerRound: 1,
-    sequentialContextCount: 1,
-    randomOrderPerRound: false,
-    // Global prompt toggles (cascade-only)
-    globalContextEnabled: false,
-    globalContextText: '',
-    roleplayEnabled: false,
-    roleplayText: '',
-    // Seed
-    seedMode: 'last_user', // last_user | custom
-    seedCustomText: '',
-    // Turn order per round
-    order: selectedModels,
-    // Per-model settings
-    modelSettings: {},
-  };
-
-  const config = { ...defaults, ...(savedConfig || {}) };
-
-  // Ensure order is valid
-  const baseOrder = Array.isArray(config.order) ? config.order : [];
-  const order = [
-    ...baseOrder.filter(m => selectedModels.includes(m)),
-    ...selectedModels.filter(m => !baseOrder.includes(m)),
-  ];
-
-  const modelSettings = { ...(config.modelSettings || {}) };
-  for (const model of selectedModels) {
-    modelSettings[model] = {
-      included: modelSettings[model]?.included ?? true,
-      turnsPerRound: modelSettings[model]?.turnsPerRound ?? null,
-      promptModifier: modelSettings[model]?.promptModifier ?? '',
-      role: modelSettings[model]?.role ?? 'none',
-      customRoleText: modelSettings[model]?.customRoleText ?? '',
-      verbosity: modelSettings[model]?.verbosity ?? 5,
-      alignment: modelSettings[model]?.alignment ?? 'true_neutral',
-      secretMission: modelSettings[model]?.secretMission ?? '',
-      miscConstraint: modelSettings[model]?.miscConstraint ?? '',
-    };
-  }
-
-  return { ...config, order, modelSettings };
-}
-
 export const ChatProvider = ({ children }) => {
-  const saved = normalizeSavedState(loadFromStorage());
+  const [threads, setThreads] = useState([]);
+  const [currentThread, setCurrentThread] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState({});
 
-  const [activeTopTab, setActiveTopTab] = useState(saved.activeTopTab);
-  useEffect(() => {
-    if (activeTopTab === 'roles') {
-      setActiveTopTab('scene');
-      return;
+  const fetchThreads = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/v1/a0/history?limit=50`);
+      setThreads(res.data.threads || []);
+    } catch (err) {
+      console.error('Failed to fetch threads:', err);
     }
-    if (!['chat', 'scene', 'cascade', 'batch'].includes(activeTopTab)) {
-      setActiveTopTab('chat');
-    }
-  }, [activeTopTab]);
-
-  const [selectedModels, setSelectedModels] = useState(saved.selectedModels);
-  const [visibleModelIndex, setVisibleModelIndex] = useState(saved.visibleModelIndex);
-  const [input, setInput] = useState(saved.input);
-  const [messages, setMessages] = useState(saved.messages);
-  const [conversationId, setConversationId] = useState(saved.conversationId);
-  const [streaming, setStreaming] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState(saved.selectedMessages);
-  const [pausedModels, setPausedModels] = useState(saved.pausedModels);
-  const [promptHistory, setPromptHistory] = useState(saved.promptHistory);
-  const [messageIndexMap, setMessageIndexMap] = useState(saved.messageIndexMap);
-  const [nextIndex, setNextIndex] = useState(saved.nextIndex);
-  const [globalContext, setGlobalContext] = useState(saved.globalContext);
-  const [autoExport, setAutoExport] = useState(saved.autoExport);
-  const [modelRoles, setModelRoles] = useState(saved.modelRoles);
-
-
-  const [contextMode, setContextMode] = useState(saved.contextMode);
-  const [sharedRoomMode, setSharedRoomMode] = useState(saved.sharedRoomMode);
-
-  const [cascadeConfig, setCascadeConfig] = useState(
-    buildDefaultCascadeConfig(saved.selectedModels || DEFAULT_MODELS, saved.cascadeConfig)
-  );
-  const [cascadeRunning, setCascadeRunning] = useState(saved.cascadeRunning);
-  const [cascadeProgress, setCascadeProgress] = useState(saved.cascadeProgress);
-
-  // Keep cascade config in sync when selected models change
-  useEffect(() => {
-    setCascadeConfig(prev => buildDefaultCascadeConfig(selectedModels, prev));
-  }, [selectedModels]);
-
-  // Stable prompt index allocator (needed for async loops like cascade)
-  const nextIndexRef = useRef(nextIndex);
-  useEffect(() => {
-    nextIndexRef.current = nextIndex;
-  }, [nextIndex]);
-
-  const allocPromptIndex = useCallback(() => {
-    const idx = nextIndexRef.current;
-    const next = idx + 1;
-    nextIndexRef.current = next;
-    setNextIndex(next);
-    return idx;
   }, []);
 
-  // Persist to sessionStorage on state changes
-  useEffect(() => {
-    const data = {
-      activeTopTab,
-      selectedModels, visibleModelIndex, input, messages,
-      conversationId, selectedMessages, pausedModels,
-      promptHistory, messageIndexMap, nextIndex,
-      globalContext, autoExport, modelRoles,
-      contextMode, sharedRoomMode,
-      cascadeConfig, cascadeRunning, cascadeProgress,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [activeTopTab, selectedModels, visibleModelIndex, input, messages, conversationId,
-      selectedMessages, pausedModels, promptHistory, messageIndexMap,
-      nextIndex, globalContext, autoExport, modelRoles,
-      contextMode, sharedRoomMode,
-      cascadeConfig, cascadeRunning, cascadeProgress]);
+  const loadThread = useCallback(async (threadId) => {
+    try {
+      const res = await axios.get(`${API}/v1/a0/thread/${threadId}`);
+      setCurrentThread(threadId);
+      setMessages(res.data || []);
+    } catch (err) {
+      console.error('Failed to load thread:', err);
+    }
+  }, []);
 
-  const resetChat = useCallback(() => {
+  const sendPrompt = useCallback(async (message, models, options = {}) => {
+    setLoading(true);
+    setStreaming({});
+
+    try {
+      // Use SSE streaming endpoint for real-time display
+      const token = localStorage.getItem('token');
+      const body = {
+        message,
+        models,
+        thread_id: currentThread || undefined,
+        global_context: options.globalContext || undefined,
+        per_model_context: options.perModelContext || undefined,
+      };
+
+      const response = await fetch(`${API}/v1/a0/prompt/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const newResponses = {};
+      let threadId = currentThread;
+
+      // Add user message optimistically
+      const userMsgId = `msg_temp_${Date.now()}`;
+      setMessages(prev => [...prev, {
+        message_id: userMsgId,
+        role: 'user',
+        content: message,
+        model: 'user',
+        timestamp: new Date().toISOString(),
+      }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            const eventType = line.slice(7).trim();
+            continue;
+          }
+          if (!line.startsWith('data: ')) continue;
+
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.thread_id && !threadId) {
+              threadId = data.thread_id;
+              setCurrentThread(threadId);
+            }
+
+            if (data.message_id && data.model) {
+              if (data.content !== undefined) {
+                // Chunk
+                if (!newResponses[data.model]) {
+                  newResponses[data.model] = { content: '', message_id: data.message_id };
+                }
+                newResponses[data.model].content += data.content;
+
+                setStreaming(prev => ({
+                  ...prev,
+                  [data.model]: {
+                    message_id: data.message_id,
+                    content: newResponses[data.model].content,
+                  },
+                }));
+              } else if (data.response_time_ms !== undefined) {
+                // Complete
+                const finalContent = newResponses[data.model]?.content || '';
+                setMessages(prev => [...prev, {
+                  message_id: data.message_id,
+                  thread_id: threadId,
+                  role: 'assistant',
+                  content: finalContent,
+                  model: data.model,
+                  timestamp: new Date().toISOString(),
+                  response_time_ms: data.response_time_ms,
+                }]);
+                setStreaming(prev => {
+                  const next = { ...prev };
+                  delete next[data.model];
+                  return next;
+                });
+              }
+            }
+          } catch {
+            // Skip malformed JSON
+          }
+        }
+      }
+
+      // Refresh threads list
+      fetchThreads();
+    } catch (err) {
+      console.error('Prompt error:', err);
+    } finally {
+      setLoading(false);
+      setStreaming({});
+    }
+  }, [currentThread, fetchThreads]);
+
+  const newThread = useCallback(() => {
+    setCurrentThread(null);
     setMessages([]);
-    setConversationId(null);
-    setPromptHistory([]);
-    setSelectedMessages([]);
-    setMessageIndexMap({});
-    setNextIndex(1);
-    setCascadeRunning(false);
-    setCascadeProgress({ round: 0, model: '', turn: 0, totalTurns: 0 });
-    localStorage.removeItem(STORAGE_KEY);
+    setStreaming({});
+  }, []);
+
+  const submitFeedback = useCallback(async (messageId, feedback) => {
+    try {
+      await axios.post(`${API}/v1/a0/feedback`, { message_id: messageId, feedback });
+      setMessages(prev => prev.map(m =>
+        m.message_id === messageId ? { ...m, feedback } : m
+      ));
+    } catch (err) {
+      console.error('Feedback error:', err);
+    }
   }, []);
 
   return (
     <ChatContext.Provider value={{
-      activeTopTab, setActiveTopTab,
-      selectedModels, setSelectedModels,
-      visibleModelIndex, setVisibleModelIndex,
-      input, setInput,
-      messages, setMessages,
-      conversationId, setConversationId,
-      streaming, setStreaming,
-      selectedMessages, setSelectedMessages,
-      pausedModels, setPausedModels,
-      promptHistory, setPromptHistory,
-      messageIndexMap, setMessageIndexMap,
-      nextIndex, setNextIndex,
-      allocPromptIndex,
-      globalContext, setGlobalContext,
-      autoExport, setAutoExport,
-      modelRoles, setModelRoles,
-      contextMode, setContextMode,
-      sharedRoomMode, setSharedRoomMode,
-      cascadeConfig, setCascadeConfig,
-      cascadeRunning, setCascadeRunning,
-      cascadeProgress, setCascadeProgress,
-      resetChat,
+      threads, currentThread, messages, loading, streaming,
+      fetchThreads, loadThread, sendPrompt, newThread, submitFeedback,
+      setCurrentThread,
     }}>
       {children}
     </ChatContext.Provider>

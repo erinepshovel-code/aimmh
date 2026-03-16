@@ -90,6 +90,26 @@ class BatchRequest(BaseModel):
     async_mode: bool = False
 
 
+class SharedRoomRequest(BaseModel):
+    message: str
+    models: List[str]
+    rounds: int = 1  # number of discussion rounds
+    mode: str = "all"  # "all" = each sees all others | "synthesized" = each sees synthesis
+    synthesis_model: Optional[str] = None  # required if mode="synthesized"
+    thread_id: Optional[str] = None
+    global_context: Optional[str] = None
+    per_model_context: Optional[Dict[str, ModelContextOverride]] = None
+
+
+class DaisyChainRequest(BaseModel):
+    message: str
+    models: List[str]  # ordered chain: model[0] → model[1] → ...
+    rounds: int = 1  # how many times to cycle through all models
+    thread_id: Optional[str] = None
+    global_context: Optional[str] = None
+    per_model_context: Optional[Dict[str, ModelContextOverride]] = None
+
+
 # ---- Responses ----
 
 class ModelResponse(BaseModel):

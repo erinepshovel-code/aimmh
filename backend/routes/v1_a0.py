@@ -279,7 +279,13 @@ async def prompt_stream(
             {"$set": {"updated_at": _iso_now()}},
         )
 
-    return EventSourceResponse(event_gen())
+    return EventSourceResponse(
+        event_gen(),
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache, no-transform",
+        },
+    )
 
 
 # ---- COLLECTED ENDPOINT (for a0 — returns full responses) ----

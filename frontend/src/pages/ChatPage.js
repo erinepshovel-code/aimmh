@@ -329,7 +329,7 @@ function LayoutToggle({ layout, setLayout, splitLocked, setSplitLocked }) {
 export default function ChatPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { threads, currentThread, messages, loading, streaming, fetchThreads, loadThread, sendPrompt, newThread, submitFeedback } = useChat();
+  const { threads, currentThread, messages, loading, streaming, error, fetchThreads, loadThread, sendPrompt, newThread, submitFeedback } = useChat();
 
   const [input, setInput] = useState('');
   const [registry, setRegistry] = useState([]);
@@ -346,6 +346,7 @@ export default function ChatPage() {
   const [splitLocked, setSplitLocked] = useState(false);
   const [selectedResponseIds, setSelectedResponseIds] = useState(new Set());
   const [synthesizing, setSynthesizing] = useState(false);
+  const [advancedLoading, setAdvancedLoading] = useState(false);
   const responseEndRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -374,7 +375,7 @@ export default function ChatPage() {
     if (mode === MODES.NORMAL) {
       sendPrompt(trimmed, selectedModels, { globalContext, perModelContext: Object.keys(pmc).length ? pmc : undefined });
     } else {
-      // Use the advanced endpoints
+      // Advanced modes: shared room, synth room, daisy chain
       const token = localStorage.getItem('token');
       const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
@@ -390,15 +391,25 @@ export default function ChatPage() {
         body = { message: trimmed, models: selectedModels, rounds, global_context: globalContext || undefined, per_model_context: Object.keys(pmc).length ? pmc : undefined };
       }
 
+      // Show user message + loading state immediately
+      setMessages(prev => [...prev, {
+        message_id: `msg_temp_${Date.now()}`, role: 'user', content: trimmed,
+        model: 'user', timestamp: new Date().toISOString(),
+      }]);
+      setAdvancedLoading(true);
+
       try {
         const res = await fetch(endpoint, { method: 'POST', headers, credentials: 'include', body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.thread_id) {
-          loadThread(data.thread_id);
+          await loadThread(data.thread_id);
           fetchThreads();
         }
       } catch (err) {
         console.error('Advanced mode error:', err);
+      } finally {
+        setAdvancedLoading(false);
       }
     }
   };
@@ -495,10 +506,10 @@ export default function ChatPage() {
                 className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 resize-none transition-colors"
                 data-testid="prompt-input" />
             </div>
-            <button onClick={handleSend} disabled={!input.trim() || selectedModels.length === 0 || loading}
+            <button onClick={handleSend} disabled={!input.trim() || selectedModels.length === 0 || loading || advancedLoading}
               className="self-end px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium text-sm transition-colors flex items-center gap-2"
               data-testid="send-btn">
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {(loading || advancedLoading) ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               <span className="hidden sm:inline">Send</span>
             </button>
           </div>
@@ -555,6 +566,20 @@ export default function ChatPage() {
             </div>
           ))}
           {groups.length === 0 && streamEntries.length > 0 && renderResponseGroup([], streamEntries)}
+          {advancedLoading && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-zinc-800 bg-zinc-900/40" data-testid="advanced-loading">
+              <Loader2 size={18} className="animate-spin text-emerald-400" />
+              <span className="text-sm text-zinc-400">
+                {mode === MODES.DAISY ? 'Running daisy chain...' : mode === MODES.SHARED_SYNTH ? 'Synthesizing in shared room...' : 'Processing shared room...'}
+                {rounds > 1 ? ` (${rounds} rounds)` : ''}
+              </span>
+            </div>
+          )}
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-600/30 bg-red-950/20 text-sm text-red-400" data-testid="chat-error">
+              <X size={14} /> {error}
+            </div>
+          )}
           <div ref={responseEndRef} />
         </div>
       </div>

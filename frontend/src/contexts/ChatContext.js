@@ -17,9 +17,9 @@ export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState({});
+  const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
 
-  // Persist current thread to sessionStorage
   const selectThread = useCallback((threadId) => {
     setCurrentThread(threadId);
     if (threadId) sessionStorage.setItem('hub_thread', threadId);
@@ -47,16 +47,48 @@ export const ChatProvider = ({ children }) => {
     }
   }, [selectThread]);
 
+  // ---- Fallback: non-streaming collected response ----
+  const sendPromptCollected = useCallback(async (message, models, options = {}) => {
+    const token = localStorage.getItem('token');
+    const body = {
+      message,
+      models,
+      thread_id: currentThread || undefined,
+      global_context: options.globalContext || undefined,
+      per_model_context: options.perModelContext || undefined,
+    };
+
+    const res = await fetch(`${API}/v1/a0/prompt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }, [currentThread]);
+
   const sendPrompt = useCallback(async (message, models, options = {}) => {
     setLoading(true);
     setStreaming({});
+    setError(null);
+
+    // Add user message optimistically
+    const userMsgId = `msg_temp_${Date.now()}`;
+    setMessages(prev => [...prev, {
+      message_id: userMsgId, role: 'user', content: message,
+      model: 'user', timestamp: new Date().toISOString(),
+    }]);
 
     try {
-      // Use SSE streaming endpoint for real-time display
+      // Try SSE streaming first
       const token = localStorage.getItem('token');
       const body = {
-        message,
-        models,
+        message, models,
         thread_id: currentThread || undefined,
         global_context: options.globalContext || undefined,
         per_model_context: options.perModelContext || undefined,
@@ -73,7 +105,7 @@ export const ChatProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`SSE_FAIL_${response.status}`);
       }
 
       const reader = response.body.getReader();
@@ -81,16 +113,7 @@ export const ChatProvider = ({ children }) => {
       let buffer = '';
       const newResponses = {};
       let threadId = currentThread;
-
-      // Add user message optimistically
-      const userMsgId = `msg_temp_${Date.now()}`;
-      setMessages(prev => [...prev, {
-        message_id: userMsgId,
-        role: 'user',
-        content: message,
-        model: 'user',
-        timestamp: new Date().toISOString(),
-      }]);
+      let gotAnyData = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -101,14 +124,12 @@ export const ChatProvider = ({ children }) => {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            const eventType = line.slice(7).trim();
-            continue;
-          }
+          if (line.startsWith('event: ')) continue;
           if (!line.startsWith('data: ')) continue;
 
           try {
             const data = JSON.parse(line.slice(6));
+            gotAnyData = true;
 
             if (data.thread_id && !threadId) {
               threadId = data.thread_id;
@@ -122,7 +143,6 @@ export const ChatProvider = ({ children }) => {
                   newResponses[data.model] = { content: '', message_id: data.message_id };
                 }
                 newResponses[data.model].content += data.content;
-
                 setStreaming(prev => ({
                   ...prev,
                   [data.model]: {
@@ -134,13 +154,9 @@ export const ChatProvider = ({ children }) => {
                 // Complete
                 const finalContent = newResponses[data.model]?.content || '';
                 setMessages(prev => [...prev, {
-                  message_id: data.message_id,
-                  thread_id: threadId,
-                  role: 'assistant',
-                  content: finalContent,
-                  model: data.model,
-                  timestamp: new Date().toISOString(),
-                  response_time_ms: data.response_time_ms,
+                  message_id: data.message_id, thread_id: threadId,
+                  role: 'assistant', content: finalContent, model: data.model,
+                  timestamp: new Date().toISOString(), response_time_ms: data.response_time_ms,
                 }]);
                 setStreaming(prev => {
                   const next = { ...prev };
@@ -155,20 +171,53 @@ export const ChatProvider = ({ children }) => {
         }
       }
 
-      // Refresh threads list
+      // If SSE connected but no data arrived, fall back to collected
+      if (!gotAnyData) {
+        throw new Error('SSE_EMPTY');
+      }
+
       fetchThreads();
     } catch (err) {
-      console.error('Prompt error:', err);
+      console.warn('SSE failed, falling back to collected endpoint:', err.message);
+      setStreaming({});
+
+      // Show loading indicator for each model
+      const tempStreaming = {};
+      for (const m of models) {
+        tempStreaming[m] = { message_id: null, content: '' };
+      }
+      setStreaming(tempStreaming);
+
+      try {
+        // Fallback to collected (non-streaming) endpoint
+        const data = await sendPromptCollected(message, models, options);
+
+        if (data.thread_id) selectThread(data.thread_id);
+
+        // Add all responses at once
+        for (const resp of (data.responses || [])) {
+          setMessages(prev => [...prev, {
+            message_id: resp.message_id, thread_id: data.thread_id,
+            role: 'assistant', content: resp.content, model: resp.model,
+            timestamp: new Date().toISOString(), response_time_ms: resp.response_time_ms,
+          }]);
+        }
+        fetchThreads();
+      } catch (fallbackErr) {
+        console.error('Collected endpoint also failed:', fallbackErr);
+        setError(`Failed to get responses: ${fallbackErr.message}`);
+      }
     } finally {
       setLoading(false);
       setStreaming({});
     }
-  }, [currentThread, fetchThreads, selectThread]);
+  }, [currentThread, fetchThreads, selectThread, sendPromptCollected]);
 
   const newThread = useCallback(() => {
     selectThread(null);
     setMessages([]);
     setStreaming({});
+    setError(null);
   }, [selectThread]);
 
   const submitFeedback = useCallback(async (messageId, feedback) => {
@@ -192,14 +241,12 @@ export const ChatProvider = ({ children }) => {
           setMessages(res.data);
         }
       } catch {
-        // Thread might be gone — clear it
         sessionStorage.removeItem('hub_thread');
         setCurrentThread(null);
       }
     }
   }, [messages.length]);
 
-  // Initialize once: fetch threads + restore current thread
   React.useEffect(() => {
     if (!initialized) {
       setInitialized(true);
@@ -208,7 +255,6 @@ export const ChatProvider = ({ children }) => {
     }
 
     const handleFocus = () => {
-      // Silently refresh thread list; re-fetch current thread messages
       fetchThreads();
       const saved = sessionStorage.getItem('hub_thread');
       if (saved) {
@@ -224,7 +270,7 @@ export const ChatProvider = ({ children }) => {
 
   return (
     <ChatContext.Provider value={{
-      threads, currentThread, messages, loading, streaming,
+      threads, currentThread, messages, loading, streaming, error,
       fetchThreads, loadThread, sendPrompt, newThread, submitFeedback,
       setCurrentThread: selectThread,
     }}>

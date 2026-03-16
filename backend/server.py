@@ -15,6 +15,7 @@ from routes.v1_edcm import router as v1_edcm_router
 from routes.v1_system import router as v1_system_router
 from routes.registry import router as registry_router
 from routes.keys import router as keys_router
+from routes.v1_analysis import router as analysis_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +33,7 @@ app.include_router(v1_edcm_router)
 app.include_router(v1_system_router)
 app.include_router(registry_router)
 app.include_router(keys_router)
+app.include_router(analysis_router)
 
 cors_origins_raw = os.environ.get('CORS_ORIGINS')
 if not cors_origins_raw:

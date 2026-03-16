@@ -7,6 +7,7 @@ import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
+import AnalysisPage from './pages/AnalysisPage';
 import './App.css';
 
 class ErrorBoundary extends React.Component {
@@ -56,6 +57,7 @@ function AppRoutes() {
       <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
       <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/chat" replace />} />
     </Routes>
   );

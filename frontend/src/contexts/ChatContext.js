@@ -13,29 +13,39 @@ export const useChat = () => {
 
 export const ChatProvider = ({ children }) => {
   const [threads, setThreads] = useState([]);
-  const [currentThread, setCurrentThread] = useState(null);
+  const [currentThread, setCurrentThread] = useState(() => sessionStorage.getItem('hub_thread') || null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState({});
+  const [initialized, setInitialized] = useState(false);
+
+  // Persist current thread to sessionStorage
+  const selectThread = useCallback((threadId) => {
+    setCurrentThread(threadId);
+    if (threadId) sessionStorage.setItem('hub_thread', threadId);
+    else sessionStorage.removeItem('hub_thread');
+  }, []);
 
   const fetchThreads = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/v1/a0/history?limit=50`);
       setThreads(res.data.threads || []);
+      return res.data.threads || [];
     } catch (err) {
       console.error('Failed to fetch threads:', err);
+      return [];
     }
   }, []);
 
   const loadThread = useCallback(async (threadId) => {
     try {
       const res = await axios.get(`${API}/v1/a0/thread/${threadId}`);
-      setCurrentThread(threadId);
+      selectThread(threadId);
       setMessages(res.data || []);
     } catch (err) {
       console.error('Failed to load thread:', err);
     }
-  }, []);
+  }, [selectThread]);
 
   const sendPrompt = useCallback(async (message, models, options = {}) => {
     setLoading(true);
@@ -102,7 +112,7 @@ export const ChatProvider = ({ children }) => {
 
             if (data.thread_id && !threadId) {
               threadId = data.thread_id;
-              setCurrentThread(threadId);
+              selectThread(threadId);
             }
 
             if (data.message_id && data.model) {
@@ -153,13 +163,13 @@ export const ChatProvider = ({ children }) => {
       setLoading(false);
       setStreaming({});
     }
-  }, [currentThread, fetchThreads]);
+  }, [currentThread, fetchThreads, selectThread]);
 
   const newThread = useCallback(() => {
-    setCurrentThread(null);
+    selectThread(null);
     setMessages([]);
     setStreaming({});
-  }, []);
+  }, [selectThread]);
 
   const submitFeedback = useCallback(async (messageId, feedback) => {
     try {
@@ -172,11 +182,51 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
+  // Restore state on mount and on window focus
+  const restoreState = useCallback(async () => {
+    const savedThread = sessionStorage.getItem('hub_thread');
+    if (savedThread && messages.length === 0) {
+      try {
+        const res = await axios.get(`${API}/v1/a0/thread/${savedThread}`);
+        if (res.data && res.data.length > 0) {
+          setMessages(res.data);
+        }
+      } catch {
+        // Thread might be gone — clear it
+        sessionStorage.removeItem('hub_thread');
+        setCurrentThread(null);
+      }
+    }
+  }, [messages.length]);
+
+  // Initialize once: fetch threads + restore current thread
+  React.useEffect(() => {
+    if (!initialized) {
+      setInitialized(true);
+      fetchThreads();
+      restoreState();
+    }
+
+    const handleFocus = () => {
+      // Silently refresh thread list; re-fetch current thread messages
+      fetchThreads();
+      const saved = sessionStorage.getItem('hub_thread');
+      if (saved) {
+        axios.get(`${API}/v1/a0/thread/${saved}`).then(res => {
+          if (res.data) setMessages(res.data);
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [initialized, fetchThreads, restoreState]);
+
   return (
     <ChatContext.Provider value={{
       threads, currentThread, messages, loading, streaming,
       fetchThreads, loadThread, sendPrompt, newThread, submitFeedback,
-      setCurrentThread,
+      setCurrentThread: selectThread,
     }}>
       {children}
     </ChatContext.Provider>

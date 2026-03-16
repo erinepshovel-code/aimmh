@@ -24,19 +24,20 @@ export const AuthProvider = ({ children }) => {
 
   // Check authentication on mount and window focus
   useEffect(() => {
-    checkAuth();
+    checkAuth(true);
     
-    // Re-check auth when window gains focus
+    // Re-check auth on focus — but silently (no loading flash)
     const handleFocus = () => {
-      checkAuth();
+      checkAuth(false);
     };
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
-  const checkAuth = async () => {
-    setLoading(true);
+  const checkAuth = async (isInitial = false) => {
+    // Only show loading spinner on initial mount — never on focus re-checks
+    if (isInitial) setLoading(true);
     
     // First check if we have a JWT token
     const storedToken = localStorage.getItem('token');
@@ -44,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
       setToken(storedToken);
       setIsAuthenticated(true);
-      setLoading(false);
+      if (isInitial) setLoading(false);
       return;
     }
     
@@ -61,7 +62,7 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(false);
       }
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 

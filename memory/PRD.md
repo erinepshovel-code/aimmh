@@ -16,18 +16,28 @@ Build a multi-model AI hub that serves as the primary instrument for a0 (Agent Z
 - [x] Multi-model fan-out (parallel responses from N models)
 - [x] Single model endpoint
 - [x] SSE streaming for real-time response display
-- [x] Synthesis endpoint (feed responses into other models)
-- [x] Batch/chain endpoint (sequential prompts, configurable rooms)
 - [x] Async mode with job polling
 - [x] Append-only event logging (sacred logs)
 - [x] Response persistence (chunk-by-chunk, never lost)
 - [x] Thread history with full message replay
 - [x] Chat persistence through focus changes (sessionStorage + backend reload)
 
+### Interaction Patterns
+- [x] **Normal** — Independent fan-out to selected models
+- [x] **Synthesis** — Select responses via checkmarks, pick a synthesis model, get a new response block
+- [x] **Shared Room (All)** — Each model sees all others' responses, runs for N rounds
+- [x] **Shared Room (Synthesized)** — Responses synthesized first, then synthesis shared with all models
+- [x] **Daisy Chain** — Model A → Model B → ... → Model N for N rounds, each seeing the previous response
+
+### Context Control
+- [x] Global Context textarea (applied to all model calls)
+- [x] Per-model context overrides: Role, System Message, Prompt Modifier
+- [x] Per-model context UI shows fields for each selected model
+
 ### Layout Modes
 - [x] Vertical Stack (default)
-- [x] Resizable Side-by-Side Split (react-resizable-panels) with 50/50 lock
-- [x] Infinite-loop Carousel (embla-carousel-react) with prev/next navigation
+- [x] Resizable Side-by-Side Split with 50/50 lock
+- [x] Infinite-loop Carousel with prev/next navigation
 - [x] Layout preference persisted to localStorage
 
 ### EDCM Engine
@@ -64,15 +74,14 @@ Build a multi-model AI hub that serves as the primary instrument for a0 (Agent Z
 
 ### P1 — Next Up
 - [ ] Stripe integration (subscription for hub + per-transcript fees)
-- [ ] Global context box UI
-- [ ] Service account management UI
+- [ ] File/image upload for chat prompts (model-appropriate dispatch)
 - [ ] Grok key configuration (user has key)
 
 ### P2 — Important
 - [ ] Copy/audio/share buttons on response windows
-- [ ] File/image upload for chat prompts (model-appropriate dispatch)
 - [ ] EDCM visual dashboard (gauges/charts per thread)
 - [ ] Cost tracking per model/thread
+- [ ] Service account management UI
 - [ ] DeepSeek/Perplexity key integration
 
 ### P3 — Future

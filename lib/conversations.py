@@ -13,6 +13,13 @@ CallFn contract: async (model_id: str, messages: list[dict]) -> str
   - messages follows the OpenAI role format: [{"role": "user"|"assistant"|"system", "content": str}]
   - returns the full response string (adapters handle streaming → complete)
   - on error, returns a string starting with "[ERROR]"
+
+Slot context design:
+  slot_contexts is a list[Optional[str]] aligned by index with model_ids (or player_models).
+  This allows calling the same model multiple times with different system prompts:
+      model_ids     = ["gpt-4o", "gpt-4o"]
+      slot_contexts = ["You are a critic.", "You are a defender."]
+  ModelResult.slot_idx carries the position back so callers can cross-reference.
 """
 
 from __future__ import annotations
@@ -40,6 +47,7 @@ class ModelResult:
         responses only:   [r for r in results if r.step_num >= 0]
         synthesis/DM:     [r for r in results if r.step_num == -1]
         by round:         [r for r in results if r.round_num == n]
+        by slot:          [r for r in results if r.slot_idx == i]
     """
     model: str
     content: str
@@ -48,7 +56,8 @@ class ModelResult:
     round_num: int = 0       # 0-indexed round
     step_num: int = 0        # 0-indexed step within round; -1 = synthesis/DM narration
     initiative: int = 0      # initiative roll (roleplay); 0 for non-roleplay patterns
-    role: str = "player"     # "player" | "dm" | "synthesizer" | "council"
+    role: str = "player"     # "player" | "dm" | "synthesizer" | "council" | "reaction"
+    slot_idx: int = 0        # index into original model_ids / player_models list
 
 
 # ---------------------------------------------------------------------------
@@ -57,13 +66,16 @@ class ModelResult:
 
 def _inject_system(
     messages: list[dict],
-    model_id: str,
-    per_model_system: Optional[dict[str, str]],
+    slot_idx: int,
+    slot_contexts: Optional[list[Optional[str]]],
 ) -> list[dict]:
-    """Prepend {"role": "system", "content": ...} if per_model_system has an entry."""
-    if not per_model_system or model_id not in per_model_system:
+    """Prepend {"role": "system", "content": ...} if slot_contexts has an entry at slot_idx."""
+    if not slot_contexts or slot_idx >= len(slot_contexts):
         return messages
-    return [{"role": "system", "content": per_model_system[model_id]}] + messages
+    sys_str = slot_contexts[slot_idx]
+    if not sys_str:
+        return messages
+    return [{"role": "system", "content": sys_str}] + messages
 
 
 def _trim(history: list[dict], max_history: int) -> list[dict]:
@@ -75,14 +87,15 @@ async def _call(
     call: CallFn,
     model_id: str,
     messages: list[dict],
-    per_model_system: Optional[dict[str, str]],
+    slot_contexts: Optional[list[Optional[str]]],
+    slot_idx: int,
     round_num: int,
     step_num: int,
     role: str = "player",
     initiative: int = 0,
 ) -> ModelResult:
     """Single timed call with error capture."""
-    msgs = _inject_system(messages, model_id, per_model_system)
+    msgs = _inject_system(messages, slot_idx, slot_contexts)
     t = time.monotonic()
     try:
         content = await call(model_id, msgs)
@@ -98,6 +111,7 @@ async def _call(
         step_num=step_num,
         initiative=initiative,
         role=role,
+        slot_idx=slot_idx,
     )
 
 
@@ -109,18 +123,18 @@ async def fan_out(
     call: CallFn,
     model_ids: list[str],
     messages: list[dict],
-    per_model_system: Optional[dict[str, str]] = None,
+    slot_contexts: Optional[list[Optional[str]]] = None,
     round_num: int = 0,
     step_num: int = 0,
 ) -> list[ModelResult]:
     """Call all models in parallel with the same messages.
 
     This is the async core: asyncio.gather fires all calls concurrently.
-    Returns results in model_ids order.
+    Returns results in model_ids order. slot_idx = position in model_ids.
     """
     return list(await asyncio.gather(*[
-        _call(call, m, messages, per_model_system, round_num, step_num)
-        for m in model_ids
+        _call(call, m, messages, slot_contexts, i, round_num, step_num)
+        for i, m in enumerate(model_ids)
     ]))
 
 
@@ -133,7 +147,7 @@ async def daisy_chain(
     model_ids: list[str],
     prompt: str,
     rounds: int = 1,
-    per_model_system: Optional[dict[str, str]] = None,
+    slot_contexts: Optional[list[Optional[str]]] = None,
     include_original_prompt: bool = True,
     max_history: int = 30,
 ) -> list[ModelResult]:
@@ -146,6 +160,7 @@ async def daisy_chain(
         Original prompt: {prompt}   ← if include_original_prompt
 
     History accumulates so each step has full prior context.
+    slot_idx = step position within each round (0 for model[0], 1 for model[1], ...).
     """
     all_results: list[ModelResult] = []
     history: list[dict] = []
@@ -153,7 +168,7 @@ async def daisy_chain(
     last_model = "user"
 
     for round_num in range(rounds):
-        for step_num, model_id in enumerate(model_ids):
+        for step_num, (slot_idx, model_id) in enumerate(enumerate(model_ids)):
             if round_num == 0 and step_num == 0:
                 prompt_text = prompt
             else:
@@ -165,7 +180,7 @@ async def daisy_chain(
                     prompt_text += f"\n\nOriginal prompt: {prompt}"
 
             messages = _trim(history, max_history) + [{"role": "user", "content": prompt_text}]
-            result = await _call(call, model_id, messages, per_model_system, round_num, step_num)
+            result = await _call(call, model_id, messages, slot_contexts, slot_idx, round_num, step_num)
             all_results.append(result)
 
             history.append({"role": "user", "content": prompt_text})
@@ -185,7 +200,7 @@ async def room_all(
     model_ids: list[str],
     prompt: str,
     rounds: int = 1,
-    per_model_system: Optional[dict[str, str]] = None,
+    slot_contexts: Optional[list[Optional[str]]] = None,
     max_history: int = 30,
 ) -> list[ModelResult]:
     """Shared room: all models respond, then each sees all responses, responds again.
@@ -207,7 +222,7 @@ async def room_all(
         if round_num == 0:
             user_turn = {"role": "user", "content": prompt}
             messages = _trim(shared_history, max_history) + [user_turn]
-            round_results = await fan_out(call, model_ids, messages, per_model_system, round_num=0)
+            round_results = await fan_out(call, model_ids, messages, slot_contexts, round_num=0)
         else:
             prev_round = all_results[-(len(model_ids)):]
             share_text = f"[ROUND {round_num + 1} — respond after seeing other models' responses]\n\n"
@@ -220,8 +235,8 @@ async def room_all(
             user_turn = {"role": "user", "content": share_text}
             messages = _trim(shared_history, max_history) + [user_turn]
             round_results = list(await asyncio.gather(*[
-                _call(call, m, messages, per_model_system, round_num, step_num=0)
-                for m in model_ids
+                _call(call, m, messages, slot_contexts, i, round_num, step_num=0)
+                for i, m in enumerate(model_ids)
             ]))
 
         all_results.extend(round_results)
@@ -245,7 +260,8 @@ async def room_synthesized(
     synthesis_model: str,
     rounds: int = 1,
     synthesis_prompt: str = "Synthesize and analyze these AI responses:",
-    per_model_system: Optional[dict[str, str]] = None,
+    slot_contexts: Optional[list[Optional[str]]] = None,
+    synth_slot_context: Optional[str] = None,
     max_history: int = 30,
 ) -> list[ModelResult]:
     """All models respond in parallel; one synthesis model combines them.
@@ -264,9 +280,14 @@ async def room_synthesized(
 
     synthesis_model results have step_num=-1.
     Filter: [r for r in results if r.step_num >= 0] → player responses only.
+    synth_slot_context: optional system prompt for the synthesis model specifically.
     """
     if not synthesis_model:
         raise ValueError("synthesis_model is required")
+
+    # Synthesis model gets slot_idx = len(model_ids) (just beyond the player slots)
+    synth_slot_idx = len(model_ids)
+    synth_contexts = (slot_contexts or []) + [synth_slot_context]
 
     all_results: list[ModelResult] = []
     shared_history: list[dict] = []
@@ -288,8 +309,8 @@ async def room_synthesized(
 
         messages = _trim(shared_history, max_history) + [user_turn]
         round_results = list(await asyncio.gather(*[
-            _call(call, m, messages, per_model_system, round_num, step_num=0, role="player")
-            for m in model_ids
+            _call(call, m, messages, slot_contexts, i, round_num, step_num=0, role="player")
+            for i, m in enumerate(model_ids)
         ]))
         all_results.extend(round_results)
         shared_history.append(user_turn)
@@ -307,8 +328,8 @@ async def room_synthesized(
         )}
         synth_messages = _trim(shared_history, max_history) + [synth_turn]
         synth_result = await _call(
-            call, synthesis_model, synth_messages, per_model_system,
-            round_num, step_num=-1, role="synthesizer"
+            call, synthesis_model, synth_messages, synth_contexts,
+            synth_slot_idx, round_num, step_num=-1, role="synthesizer"
         )
         all_results.append(synth_result)
         shared_history.append(synth_turn)
@@ -327,7 +348,7 @@ async def council(
     prompt: str,
     rounds: int = 1,
     synthesis_prompt: str = "Synthesize and analyze all model responses including your own:",
-    per_model_system: Optional[dict[str, str]] = None,
+    slot_contexts: Optional[list[Optional[str]]] = None,
     max_history: int = 30,
 ) -> list[ModelResult]:
     """Each model produces its own synthesis of all responses in parallel.
@@ -368,8 +389,8 @@ async def council(
 
         messages = _trim(shared_history, max_history) + [user_turn]
         round_results = list(await asyncio.gather(*[
-            _call(call, m, messages, per_model_system, round_num, step_num=0, role="council")
-            for m in model_ids
+            _call(call, m, messages, slot_contexts, i, round_num, step_num=0, role="council")
+            for i, m in enumerate(model_ids)
         ]))
         all_results.extend(round_results)
         shared_history.append(user_turn)
@@ -389,8 +410,8 @@ async def council(
 
         # All models synthesize concurrently — this is the async payoff
         synth_results = list(await asyncio.gather(*[
-            _call(call, m, synth_messages, per_model_system, round_num, step_num=1, role="council")
-            for m in model_ids
+            _call(call, m, synth_messages, slot_contexts, i, round_num, step_num=1, role="council")
+            for i, m in enumerate(model_ids)
         ]))
         all_results.extend(synth_results)
         shared_history.append(synth_turn)
@@ -411,7 +432,9 @@ async def roleplay(
     dm_model: Optional[str] = None,
     dm_rotation: Optional[list[str]] = None,
     rounds: int = 1,
-    per_model_system: Optional[dict[str, str]] = None,
+    slot_contexts: Optional[list[Optional[str]]] = None,
+    dm_slot_context: Optional[str] = None,
+    dm_rotation_contexts: Optional[list[Optional[str]]] = None,
     action_word_limit: Optional[int] = None,
     use_initiative: bool = True,
     allow_reactions: bool = False,
@@ -430,9 +453,14 @@ async def roleplay(
          DM narration drives the next round.
 
     DM selection:
-      - dm_model: fixed DM for all rounds
+      - dm_model: fixed DM for all rounds (context from dm_slot_context)
       - dm_rotation: list of model IDs that cycle as DM each round
+                     (contexts from dm_rotation_contexts, aligned by index)
       - If neither, the first player_model acts as DM each round
+
+    slot_contexts: system prompts for player_models (index-aligned, handles duplicates).
+    dm_slot_context: system prompt for a fixed dm_model.
+    dm_rotation_contexts: system prompts for each DM in dm_rotation (index-aligned).
 
     action_word_limit: injects "Respond in {N} words or fewer." into each
         player's prompt (token economy, like action economy in TTRPGs).
@@ -449,17 +477,27 @@ async def roleplay(
     shared_history: list[dict] = []
     dm_narration = initial_prompt  # seeds round 0
 
-    def _get_dm(round_num: int) -> str:
-        if dm_rotation:
-            return dm_rotation[round_num % len(dm_rotation)]
-        if dm_model:
-            return dm_model
-        return player_models[0]
+    # player slots: list of (slot_idx, model_id) — preserves duplicates
+    player_slots_list: list[tuple[int, str]] = list(enumerate(player_models))
 
-    def _active_players(round_num: int) -> list[str]:
-        """Players are all models except the DM for this round."""
-        dm = _get_dm(round_num)
-        return [m for m in player_models if m != dm]
+    def _get_dm_info(round_num: int) -> tuple[str, Optional[str]]:
+        """Returns (model_id, system_context) for the DM this round."""
+        if dm_rotation:
+            idx = round_num % len(dm_rotation)
+            ctx = (dm_rotation_contexts[idx] if dm_rotation_contexts and idx < len(dm_rotation_contexts) else None)
+            return dm_rotation[idx], ctx
+        if dm_model:
+            return dm_model, dm_slot_context
+        # First player acts as DM
+        return player_models[0], (slot_contexts[0] if slot_contexts else None)
+
+    def _active_player_slots(round_num: int) -> list[tuple[int, str]]:
+        """Player (slot_idx, model_id) pairs excluding the DM for this round."""
+        dm_id, _ = _get_dm_info(round_num)
+        # If neither dm_model nor dm_rotation, the first player slot is DM
+        if not dm_model and not dm_rotation:
+            return player_slots_list[1:]
+        return player_slots_list
 
     def _word_limit_suffix() -> str:
         if action_word_limit:
@@ -467,36 +505,35 @@ async def roleplay(
         return ""
 
     for round_num in range(rounds):
-        dm = _get_dm(round_num)
-        players = _active_players(round_num)
+        dm_id, dm_ctx = _get_dm_info(round_num)
+        active_players = _active_player_slots(round_num)
 
-        # --- initiative: random roll per player, descending order ---
+        # --- initiative: random roll per slot, descending order ---
         if use_initiative:
-            rolls = {p: random.randint(1, 20) for p in players}
-            ordered_players = sorted(players, key=lambda p: rolls[p], reverse=True)
+            rolls = {slot_idx: random.randint(1, 20) for slot_idx, _ in active_players}
+            ordered_players = sorted(active_players, key=lambda t: rolls[t[0]], reverse=True)
         else:
-            rolls = {p: 0 for p in players}
-            ordered_players = players
+            rolls = {slot_idx: 0 for slot_idx, _ in active_players}
+            ordered_players = active_players
 
         round_actions: list[ModelResult] = []
 
         # --- sequential player turns in initiative order ---
-        for step_num, player in enumerate(ordered_players):
-            # Build context: DM narration + prior player actions this round
+        for step_num, (slot_idx, player) in enumerate(ordered_players):
             prior_actions = "\n\n".join(
                 f"{r.model} acted:\n{r.content}"
                 for r in round_actions if not r.error
             )
             if round_actions:
                 player_prompt = (
-                    f"[ROUND {round_num + 1} — your turn (initiative {rolls[player]})]\n\n"
+                    f"[ROUND {round_num + 1} — your turn (initiative {rolls[slot_idx]})]\n\n"
                     f"DM: {dm_narration}\n\n"
                     f"Actions so far this round:\n{prior_actions}"
                     f"{_word_limit_suffix()}"
                 )
             else:
                 player_prompt = (
-                    f"[ROUND {round_num + 1} — your turn (initiative {rolls[player]}, going first)]\n\n"
+                    f"[ROUND {round_num + 1} — your turn (initiative {rolls[slot_idx]}, going first)]\n\n"
                     f"DM: {dm_narration}"
                     f"{_word_limit_suffix()}"
                 )
@@ -505,19 +542,19 @@ async def roleplay(
                 {"role": "user", "content": player_prompt}
             ]
             result = await _call(
-                call, player, messages, per_model_system,
-                round_num, step_num, role="player", initiative=rolls[player]
+                call, player, messages, slot_contexts, slot_idx,
+                round_num, step_num, role="player", initiative=rolls[slot_idx]
             )
             round_actions.append(result)
             all_results.append(result)
 
-            # Update shared history with this player's action
             shared_history.append({"role": "user", "content": player_prompt})
             shared_history.append({"role": "assistant", "content": result.content})
 
             # --- reactions: remaining players can react to this action ---
             if allow_reactions and not result.error:
-                remaining = [p for p in ordered_players if p not in [r.model for r in round_actions]]
+                acted_slots = {r.slot_idx for r in round_actions}
+                remaining = [(si, pm) for si, pm in ordered_players if si not in acted_slots]
                 if remaining:
                     reaction_prompt = (
                         f"[ROUND {round_num + 1} — REACTION to {player}'s action]\n\n"
@@ -528,17 +565,15 @@ async def roleplay(
                     reaction_messages = _trim(shared_history, max_history) + [
                         {"role": "user", "content": reaction_prompt}
                     ]
-                    # Reactions are parallel among remaining players
                     reactions = list(await asyncio.gather(*[
                         _call(
-                            call, p, reaction_messages, per_model_system,
+                            call, pm, reaction_messages, slot_contexts, si,
                             round_num, step_num=step_num, role="reaction",
-                            initiative=rolls.get(p, 0)
+                            initiative=rolls.get(si, 0)
                         )
-                        for p in remaining
+                        for si, pm in remaining
                     ]))
                     all_results.extend(reactions)
-                    # Reactions go into history so DM sees them
                     shared_history.append({"role": "user", "content": reaction_prompt})
                     for rx in reactions:
                         shared_history.append({"role": "assistant", "content": rx.content})
@@ -565,9 +600,12 @@ async def roleplay(
         dm_messages = _trim(shared_history, max_history) + [
             {"role": "user", "content": dm_prompt}
         ]
+        # DM slot_idx = len(player_models) (beyond all player slots)
+        dm_slot_idx = len(player_models)
+        dm_contexts = (slot_contexts or []) + [dm_ctx]
         dm_result = await _call(
-            call, dm, dm_messages, per_model_system,
-            round_num, step_num=-1, role="dm"
+            call, dm_id, dm_messages, dm_contexts,
+            dm_slot_idx, round_num, step_num=-1, role="dm"
         )
         all_results.append(dm_result)
         shared_history.append({"role": "user", "content": dm_prompt})

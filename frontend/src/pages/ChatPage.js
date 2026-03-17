@@ -329,7 +329,7 @@ function LayoutToggle({ layout, setLayout, splitLocked, setSplitLocked }) {
 export default function ChatPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { threads, currentThread, messages, loading, streaming, error, fetchThreads, loadThread, sendPrompt, newThread, submitFeedback } = useChat();
+  const { threads, currentThread, messages, loading, streaming, error, fetchThreads, loadThread, sendPrompt, newThread, submitFeedback, addOptimisticMessage } = useChat();
 
   const [input, setInput] = useState('');
   const [registry, setRegistry] = useState([]);
@@ -392,10 +392,10 @@ export default function ChatPage() {
       }
 
       // Show user message + loading state immediately
-      setMessages(prev => [...prev, {
+      addOptimisticMessage({
         message_id: `msg_temp_${Date.now()}`, role: 'user', content: trimmed,
         model: 'user', timestamp: new Date().toISOString(),
-      }]);
+      });
       setAdvancedLoading(true);
 
       try {

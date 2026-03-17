@@ -231,6 +231,10 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
+  const addOptimisticMessage = useCallback((msg) => {
+    setMessages(prev => [...prev, msg]);
+  }, []);
+
   // Restore state on mount and on window focus
   const restoreState = useCallback(async () => {
     const savedThread = sessionStorage.getItem('hub_thread');
@@ -272,7 +276,7 @@ export const ChatProvider = ({ children }) => {
     <ChatContext.Provider value={{
       threads, currentThread, messages, loading, streaming, error,
       fetchThreads, loadThread, sendPrompt, newThread, submitFeedback,
-      setCurrentThread: selectThread,
+      addOptimisticMessage, setCurrentThread: selectThread,
     }}>
       {children}
     </ChatContext.Provider>

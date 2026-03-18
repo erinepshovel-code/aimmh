@@ -40,9 +40,9 @@ _root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-from lib import fan_out, daisy_chain, room_all, room_synthesized, council, roleplay
-from lib.conversations import ModelResult
-from lib.adapters import make_call_fn
+from aimmh_lib import fan_out, daisy_chain, room_all, room_synthesized, council, roleplay
+from aimmh_lib.conversations import ModelResult
+from aimmh_lib.adapters import make_call_fn
 
 from db import db
 from services.auth import get_current_user

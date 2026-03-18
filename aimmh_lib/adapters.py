@@ -1,14 +1,14 @@
 """
-adapters.py — Bridge from lib.conversations.CallFn to the aimmh backend.
+adapters.py — Bridge from aimmh_lib.conversations.CallFn to the aimmh backend.
 
-This module is intentionally NOT re-exported from lib/__init__.py because
+This module is intentionally NOT re-exported from aimmh_lib/__init__.py because
 importing it pulls in backend service dependencies. Import explicitly:
 
     import sys
-    sys.path.insert(0, "/home/user/aimmh/backend")
+    sys.path.insert(0, "/path/to/aimmh/backend")
 
-    from lib.adapters import make_call_fn
-    from lib import daisy_chain, roleplay
+    from aimmh_lib.adapters import make_call_fn
+    from aimmh_lib import daisy_chain, roleplay
 
     call = make_call_fn(user={"api_keys": {}})
     results = await daisy_chain(call, ["gpt-4o", "claude-haiku-4-5-20251001"], "Hello")

@@ -1,19 +1,19 @@
 """
-lib — Async multi-model conversation orchestration library.
+aimmh_lib — Async multi-model conversation orchestration library.
 
 Standalone, framework-agnostic, zero external dependencies (stdlib + asyncio).
 No FastAPI, MongoDB, or auth required.
 
-The library's reason for being: async. fan_out uses asyncio.gather for true
-parallel model calls; sequential patterns (daisy_chain, roleplay) use await
-so each step can inform the next. Compose these freely without backend overhead.
+Install:
+    pip install aimmh-lib           # from PyPI (once published)
+    pip install -e /path/to/aimmh   # editable local install from repo root
 
-Quick start:
+Quick start (with the aimmh backend adapter):
     import sys
-    sys.path.insert(0, "/home/user/aimmh/backend")
+    sys.path.insert(0, "/path/to/aimmh/backend")
 
-    from lib import daisy_chain, roleplay, council, ModelResult
-    from lib.adapters import make_call_fn
+    from aimmh_lib import daisy_chain, roleplay, council, ModelResult
+    from aimmh_lib.adapters import make_call_fn
 
     call = make_call_fn(user={"api_keys": {}})  # uses EMERGENT_LLM_KEY env
 
@@ -43,11 +43,11 @@ Patterns:
     council          — all respond, each synthesizes all responses (incl. own), in parallel
     roleplay         — DM + players, initiative ordering, sequential turns, optional reactions
 
-Note: lib.adapters is NOT imported here to avoid pulling in backend dependencies.
-Import it explicitly: from lib.adapters import make_call_fn
+Note: aimmh_lib.adapters is NOT imported here to avoid pulling in backend dependencies.
+Import it explicitly: from aimmh_lib.adapters import make_call_fn
 """
 
-from lib.conversations import (
+from aimmh_lib.conversations import (
     ModelResult,
     CallFn,
     fan_out,

@@ -454,7 +454,7 @@ print('SUCCESS: Test data cleaned up');
 
 async def main():
     """Main test runner"""
-    BASE_URL = "https://model-sync-3.preview.emergentagent.com"
+    BASE_URL = "https://aimmh-hub.preview.emergentagent.com"
     
     tester = BackendRegressionTester(BASE_URL)
     success = await tester.run_regression_tests()

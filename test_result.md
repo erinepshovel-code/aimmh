@@ -382,6 +382,18 @@ frontend:
         agent: "testing"
         comment: "COMPREHENSIVE TEST COMPLETED: ✅ (1) Top-right menu contains 'Restore Latest Thread' item with correct data-testid='restore-latest-conversation-menu-item'. ✅ (2) Created conversation by sending prompt 'What is the capital of France?' - received responses from multiple models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview) with correct answer 'Paris'. ✅ (3) Started new chat via 'New Chat' menu item - conversation successfully reset, response panels showed 'Waiting for response...' state. ✅ (4) Used 'Restore Latest Thread' menu action - successfully restored previous conversation, toast notification 'Latest conversation restored' appeared, original messages with 'France'/'Paris' content verified visible in UI. ✅ (5) Verified existing 'Refresh from logs' button (data-testid='refresh-from-logs-btn') still works correctly with active conversation - toast notification 'Conversation refreshed from logs' appeared. All functionality working as expected with no errors."
 
+
+  - task: "AIMMH hub frontend replacement: modular instance/group/pipeline workspace"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/HubPage.jsx, /app/frontend/src/components/hub/*, /app/frontend/src/hooks/useHubWorkspace.js, /app/frontend/src/lib/hubApi.js, /app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Replaced /chat route UI with a modular AIMMH Hub workspace. Added isolated instance manager, nested group manager, pipeline builder for all aimmh_lib patterns, structured run timeline, and FastAPI connection panels. JS lint passes. Frontend not yet browser-tested."
 metadata:
   created_by: "main_agent"
   version: "1.0"
@@ -390,7 +402,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "AIMMH hub backend foundation: isolated instances, nested groups, pipeline runs, FastAPI connections"
+    - "AIMMH hub frontend replacement: modular instance/group/pipeline workspace"
   stuck_tasks:
     []
   test_all: false
@@ -429,3 +441,5 @@ agent_communication:
     message: "Implemented first AIMMH hub backend pass in modular files. Added /api/v1/hub FastAPI surface for instance CRUD/history/archive, nested groups, pipeline run execution over aimmh_lib patterns (fan_out, daisy_chain, room_all, room_synthesized, council, roleplay), and run detail/list endpoints. Core rule enforced in data model: single model can have multiple persistent isolated instances with their own thread_id and archived state. Please backend-test these new hub endpoints first."
   - agent: "testing"
     message: "AIMMH HUB BACKEND FOUNDATION COMPREHENSIVE TESTING COMPLETED: ✅ ALL 9 SCENARIOS PASSED ✅ Complete end-to-end validation of new AIMMH hub backend foundation performed on https://aimmh-hub.preview.emergentagent.com: ✅ (1) Authentication: JWT token-based authentication working correctly with user registration and Bearer token authorization ✅ (2) Unauthenticated Access: All hub endpoints correctly return 401 for unauthenticated requests ✅ (3) Hub Options & Connections: GET /api/v1/hub/options and /api/v1/hub/fastapi-connections return correct structure with all 6 aimmh_lib patterns and 5 support flags ✅ (4) Instance CRUD: Created 2 instances using SAME model_id (gpt-4o) with distinct instance_id/thread_id, all CRUD operations working ✅ (5) Group CRUD & Nested Groups: Created group containing instances, created nested group, all operations working ✅ (6) Run Execution: Multi-stage pipeline run with fan_out and room_all patterns executed successfully, generated 6 results across 2 stages, preserved distinct instance/thread combinations ✅ (7) Instance History Isolation: Each instance maintains isolated thread history, archived instance history retrievable ✅ (8) Run Detail & List: All endpoints working with persisted structured results containing required fields ✅ (9) Roleplay Smoke Test: Roleplay pattern executed successfully with DM/player role separation. CONCLUSION: AIMMH hub backend foundation is fully functional and production-ready. All core features working: isolated instances, nested groups, pipeline runs, FastAPI connections, instance archival, and private thread history."
+  - agent: "main"
+    message: "Replaced the /chat UI with a modular AIMMH Hub workspace in new small files: HubPage, hub API client, workspace hook, and focused instance/group/run timeline components. Wired frontend to /api/v1/hub for isolated instance management, nested groups, pipeline creation, and structured run inspection. Browser testing has NOT been run yet; ask user whether to run frontend tests."

@@ -1,0 +1,269 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from db import db
+from models.hub import (
+    HubConnectionsResponse,
+    HubGroupCreateRequest,
+    HubGroupListResponse,
+    HubGroupOut,
+    HubGroupUpdateRequest,
+    HubInstanceCreateRequest,
+    HubInstanceHistoryResponse,
+    HubInstanceListResponse,
+    HubInstanceOut,
+    HubInstanceUpdateRequest,
+    HubRunDetailResponse,
+    HubRunListResponse,
+    HubRunOut,
+    HubRunRequest,
+)
+from services.auth import get_current_user, get_user_id
+from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
+from services.hub_store import (
+    HUB_GROUP_COLLECTION,
+    HUB_INSTANCE_COLLECTION,
+    ensure_models_exist,
+    get_group,
+    get_instance,
+    get_thread_messages,
+    iso_now,
+    make_id,
+)
+
+router = APIRouter(prefix="/api/v1/hub", tags=["hub"])
+
+
+def _connections_payload() -> HubConnectionsResponse:
+    return HubConnectionsResponse(
+        fastapi_connections={
+            "instances": {
+                "list": "/api/v1/hub/instances",
+                "create": "/api/v1/hub/instances",
+                "detail": "/api/v1/hub/instances/{instance_id}",
+                "update": "/api/v1/hub/instances/{instance_id}",
+                "archive": "/api/v1/hub/instances/{instance_id}/archive",
+                "unarchive": "/api/v1/hub/instances/{instance_id}/unarchive",
+                "history": "/api/v1/hub/instances/{instance_id}/history",
+            },
+            "groups": {
+                "list": "/api/v1/hub/groups",
+                "create": "/api/v1/hub/groups",
+                "detail": "/api/v1/hub/groups/{group_id}",
+                "update": "/api/v1/hub/groups/{group_id}",
+                "archive": "/api/v1/hub/groups/{group_id}/archive",
+                "unarchive": "/api/v1/hub/groups/{group_id}/unarchive",
+            },
+            "runs": {
+                "execute": "/api/v1/hub/runs",
+                "list": "/api/v1/hub/runs",
+                "detail": "/api/v1/hub/runs/{run_id}",
+            },
+            "lib_patterns": {
+                "fan_out": "/api/v1/lib/fan-out",
+                "daisy_chain": "/api/v1/lib/daisy-chain",
+                "room_all": "/api/v1/lib/room-all",
+                "room_synthesized": "/api/v1/lib/room-synthesized",
+                "council": "/api/v1/lib/council",
+                "roleplay": "/api/v1/lib/roleplay",
+            },
+        },
+        patterns=["fan_out", "daisy_chain", "room_all", "room_synthesized", "council", "roleplay"],
+        supports={
+            "single_model_multiple_instances": True,
+            "nested_groups": True,
+            "pattern_pipelines": True,
+            "instance_archival": True,
+            "instance_private_thread_history": True,
+        },
+    )
+
+
+@router.get("/options", response_model=HubConnectionsResponse)
+async def get_hub_options(current_user: dict = Depends(get_current_user)):
+    return _connections_payload()
+
+
+@router.get("/fastapi-connections", response_model=HubConnectionsResponse)
+async def get_hub_fastapi_connections(current_user: dict = Depends(get_current_user)):
+    return _connections_payload()
+
+
+@router.post("/instances", response_model=HubInstanceOut)
+async def create_instance(req: HubInstanceCreateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    await ensure_models_exist(user_id, [req.model_id])
+    now = iso_now()
+    doc = req.model_dump()
+    doc.update(
+        {
+            "instance_id": make_id("hubi"),
+            "thread_id": make_id("hubthr"),
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+            "archived_at": now if req.archived else None,
+        }
+    )
+    await db[HUB_INSTANCE_COLLECTION].insert_one(doc)
+    doc.pop("user_id", None)
+    return HubInstanceOut(**doc)
+
+
+@router.get("/instances", response_model=HubInstanceListResponse)
+async def get_instances(
+    include_archived: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_hub_instances(user_id, include_archived=include_archived, limit=limit)
+    return HubInstanceListResponse(instances=[HubInstanceOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/instances/{instance_id}", response_model=HubInstanceOut)
+async def get_instance_detail(instance_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    doc = await get_instance(user_id, instance_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    return HubInstanceOut(**doc)
+
+
+@router.patch("/instances/{instance_id}", response_model=HubInstanceOut)
+async def update_instance(instance_id: str, req: HubInstanceUpdateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    existing = await get_instance(user_id, instance_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Instance not found")
+
+    update = req.model_dump(exclude_none=True)
+    if "model_id" in update:
+        await ensure_models_exist(user_id, [update["model_id"]])
+    if "archived" in update:
+        update["archived_at"] = iso_now() if update["archived"] else None
+    update["updated_at"] = iso_now()
+
+    await db[HUB_INSTANCE_COLLECTION].update_one(
+        {"user_id": user_id, "instance_id": instance_id},
+        {"$set": update},
+    )
+    doc = await get_instance(user_id, instance_id)
+    return HubInstanceOut(**doc)
+
+
+@router.post("/instances/{instance_id}/archive", response_model=HubInstanceOut)
+async def archive_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_instance(instance_id, HubInstanceUpdateRequest(archived=True), current_user)
+
+
+@router.post("/instances/{instance_id}/unarchive", response_model=HubInstanceOut)
+async def unarchive_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_instance(instance_id, HubInstanceUpdateRequest(archived=False), current_user)
+
+
+@router.get("/instances/{instance_id}/history", response_model=HubInstanceHistoryResponse)
+async def get_instance_history(
+    instance_id: str,
+    limit: int = Query(default=200, ge=1, le=2000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    doc = await get_instance(user_id, instance_id, include_archived=True)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    messages = await get_thread_messages(user_id, doc["thread_id"], limit=limit)
+    return HubInstanceHistoryResponse(instance_id=instance_id, thread_id=doc["thread_id"], messages=messages)
+
+
+@router.post("/groups", response_model=HubGroupOut)
+async def create_group(req: HubGroupCreateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    now = iso_now()
+    doc = req.model_dump()
+    doc.update(
+        {
+            "group_id": make_id("hubg"),
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+            "archived_at": now if req.archived else None,
+        }
+    )
+    await db[HUB_GROUP_COLLECTION].insert_one(doc)
+    doc.pop("user_id", None)
+    return HubGroupOut(**doc)
+
+
+@router.get("/groups", response_model=HubGroupListResponse)
+async def get_groups(
+    include_archived: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_hub_groups(user_id, include_archived=include_archived, limit=limit)
+    return HubGroupListResponse(groups=[HubGroupOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/groups/{group_id}", response_model=HubGroupOut)
+async def get_group_detail(group_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    doc = await get_group(user_id, group_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return HubGroupOut(**doc)
+
+
+@router.patch("/groups/{group_id}", response_model=HubGroupOut)
+async def update_group(group_id: str, req: HubGroupUpdateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    existing = await get_group(user_id, group_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    update = req.model_dump(exclude_none=True)
+    if "archived" in update:
+        update["archived_at"] = iso_now() if update["archived"] else None
+    update["updated_at"] = iso_now()
+
+    await db[HUB_GROUP_COLLECTION].update_one(
+        {"user_id": user_id, "group_id": group_id},
+        {"$set": update},
+    )
+    doc = await get_group(user_id, group_id)
+    return HubGroupOut(**doc)
+
+
+@router.post("/groups/{group_id}/archive", response_model=HubGroupOut)
+async def archive_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_group(group_id, HubGroupUpdateRequest(archived=True), current_user)
+
+
+@router.post("/groups/{group_id}/unarchive", response_model=HubGroupOut)
+async def unarchive_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_group(group_id, HubGroupUpdateRequest(archived=False), current_user)
+
+
+@router.post("/runs", response_model=HubRunDetailResponse)
+async def create_hub_run(req: HubRunRequest, current_user: dict = Depends(get_current_user)):
+    return await execute_hub_run(current_user, req)
+
+
+@router.get("/runs", response_model=HubRunListResponse)
+async def get_runs(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_hub_runs(user_id, limit=limit)
+    return HubRunListResponse(runs=[HubRunOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/runs/{run_id}", response_model=HubRunDetailResponse)
+async def get_run_detail(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    return await get_hub_run_detail(user_id, run_id)

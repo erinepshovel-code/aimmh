@@ -433,6 +433,7 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Built a mobile-first tabbed AIMMH experience with README-style splash, registry website metadata display, verify actions, one-click model instantiation, responses stack/pane comparison with native markdown formatting, copy/share/thumbs buttons, and pinch/two-finger gesture support. Frontend compiles successfully; browser testing not run yet for this pass."
+metadata:
   created_by: "main_agent"
   version: "1.0"
   test_sequence: 2
@@ -440,7 +441,7 @@ frontend:
 
 test_plan:
   current_focus:
-    - "Registry enrichment backend: developer websites, lightweight verification, hub feedback message ids"
+    - "Mobile tabbed AIMMH UI: splash, registry instantiate/verify, responses compare gestures"
   stuck_tasks:
     []
   test_all: false

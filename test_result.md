@@ -385,11 +385,11 @@ frontend:
 
   - task: "AIMMH hub frontend replacement: modular instance/group/pipeline workspace"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/frontend/src/pages/HubPage.jsx, /app/frontend/src/components/hub/*, /app/frontend/src/hooks/useHubWorkspace.js, /app/frontend/src/lib/hubApi.js, /app/frontend/src/App.js"
     stuck_count: 1
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
@@ -403,7 +403,9 @@ frontend:
       - working: true
         agent: "testing"
         comment: "AIMMH HUB FRONTEND COMPREHENSIVE TEST COMPLETED: ✅ ALL USER-REPORTED ISSUES RESOLVED ✅ (1) Auth Flow: Successfully registered user hubtest_1774065062 and logged in, redirected to /chat Hub page ✅ (2) Registry->Hub Model Visibility: FIXED - Added test-model-1774065062 to OpenAI developer in Settings/Registry, model appeared in Hub instance builder dropdown (25 total models available), confirming user-added models now sync correctly from /api/v1/registry ✅ (3) Quick-Start Guide: VISIBLE and CLEAR - 'How to start a run' guide displays 4 numbered steps explaining instance creation, group creation, participant selection, and pipeline execution ✅ (4) Instance Creation: Successfully created 2 instances (Test Instance 1 and Test Instance 2) both using gpt-4o model, demonstrating single-model-multiple-instances capability, both instances visible in UI with distinct instance_id and thread_id ✅ (5) Export Inventory: Export inventory button present in header, clicking triggers download functionality (tested with timeout, button functional) ✅ (6) Stability/Error Boundary: NO ERROR BOUNDARY DETECTED throughout entire test flow including auth, navigation between Settings and Hub, instance creation, and multiple interactions, app remained stable with no crashes ✅ (7) Navigation: Settings->Registry->Hub navigation working correctly, back button functional. Minor: Pipeline execution could not be fully tested as Execute pipeline button appeared disabled during automated test (may be due to participant selection timing in test script, button enable logic only requires prompt + stages which were present). All 4 user-reported issues confirmed resolved: models visible, run guidance clear, export present, no crashes."
-metadata:
+      - working: "NA"
+        agent: "main"
+        comment: "Added a defensive registry UX fix for deployed/mobile cases: explicit loading state, visible error state, retry button, and non-silent empty state in Settings -> Model Registry so transient fetch/auth issues no longer look like missing models. Frontend compiles successfully; pending browser retest."metadata:
   created_by: "main_agent"
   version: "1.0"
   test_sequence: 2

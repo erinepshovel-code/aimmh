@@ -165,3 +165,7 @@ frontend/node_modules/.cache/default-development/2.pack_
 *.env
 *.env.*
 aimmh_lib.egg-info/
+-e 
+# Environment files
+*.env
+*.env.*

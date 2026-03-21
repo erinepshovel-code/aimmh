@@ -157,9 +157,10 @@ async def _persist_instance_results(
     results: List[HubRunResult],
     persist_instance_threads: bool,
     run_id: str,
-) -> None:
+) -> Dict[str, str]:
+    message_map: Dict[str, str] = {}
     if not persist_instance_threads:
-        return
+        return message_map
 
     touched = set()
     for slot_idx, instance in instances_by_slot.items():
@@ -223,7 +224,7 @@ async def _persist_instance_results(
                     "hub_role": "input",
                 },
             )
-        await persist_message(
+        persisted = await persist_message(
             thread_id=instance["thread_id"],
             user_id=user_id,
             role="assistant",
@@ -243,6 +244,9 @@ async def _persist_instance_results(
                 "initiative": result.initiative,
             },
         )
+        message_map[result.run_step_id] = persisted["message_id"]
+
+    return message_map
 
 
 async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetailResponse:
@@ -442,14 +446,7 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
                     )
                     stage_results.append(result)
 
-            for item in stage_results:
-                step_doc = item.model_dump()
-                step_doc["user_id"] = user_id
-                stage_result_docs.append(step_doc)
-            if stage_result_docs:
-                await db[HUB_RUN_STEP_COLLECTION].insert_many(stage_result_docs)
-
-            await _persist_instance_results(
+            message_map = await _persist_instance_results(
                 user_id=user_id,
                 stage_prompt=prompt_used,
                 stage_index=stage_index,
@@ -459,6 +456,15 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
                 persist_instance_threads=req.persist_instance_threads,
                 run_id=run_id,
             )
+
+            for item in stage_results:
+                if item.run_step_id in message_map:
+                    item.message_id = message_map[item.run_step_id]
+                step_doc = item.model_dump()
+                step_doc["user_id"] = user_id
+                stage_result_docs.append(step_doc)
+            if stage_result_docs:
+                await db[HUB_RUN_STEP_COLLECTION].insert_many(stage_result_docs)
 
             participant_names = [instance.get("name") or instance.get("instance_id") for _, instance in sorted(instances_by_slot.items(), key=lambda pair: pair[0])]
             stage_summary = HubStageSummary(

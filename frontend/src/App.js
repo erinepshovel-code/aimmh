@@ -5,8 +5,8 @@ import { ChatProvider } from './contexts/ChatContext';
 import { Toaster } from './components/ui/sonner';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
-import HubPage from './pages/HubPage';
-import SettingsPage from './pages/SettingsPage';
+import AimmhHubPage from './pages/AimmhHubPage';
+import SettingsPageV2 from './pages/SettingsPageV2';
 import AnalysisPage from './pages/AnalysisPage';
 import './App.css';
 
@@ -55,8 +55,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
-      <Route path="/chat" element={<ProtectedRoute><HubPage /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><AimmhHubPage /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><SettingsPageV2 /></ProtectedRoute>} />
       <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/chat" replace />} />
     </Routes>

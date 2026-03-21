@@ -24,6 +24,7 @@ DEFAULT_REGISTRY = {
         "name": "OpenAI",
         "auth_type": "emergent",
         "base_url": None,
+        "website": "https://openai.com",
         "models": [
             {"model_id": "gpt-4o", "display_name": "GPT-4o"},
             {"model_id": "gpt-4o-mini", "display_name": "GPT-4o Mini"},
@@ -39,6 +40,7 @@ DEFAULT_REGISTRY = {
         "name": "Anthropic",
         "auth_type": "emergent",
         "base_url": None,
+        "website": "https://anthropic.com",
         "models": [
             {"model_id": "claude-4-sonnet-20250514", "display_name": "Claude 4 Sonnet"},
             {"model_id": "claude-4-opus-20250514", "display_name": "Claude 4 Opus"},
@@ -51,6 +53,7 @@ DEFAULT_REGISTRY = {
         "name": "Google",
         "auth_type": "emergent",
         "base_url": None,
+        "website": "https://ai.google.dev",
         "models": [
             {"model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro"},
             {"model_id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash"},
@@ -61,6 +64,7 @@ DEFAULT_REGISTRY = {
         "name": "xAI",
         "auth_type": "openai_compatible",
         "base_url": "https://api.x.ai/v1",
+        "website": "https://x.ai",
         "models": [
             {"model_id": "grok-4", "display_name": "Grok 4"},
             {"model_id": "grok-3", "display_name": "Grok 3"},
@@ -71,6 +75,7 @@ DEFAULT_REGISTRY = {
         "name": "DeepSeek",
         "auth_type": "openai_compatible",
         "base_url": "https://api.deepseek.com",
+        "website": "https://www.deepseek.com",
         "models": [
             {"model_id": "deepseek-chat", "display_name": "DeepSeek V3"},
             {"model_id": "deepseek-reasoner", "display_name": "DeepSeek R1"},
@@ -80,6 +85,7 @@ DEFAULT_REGISTRY = {
         "name": "Perplexity",
         "auth_type": "openai_compatible",
         "base_url": "https://api.perplexity.ai",
+        "website": "https://www.perplexity.ai",
         "models": [
             {"model_id": "sonar-pro", "display_name": "Sonar Pro"},
             {"model_id": "sonar", "display_name": "Sonar"},

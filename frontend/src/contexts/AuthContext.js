@@ -8,6 +8,22 @@ axios.defaults.withCredentials = true;
 
 const AuthContext = createContext(null);
 
+const clearLocalAuth = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('multi_ai_hub_chat');
+  delete axios.defaults.headers.common['Authorization'];
+};
+
+const isJwtExpired = (jwtToken) => {
+  try {
+    const payload = JSON.parse(atob(jwtToken.split('.')[1]));
+    if (!payload?.exp) return false;
+    return (payload.exp * 1000) <= Date.now();
+  } catch {
+    return true;
+  }
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -21,6 +37,23 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401 && localStorage.getItem('token')) {
+          clearLocalAuth();
+          setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
 
   // Check authentication on mount and window focus
   useEffect(() => {
@@ -41,12 +74,17 @@ export const AuthProvider = ({ children }) => {
     
     // First check if we have a JWT token
     const storedToken = localStorage.getItem('token');
-    if (storedToken) {
+    if (storedToken && !isJwtExpired(storedToken)) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
       setToken(storedToken);
       setIsAuthenticated(true);
       if (isInitial) setLoading(false);
       return;
+    }
+
+    if (storedToken && isJwtExpired(storedToken)) {
+      clearLocalAuth();
+      setToken(null);
     }
     
     // Otherwise, check if we have a session cookie (Google OAuth)
@@ -59,6 +97,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       // Not authenticated - but don't clear if we're just checking
       if (error.response?.status === 401) {
+        setUser(null);
         setIsAuthenticated(false);
       }
     } finally {
@@ -96,12 +135,10 @@ export const AuthProvider = ({ children }) => {
       // Ignore errors
     }
     
-    localStorage.removeItem('token');
-    localStorage.removeItem('multi_ai_hub_chat');
+    clearLocalAuth();
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
-    delete axios.defaults.headers.common['Authorization'];
   };
 
   return (

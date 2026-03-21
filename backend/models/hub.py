@@ -136,10 +136,12 @@ class HubRunResult(BaseModel):
     instance_id: Optional[str] = None
     instance_name: Optional[str] = None
     thread_id: Optional[str] = None
+    message_id: Optional[str] = None
     model: str
     content: str
     response_time_ms: int = 0
     error: Optional[str] = None
+    feedback: Optional[str] = None
     round_num: int = 0
     step_num: int = 0
     initiative: int = 0

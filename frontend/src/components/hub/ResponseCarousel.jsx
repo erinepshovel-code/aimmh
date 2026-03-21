@@ -1,0 +1,93 @@
+import React from 'react';
+import { ChevronDown, ChevronUp, ZoomIn, ZoomOut } from 'lucide-react';
+import { ResponsePane } from './ResponsePane';
+
+function averageY(touches) {
+  return Array.from(touches).reduce((sum, touch) => sum + touch.clientY, 0) / touches.length;
+}
+
+function distance(touches) {
+  if (touches.length < 2) return 0;
+  const [first, second] = touches;
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+}
+
+export function ResponseCarousel({
+  items,
+  activeIndex,
+  setActiveIndex,
+  fontScale,
+  setFontScale,
+  selectedIds,
+  feedbackMap,
+  onToggleSelected,
+  onFeedback,
+  onCopy,
+  onShare,
+}) {
+  const gestureRef = React.useRef({ startDistance: 0, lastAverageY: 0, moved: false });
+
+  const clampIndex = (nextIndex) => Math.max(0, Math.min(items.length - 1, nextIndex));
+
+  const handleTouchStart = (event) => {
+    if (event.touches.length >= 2) {
+      gestureRef.current = {
+        startDistance: distance(event.touches),
+        lastAverageY: averageY(event.touches),
+        moved: false,
+      };
+    }
+  };
+
+  const handleTouchMove = (event) => {
+    if (event.touches.length < 2) return;
+    const nextDistance = distance(event.touches);
+    const nextAverageY = averageY(event.touches);
+    const zoomDelta = (nextDistance - gestureRef.current.startDistance) / 180;
+    if (Math.abs(zoomDelta) > 0.02) {
+      setFontScale((prev) => Math.max(0.9, Math.min(1.6, Number((prev + zoomDelta).toFixed(2)))));
+      gestureRef.current.startDistance = nextDistance;
+    }
+    const deltaY = nextAverageY - gestureRef.current.lastAverageY;
+    if (!gestureRef.current.moved && Math.abs(deltaY) > 80) {
+      setActiveIndex((prev) => clampIndex(prev + (deltaY > 0 ? -1 : 1)));
+      gestureRef.current.moved = true;
+      window.setTimeout(() => {
+        gestureRef.current.moved = false;
+      }, 220);
+    }
+    gestureRef.current.lastAverageY = nextAverageY;
+  };
+
+  if (items.length === 0) {
+    return <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">No responses available for this stage yet.</div>;
+  }
+
+  const current = items[activeIndex] || items[0];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+        <div>Two fingers: swipe vertically to change pane, pinch to zoom. One finger: scroll inside response.</div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setActiveIndex((prev) => clampIndex(prev - 1))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ChevronUp size={13} /></button>
+          <button onClick={() => setActiveIndex((prev) => clampIndex(prev + 1))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ChevronDown size={13} /></button>
+          <button onClick={() => setFontScale((prev) => Math.max(0.9, Number((prev - 0.05).toFixed(2))))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ZoomOut size={13} /></button>
+          <button onClick={() => setFontScale((prev) => Math.min(1.6, Number((prev + 0.05).toFixed(2))))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ZoomIn size={13} /></button>
+        </div>
+      </div>
+      <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} className="h-[72vh] touch-none">
+        <ResponsePane
+          item={current}
+          selected={selectedIds.includes(current.run_step_id)}
+          fontScale={fontScale}
+          feedback={feedbackMap[current.message_id || current.run_step_id]}
+          onToggleSelected={() => onToggleSelected(current)}
+          onFeedback={(value) => onFeedback(current, value)}
+          onCopy={() => onCopy(current)}
+          onShare={() => onShare(current)}
+        />
+      </div>
+    </div>
+  );
+}

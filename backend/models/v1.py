@@ -18,6 +18,7 @@ class DeveloperDef(BaseModel):
     name: str
     auth_type: str = "emergent"  # emergent | openai_compatible
     base_url: Optional[str] = None
+    website: Optional[str] = None
     models: List[ModelDef] = Field(default_factory=list)
 
 
@@ -30,6 +31,7 @@ class AddDeveloperRequest(BaseModel):
     name: str
     auth_type: str = "openai_compatible"
     base_url: str
+    website: Optional[str] = None
     models: List[ModelDef] = Field(default_factory=list)
 
 

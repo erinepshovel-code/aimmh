@@ -47,4 +47,5 @@ export const hubApi = {
   getRuns: () => request('/v1/hub/runs'),
   getRunDetail: (runId) => request(`/v1/hub/runs/${runId}`),
   createRun: (payload) => request('/v1/hub/runs', { method: 'POST', body: JSON.stringify(payload) }),
+  submitFeedback: (messageId, feedback) => request('/v1/a0/feedback', { method: 'POST', body: JSON.stringify({ message_id: messageId, feedback }) }),
 };

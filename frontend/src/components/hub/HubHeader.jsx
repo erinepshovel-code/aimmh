@@ -1,7 +1,7 @@
 import React from 'react';
-import { Settings, LogOut, Network } from 'lucide-react';
+import { Download, Settings, LogOut, Network } from 'lucide-react';
 
-export function HubHeader({ onLogout, onOpenSettings }) {
+export function HubHeader({ onLogout, onOpenSettings, onExportInventory }) {
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -14,6 +14,9 @@ export function HubHeader({ onLogout, onOpenSettings }) {
           <p className="mt-1 text-xs text-zinc-500 sm:text-sm">Persistent isolated instances, nested groups, stage pipelines, and FastAPI-native controls.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={onExportInventory} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 transition hover:border-zinc-700 hover:text-white">
+            <span className="flex items-center gap-2"><Download size={14} /> Export inventory</span>
+          </button>
           <button onClick={onOpenSettings} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 transition hover:border-zinc-700 hover:text-white">
             <span className="flex items-center gap-2"><Settings size={14} /> Settings</span>
           </button>

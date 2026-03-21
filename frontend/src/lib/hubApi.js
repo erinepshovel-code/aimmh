@@ -31,7 +31,7 @@ async function request(path, options = {}) {
 }
 
 export const hubApi = {
-  getModels: () => request('/v1/models'),
+  getModels: () => request('/v1/registry'),
   getOptions: () => request('/v1/hub/options'),
   getInstances: (includeArchived = false) => request(`/v1/hub/instances?include_archived=${includeArchived}`),
   createInstance: (payload) => request('/v1/hub/instances', { method: 'POST', body: JSON.stringify(payload) }),

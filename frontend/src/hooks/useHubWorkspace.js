@@ -168,6 +168,23 @@ export function useHubWorkspace() {
     })),
   ]), [groups, instances]);
 
+  const exportInventory = useCallback(() => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      developers: models,
+      instances,
+      groups,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `aimmh-inventory-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Inventory exported');
+  }, [groups, instances, models]);
+
   return {
     models,
     options,
@@ -197,5 +214,6 @@ export function useHubWorkspace() {
     updateGroup,
     toggleGroupArchive,
     createRun,
+    exportInventory,
   };
 }

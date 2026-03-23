@@ -1,16 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { HubChatSynthesisPanel } from '../components/hub/HubChatSynthesisPanel';
 import { HubGroupsPanel } from '../components/hub/HubGroupsPanel';
 import { HubHeader } from '../components/hub/HubHeader';
 import { HubInstancesPanel } from '../components/hub/HubInstancesPanel';
+import { HubMultiChatPanel } from '../components/hub/HubMultiChatPanel';
 import { HubReadmeSplash } from '../components/hub/HubReadmeSplash';
 import { HubResponsesPanel } from '../components/hub/HubResponsesPanel';
 import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
+import { hubApi } from '../lib/hubApi';
 import { KeyManager } from '../components/settings/KeyManager';
 import { RegistryManager } from '../components/settings/RegistryManager';
 
@@ -27,6 +29,47 @@ export default function AimmhHubPage() {
   const { logout } = useAuth();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
+  const [chatPrompts, setChatPrompts] = React.useState([]);
+  const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
+  const [chatBusyKey, setChatBusyKey] = React.useState('');
+
+  const refreshChatPrompts = React.useCallback(async () => {
+    try {
+      const response = await hubApi.getChatPrompts();
+      const nextPrompts = response?.prompts || [];
+      setChatPrompts(nextPrompts);
+      if (!selectedChatPromptId && nextPrompts[0]?.prompt_id) {
+        setSelectedChatPromptId(nextPrompts[0].prompt_id);
+      }
+      return nextPrompts;
+    } catch (error) {
+      toast.error(error.message || 'Failed to load chat prompts');
+      return [];
+    }
+  }, [selectedChatPromptId]);
+
+  React.useEffect(() => {
+    refreshChatPrompts();
+  }, [refreshChatPrompts]);
+
+  const sendChatPrompt = React.useCallback(async (payload) => {
+    try {
+      setChatBusyKey('send-chat-prompt');
+      const detail = await hubApi.sendChatPrompt(payload);
+      toast.success('Prompt sent to selected instances');
+      const nextPrompts = await refreshChatPrompts();
+      if (!nextPrompts.find((item) => item.prompt_id === detail.prompt_id)) {
+        setChatPrompts((prev) => [detail, ...prev]);
+      }
+      await workspace.refreshCore();
+      return detail;
+    } catch (error) {
+      toast.error(error.message || 'Failed to send prompt');
+      throw error;
+    } finally {
+      setChatBusyKey('');
+    }
+  }, [refreshChatPrompts, workspace]);
 
   const instanceOptions = workspace.instances
     .filter((item) => !item.archived)
@@ -77,6 +120,10 @@ export default function AimmhHubPage() {
             runs={workspace.runs}
             selectedRunId={workspace.selectedRunId}
             setSelectedRunId={workspace.setSelectedRunId}
+            includeArchivedRuns={workspace.includeArchivedRuns}
+            setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
+            onToggleRunArchive={workspace.toggleRunArchive}
+            onDeleteArchivedRun={workspace.deleteArchivedRun}
           />
         );
       case 'responses':
@@ -86,17 +133,21 @@ export default function AimmhHubPage() {
             selectedRun={workspace.selectedRun}
             selectedRunId={workspace.selectedRunId}
             setSelectedRunId={workspace.setSelectedRunId}
+            prompts={chatPrompts}
+            selectedPromptId={selectedChatPromptId}
+            setSelectedPromptId={setSelectedChatPromptId}
           />
         );
       case 'chat':
       default:
         return (
-          <HubChatSynthesisPanel
-            options={workspace.options}
-            runs={workspace.runs}
-            selectedRunId={workspace.selectedRunId}
-            setSelectedRunId={workspace.setSelectedRunId}
-            selectedRun={workspace.selectedRun}
+          <HubMultiChatPanel
+            instances={workspace.instances}
+            prompts={chatPrompts}
+            selectedPromptId={selectedChatPromptId}
+            setSelectedPromptId={setSelectedChatPromptId}
+            onSendPrompt={sendChatPrompt}
+            busyKey={chatBusyKey}
           />
         );
     }

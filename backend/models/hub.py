@@ -164,6 +164,8 @@ class HubRunOut(BaseModel):
     label: Optional[str] = None
     prompt: str
     status: str
+    archived: bool = False
+    archived_at: Optional[str] = None
     stage_summaries: List[HubStageSummary] = Field(default_factory=list)
     created_at: str
     updated_at: str

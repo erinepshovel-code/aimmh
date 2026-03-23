@@ -21,11 +21,16 @@ from models.hub import (
     HubRunOut,
     HubRunRequest,
 )
+from models.hub_chat import HubChatPromptListResponse, HubChatPromptOut, HubChatPromptRequest
 from services.auth import get_current_user, get_user_id
+from services.hub_chat import get_chat_prompt, list_chat_prompts, send_chat_prompt
 from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
 from services.hub_store import (
+    HUB_CHAT_PROMPT_COLLECTION,
     HUB_GROUP_COLLECTION,
     HUB_INSTANCE_COLLECTION,
+    HUB_RUN_COLLECTION,
+    HUB_RUN_STEP_COLLECTION,
     ensure_models_exist,
     get_group,
     get_instance,
@@ -61,6 +66,14 @@ def _connections_payload() -> HubConnectionsResponse:
                 "execute": "/api/v1/hub/runs",
                 "list": "/api/v1/hub/runs",
                 "detail": "/api/v1/hub/runs/{run_id}",
+                "archive": "/api/v1/hub/runs/{run_id}/archive",
+                "unarchive": "/api/v1/hub/runs/{run_id}/unarchive",
+                "delete": "/api/v1/hub/runs/{run_id}",
+            },
+            "chat_prompts": {
+                "broadcast": "/api/v1/hub/chat/prompts",
+                "list": "/api/v1/hub/chat/prompts",
+                "detail": "/api/v1/hub/chat/prompts/{prompt_id}",
             },
             "lib_patterns": {
                 "fan_out": "/api/v1/lib/fan-out",
@@ -78,6 +91,8 @@ def _connections_payload() -> HubConnectionsResponse:
             "pattern_pipelines": True,
             "instance_archival": True,
             "instance_private_thread_history": True,
+            "run_archival": True,
+            "same_prompt_multi_instance_chat": True,
         },
     )
 
@@ -255,15 +270,73 @@ async def create_hub_run(req: HubRunRequest, current_user: dict = Depends(get_cu
 
 @router.get("/runs", response_model=HubRunListResponse)
 async def get_runs(
+    include_archived: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=1000),
     current_user: dict = Depends(get_current_user),
 ):
     user_id = get_user_id(current_user)
-    docs = await list_hub_runs(user_id, limit=limit)
+    docs = await list_hub_runs(user_id, include_archived=include_archived, limit=limit)
     return HubRunListResponse(runs=[HubRunOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.post("/runs/{run_id}/archive", response_model=HubRunOut)
+async def archive_run(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    await db[HUB_RUN_COLLECTION].update_one(
+        {"user_id": user_id, "run_id": run_id},
+        {"$set": {"archived": True, "archived_at": iso_now(), "updated_at": iso_now()}},
+    )
+    doc = await db[HUB_RUN_COLLECTION].find_one({"user_id": user_id, "run_id": run_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return HubRunOut(**doc)
+
+
+@router.post("/runs/{run_id}/unarchive", response_model=HubRunOut)
+async def unarchive_run(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    await db[HUB_RUN_COLLECTION].update_one(
+        {"user_id": user_id, "run_id": run_id},
+        {"$set": {"archived": False, "archived_at": None, "updated_at": iso_now()}},
+    )
+    doc = await db[HUB_RUN_COLLECTION].find_one({"user_id": user_id, "run_id": run_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return HubRunOut(**doc)
+
+
+@router.delete("/runs/{run_id}")
+async def delete_run(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    result = await db[HUB_RUN_COLLECTION].delete_one({"user_id": user_id, "run_id": run_id, "archived": True})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Archived run not found")
+    await db[HUB_RUN_STEP_COLLECTION].delete_many({"user_id": user_id, "run_id": run_id})
+    return {"message": f"Archived run {run_id} deleted"}
 
 
 @router.get("/runs/{run_id}", response_model=HubRunDetailResponse)
 async def get_run_detail(run_id: str, current_user: dict = Depends(get_current_user)):
     user_id = get_user_id(current_user)
     return await get_hub_run_detail(user_id, run_id)
+
+
+@router.post("/chat/prompts", response_model=HubChatPromptOut)
+async def create_chat_prompt(req: HubChatPromptRequest, current_user: dict = Depends(get_current_user)):
+    return await send_chat_prompt(current_user, req)
+
+
+@router.get("/chat/prompts", response_model=HubChatPromptListResponse)
+async def get_chat_prompts(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_chat_prompts(user_id, limit=limit)
+    return HubChatPromptListResponse(prompts=[HubChatPromptOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/chat/prompts/{prompt_id}", response_model=HubChatPromptOut)
+async def get_chat_prompt_detail(prompt_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    return await get_chat_prompt(user_id, prompt_id)

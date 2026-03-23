@@ -5,7 +5,16 @@ import { hubApi } from '../../lib/hubApi';
 import { ResponseCarousel } from './ResponseCarousel';
 import { ResponsePane } from './ResponsePane';
 
-export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelectedRunId }) {
+export function HubResponsesPanel({
+  runs,
+  selectedRun,
+  selectedRunId,
+  setSelectedRunId,
+  prompts,
+  selectedPromptId,
+  setSelectedPromptId,
+}) {
+  const [sourceType, setSourceType] = React.useState('runs');
   const [selectedStageIndex, setSelectedStageIndex] = React.useState(0);
   const [compareMode, setCompareMode] = React.useState('stack');
   const [selectedIds, setSelectedIds] = React.useState([]);
@@ -17,11 +26,21 @@ export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelecte
     setSelectedStageIndex(0);
     setSelectedIds([]);
     setActiveIndex(0);
-  }, [selectedRunId]);
+  }, [selectedRunId, selectedPromptId, sourceType]);
 
   const stageSummaries = selectedRun?.stage_summaries || [];
   const stageOptions = stageSummaries.map((summary) => ({ value: summary.stage_index, label: summary.stage_name || summary.pattern }));
-  const stageResponses = (selectedRun?.results || []).filter((item) => item.stage_index === Number(selectedStageIndex));
+  const selectedPrompt = prompts.find((item) => item.prompt_id === selectedPromptId) || prompts[0] || null;
+  const stageResponses = sourceType === 'runs'
+    ? (selectedRun?.results || []).filter((item) => item.stage_index === Number(selectedStageIndex))
+    : (selectedPrompt?.responses || []).map((item, index) => ({
+        ...item,
+        run_step_id: item.message_id || `${item.prompt_id}-${item.instance_id}-${index}`,
+        round_num: 0,
+        step_num: index + 1,
+        role: 'assistant',
+        slot_idx: index,
+      }));
   const selectedResponses = stageResponses.filter((item) => selectedIds.includes(item.run_step_id));
 
   const toggleSelected = (item) => {
@@ -38,16 +57,13 @@ export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelecte
   };
 
   const shareResponse = async (item) => {
-    const payload = {
-      title: item.instance_name || item.model,
-      text: item.content,
-    };
+    const payload = { title: item.instance_name || item.model, text: item.content };
     if (navigator.share) {
       try {
         await navigator.share(payload);
         return;
       } catch {
-        // fall through to clipboard
+        // fall through
       }
     }
     await copyText(item.content, 'Share not available — copied instead');
@@ -97,6 +113,12 @@ export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelecte
             <p className="mt-1 text-xs text-zinc-500">Native formatting preserved. Compare vertically in stack mode or pane mode.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => setSourceType('runs')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'runs' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
+              Run responses
+            </button>
+            <button onClick={() => setSourceType('prompts')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'prompts' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
+              Prompt responses
+            </button>
             <button onClick={() => setCompareMode('stack')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'stack' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
               <span className="flex items-center gap-2"><Rows3 size={13} /> Stack</span>
             </button>
@@ -106,13 +128,24 @@ export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelecte
           </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <select value={selectedRunId || ''} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
-            <option value="">Select a run</option>
-            {runs.map((run) => <option key={run.run_id} value={run.run_id}>{run.label || run.run_id}</option>)}
-          </select>
-          <select value={selectedStageIndex} onChange={(event) => setSelectedStageIndex(Number(event.target.value))} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
-            {stageOptions.length === 0 ? <option value={0}>Stage 1</option> : stageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
-          </select>
+          {sourceType === 'runs' ? (
+            <>
+              <select value={selectedRunId || ''} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
+                <option value="">Select a run</option>
+                {runs.map((run) => <option key={run.run_id} value={run.run_id}>{run.label || run.run_id}</option>)}
+              </select>
+              <select value={selectedStageIndex} onChange={(event) => setSelectedStageIndex(Number(event.target.value))} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
+                {stageOptions.length === 0 ? <option value={0}>Stage 1</option> : stageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+              </select>
+            </>
+          ) : (
+            <>
+              <select value={selectedPromptId || ''} onChange={(event) => setSelectedPromptId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 md:col-span-2">
+                <option value="">Select a prompt batch</option>
+                {prompts.map((prompt) => <option key={prompt.prompt_id} value={prompt.prompt_id}>{prompt.label || prompt.prompt}</option>)}
+              </select>
+            </>
+          )}
           <div className="flex gap-2">
             <button onClick={copySelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"><span className="flex items-center gap-2"><Copy size={13} /> Copy selected</span></button>
             <button onClick={shareSelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"><span className="flex items-center gap-2"><Share2 size={13} /> Share selected</span></button>
@@ -120,8 +153,8 @@ export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelecte
         </div>
       </div>
 
-      {!selectedRun ? (
-        <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">Select a run to compare model responses.</div>
+      {(sourceType === 'runs' && !selectedRun) || (sourceType === 'prompts' && !selectedPrompt) ? (
+        <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">Select a {sourceType === 'runs' ? 'run' : 'prompt batch'} to compare responses.</div>
       ) : compareMode === 'carousel' ? (
         <ResponseCarousel
           items={stageResponses}
@@ -142,7 +175,7 @@ export function HubResponsesPanel({ runs, selectedRun, selectedRunId, setSelecte
             Pinch/spread to zoom font size. Switch to pane mode for two-finger vertical pane sliding while one-finger scrolling within each response.
           </div>
           {stageResponses.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">No responses yet for this stage.</div>
+            <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">No responses yet for this selection.</div>
           ) : stageResponses.map((item) => (
             <ResponsePane
               key={item.run_step_id}

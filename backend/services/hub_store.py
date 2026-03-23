@@ -11,6 +11,7 @@ HUB_INSTANCE_COLLECTION = "hub_instances"
 HUB_GROUP_COLLECTION = "hub_groups"
 HUB_RUN_COLLECTION = "hub_runs"
 HUB_RUN_STEP_COLLECTION = "hub_run_steps"
+HUB_CHAT_PROMPT_COLLECTION = "hub_chat_prompts"
 
 
 def iso_now() -> str:

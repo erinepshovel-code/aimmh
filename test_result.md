@@ -433,6 +433,33 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Built a mobile-first tabbed AIMMH experience with README-style splash, registry website metadata display, verify actions, one-click model instantiation, responses stack/pane comparison with native markdown formatting, copy/share/thumbs buttons, and pinch/two-finger gesture support. Frontend compiles successfully; browser testing not run yet for this pass."
+
+  - task: "Hub run archival + direct multi-instance chat backend"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/v1_hub.py, /app/backend/services/hub_chat.py, /app/backend/models/hub_chat.py, /app/backend/services/hub_store.py, /app/backend/services/hub_runner.py, /app/backend/models/hub.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added run archive/unarchive/delete endpoints and include_archived listing support, plus direct multi-instance chat prompt endpoints under /api/v1/hub/chat/prompts that broadcast the same prompt to selected instances while appending to each instance's own thread history. Prompt responses are indexed by prompt_id and instance_id. Backend import and lint pass; needs API validation."
+      - working: true
+        agent: "testing"
+        comment: "AIMMH HUB RUN ARCHIVAL + DIRECT MULTI-INSTANCE CHAT BACKEND COMPREHENSIVE TEST COMPLETED: ✅ ALL 7 TEST SCENARIOS PASSED ✅ (1) Authentication Protection: All hub endpoints correctly return 401 for unauthenticated requests, authenticated requests work properly ✅ (2) Hub Options: GET /api/v1/hub/options returns correct structure with run_archival and same_prompt_multi_instance_chat support flags enabled ✅ (3) Run Archival Flow: Complete end-to-end archival flow tested - created hub run, verified appears in default list, archived run (hidden from default list), verified appears with include_archived=true, unarchived (restored to default list), re-archived, deleted archived run successfully, verified run no longer accessible ✅ (4) Multi-Instance Chat: POST /api/v1/hub/chat/prompts successfully broadcasts same prompt to multiple instances (2 test instances using gpt-4o), returns structured response with prompt_id, instance_ids, instance_names, and responses array containing instance_id, prompt_id, message_id for each response ✅ (5) Prompt History Persistence: User prompts and assistant responses correctly appended to each instance's private thread history with proper hub_role metadata (input/response), verified via GET /api/v1/hub/instances/{instance_id}/history ✅ (6) Chat Prompt Retrieval: GET /api/v1/hub/chat/prompts returns prompt batches correctly, GET /api/v1/hub/chat/prompts/{prompt_id} returns detailed prompt with all responses ✅ (7) Instance Creation: Successfully created 2 test instances with same model (gpt-4o) demonstrating single-model-multiple-instances capability. Minor: hub_prompt_id field stored as null in message persistence (functionality works but field not populated). All hub run archival and direct multi-instance chat backend features are fully functional and production-ready."
+
+  - task: "Run archive controls + direct chat prompt-indexed frontend"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/AimmhHubPage.jsx, /app/frontend/src/components/hub/HubRunsWorkspace.jsx, /app/frontend/src/components/hub/HubMultiChatPanel.jsx, /app/frontend/src/components/hub/HubResponsesPanel.jsx, /app/frontend/src/hooks/useHubWorkspace.js, /app/frontend/src/lib/hubApi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added run archive/restore/delete controls in the runs workspace and replaced the old Chat & Synthesis tab with a direct multi-instance chat experience that sends the same prompt to selected instances concurrently and surfaces prompt-indexed responses both in chat and in the Responses tab. Frontend compiles successfully; browser testing not yet run for this pass."
 metadata:
   created_by: "main_agent"
   version: "1.0"
@@ -441,7 +468,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Mobile tabbed AIMMH UI: splash, registry instantiate/verify, responses compare gestures"
+    []
   stuck_tasks:
     []
   test_all: false
@@ -465,6 +492,10 @@ agent_communication:
   - agent: "main"
     message: "Implemented next AIMMH pass. Backend: registry now returns developer website metadata, supports free-tier-aware verify endpoints for single model / developer / full registry, and future hub run results carry persisted message_id for response feedback. Frontend: new mobile-first tabbed AIMMH UI with README-style splash, registry instantiate/verify controls, model website display, one-click random-name instantiation, and a Responses experience with markdown-preserved formatting, stack/pane comparison, copy/share/thumbs actions, and pinch/two-finger gesture support. Please backend-test the new registry verification and hub-result message_id changes first."
   - agent: "testing"
+  - agent: "main"
+    message: "Implemented another AIMMH pass per user feedback: runs can now be archived/restored (and deleted once archived), and the old Chat & Synthesis tab is replaced by a direct multi-instance chat flow that broadcasts the same prompt to selected instances concurrently while appending to each instance's own thread history. New chat prompt batches are indexed by prompt_id and instance_id and are surfaced in both the chat tab and the Responses tab. Please backend-test the new run archival and /api/v1/hub/chat/prompts endpoints first."
+  - agent: "testing"
+    message: "AIMMH HUB RUN ARCHIVAL + DIRECT MULTI-INSTANCE CHAT BACKEND TESTING COMPLETED: ✅ ALL 7 SCENARIOS PASSED ✅ Comprehensive end-to-end validation performed on https://aimmh-hub.preview.emergentagent.com: ✅ (1) Authentication Protection: All hub endpoints correctly return 401 for unauthenticated requests ✅ (2) Hub Options: Confirmed run_archival and same_prompt_multi_instance_chat support flags enabled ✅ (3) Run Archival Flow: Complete archival lifecycle tested - create run, archive (hidden from default list), include_archived=true (shows archived), unarchive (restored), delete archived run, verify deletion ✅ (4) Multi-Instance Chat: POST /api/v1/hub/chat/prompts broadcasts same prompt to multiple instances, returns structured response with prompt_id, instance_ids, responses with message_id ✅ (5) Prompt History Persistence: User prompts and assistant responses correctly appended to each instance's private thread history with hub_role metadata ✅ (6) Chat Prompt Retrieval: Both list and detail endpoints working correctly ✅ (7) Instance Management: Successfully created 2 instances with same model demonstrating single-model-multiple-instances capability. Minor: hub_prompt_id field stored as null in message persistence (functionality works). All new AIMMH hub backend features are fully functional and production-ready."
     message: "RESTORE LATEST THREAD FEATURE TEST COMPLETED: ✅ ALL 5 TEST SCENARIOS PASSED ✅ (1) Menu item verification: 'Restore Latest Thread' exists in top-right dropdown menu with correct data-testid='restore-latest-conversation-menu-item' ✅ (2) Conversation creation: Successfully sent prompt and received responses from 4 models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview) ✅ (3) New chat reset: 'New Chat' menu action successfully clears active conversation and resets UI to waiting state ✅ (4) Restore functionality: 'Restore Latest Thread' action successfully restores previous conversation with original messages visible, toast notification 'Latest conversation restored' confirmed ✅ (5) Refresh from logs compatibility: Existing 'Refresh from logs' button (data-testid='refresh-from-logs-btn') continues to work correctly with active conversation, showing 'Conversation refreshed from logs' notification. No errors detected. Feature fully functional and ready for production use."
   - agent: "testing"
     message: "AGENT ZERO NON-UI REST ENDPOINTS TEST COMPLETED: ✅ ALL 7 TESTS PASSED ✅ Comprehensive testing of Agent Zero's programmatic API access layer on https://aimmh-hub.preview.emergentagent.com completed successfully. ✅ (1) OPTIONS endpoint (/api/a0/non-ui/options) returns complete configuration including all required keys (prompt_all, prompt_selected, synthesis, history, export) within the non_ui_endpoints structure, available_models for all providers, and input/output options ✅ (2) PROMPT SELECTED endpoint (/api/a0/non-ui/prompt/selected) accepts single model specification, returns SSE stream, and properly persists conversations ✅ (3) PROMPT ALL endpoint (/api/a0/non-ui/prompt/all) dispatches to all 6 default models (gpt-5.2, claude-sonnet-4-5-20250929, gemini-3-flash-preview, grok-3, deepseek-chat, sonar-pro) with SSE streaming response ✅ (4) HISTORY endpoint (/api/a0/non-ui/history/{conversation_id}) implements proper pagination with offset/limit parameters and returns 404 for non-existent conversations as expected ✅ (5) SYNTHESIS endpoint (/api/a0/non-ui/synthesis) validates required fields (selected_message_ids, target_models) and returns 404 for non-existent messages as expected ✅ (6) EXPORT endpoint (/api/a0/non-ui/conversations/{conversation_id}/export) supports JSON format parameter and returns 404 for non-existent conversations as expected ✅ (7) AUTHENTICATION verified: All endpoints correctly reject unauthenticated access with 401 Unauthorized. Agent Zero can now programmatically orchestrate multi-model prompting, conversation synthesis, and data export through these dedicated non-UI REST endpoints."

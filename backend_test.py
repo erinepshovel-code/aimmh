@@ -1,461 +1,600 @@
 #!/usr/bin/env python3
 """
-Backend test for Registry enrichment backend: developer websites, lightweight verification, hub feedback message ids
+AIMMH Hub Backend Test Suite
+Tests run archival + direct multi-instance chat backend functionality
 """
 
 import asyncio
 import json
-import uuid
-import requests
+import os
+import sys
 import time
-from typing import Dict, Any, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
-# Test configuration
-BASE_URL = "https://aimmh-hub.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
+import aiohttp
+import pymongo
+from pymongo import MongoClient
 
-class RegistryTestRunner:
+# Configuration
+BACKEND_URL = "https://aimmh-hub.preview.emergentagent.com/api"
+MONGO_URL = "mongodb://localhost:27017"
+DB_NAME = "test_database"
+
+class TestRunner:
     def __init__(self):
-        self.session = requests.Session()
-        self.auth_token = None
-        self.user_id = None
-        self.test_results = []
+        self.session_token: Optional[str] = None
+        self.user_id: Optional[str] = None
+        self.test_instances: List[Dict] = []
+        self.test_run_id: Optional[str] = None
+        self.test_prompt_id: Optional[str] = None
+        self.mongo_client = MongoClient(MONGO_URL)
+        self.db = self.mongo_client[DB_NAME]
         
-    def log_result(self, test_name: str, success: bool, details: str = ""):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status}: {test_name}")
-        if details:
-            print(f"   Details: {details}")
-        self.test_results.append({
-            "test": test_name,
-            "success": success,
-            "details": details
-        })
+    async def setup_auth(self) -> bool:
+        """Create test user and session for authentication"""
+        try:
+            # Generate unique test identifiers
+            timestamp = int(time.time())
+            self.user_id = f"test-user-{timestamp}"
+            self.session_token = f"test_session_{timestamp}"
+            
+            # Create test user
+            user_doc = {
+                "user_id": self.user_id,
+                "email": f"test.user.{timestamp}@example.com",
+                "name": "AIMMH Test User",
+                "picture": "https://via.placeholder.com/150",
+                "created_at": datetime.fromtimestamp(time.time(), tz=timezone.utc).isoformat()
+            }
+            self.db.users.insert_one(user_doc)
+            
+            # Create session
+            session_doc = {
+                "user_id": self.user_id,
+                "session_token": self.session_token,
+                "expires_at": datetime.fromtimestamp(time.time() + (7 * 24 * 60 * 60), tz=timezone.utc).isoformat(),
+                "created_at": datetime.fromtimestamp(time.time(), tz=timezone.utc).isoformat()
+            }
+            self.db.user_sessions.insert_one(session_doc)
+            
+            print(f"✅ Created test user: {self.user_id}")
+            print(f"✅ Created session token: {self.session_token}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Auth setup failed: {e}")
+            return False
+    
+    async def cleanup_auth(self):
+        """Clean up test user and session"""
+        try:
+            self.db.users.delete_many({"user_id": self.user_id})
+            self.db.user_sessions.delete_many({"session_token": self.session_token})
+            print(f"✅ Cleaned up test user and session")
+        except Exception as e:
+            print(f"⚠️ Cleanup warning: {e}")
+    
+    async def make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None) -> Dict:
+        """Make authenticated HTTP request"""
+        headers = {
+            "Content-Type": "application/json"
+        }
         
-    def register_and_login(self) -> bool:
-        """Register a new user and get auth token"""
-        try:
-            # Generate unique test user
-            test_id = str(int(time.time() * 1000))[-10:]
-            username = f"regtest_{test_id}"
-            password = "TestPass123!"
-            
-            # Register user
-            register_data = {
-                "username": username,
-                "password": password,
-                "email": f"{username}@test.com"
-            }
-            
-            resp = self.session.post(f"{API_BASE}/auth/register", json=register_data)
-            if resp.status_code != 200:
-                self.log_result("User Registration", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            # Get JWT token from registration response
-            register_result = resp.json()
-            self.auth_token = register_result.get("access_token")
-            if not self.auth_token:
-                self.log_result("JWT Token Extraction", False, "No access_token in registration response")
-                return False
-                
-            # Set Authorization header for all future requests
-            self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
-                
-            # Verify auth works
-            resp = self.session.get(f"{API_BASE}/auth/me")
-            if resp.status_code != 200:
-                self.log_result("Auth Verification", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            user_data = resp.json()
-            self.user_id = user_data.get("id")
-            self.log_result("Authentication Flow", True, f"User: {username}, ID: {self.user_id}")
-            return True
-            
-        except Exception as e:
-            self.log_result("Authentication Flow", False, f"Exception: {str(e)}")
+        # Use session token as cookie for authentication
+        cookies = {
+            "session_token": self.session_token
+        }
+        
+        url = f"{BACKEND_URL}{endpoint}"
+        
+        async with aiohttp.ClientSession() as session:
+            if method.upper() == "GET":
+                async with session.get(url, headers=headers, cookies=cookies, params=params) as response:
+                    try:
+                        result = await response.json()
+                    except:
+                        result = {"error": await response.text()}
+                    return {"status": response.status, "data": result}
+            elif method.upper() == "POST":
+                async with session.post(url, headers=headers, cookies=cookies, json=data) as response:
+                    try:
+                        result = await response.json()
+                    except:
+                        result = {"error": await response.text()}
+                    return {"status": response.status, "data": result}
+            elif method.upper() == "PATCH":
+                async with session.patch(url, headers=headers, cookies=cookies, json=data) as response:
+                    try:
+                        result = await response.json()
+                    except:
+                        result = {"error": await response.text()}
+                    return {"status": response.status, "data": result}
+            elif method.upper() == "DELETE":
+                async with session.delete(url, headers=headers, cookies=cookies) as response:
+                    if response.status == 200:
+                        try:
+                            result = await response.json()
+                        except:
+                            result = {"message": "deleted"}
+                        return {"status": response.status, "data": result}
+                    else:
+                        return {"status": response.status, "data": {}}
+    
+    async def test_auth_protection(self) -> bool:
+        """Test that endpoints require authentication"""
+        print("\n🔒 Testing authentication protection...")
+        
+        # Test without auth token
+        headers = {"Content-Type": "application/json"}
+        
+        endpoints_to_test = [
+            "/v1/hub/options",
+            "/v1/hub/instances",
+            "/v1/hub/runs",
+            "/v1/hub/chat/prompts"
+        ]
+        
+        async with aiohttp.ClientSession() as session:
+            for endpoint in endpoints_to_test:
+                url = f"{BACKEND_URL}{endpoint}"
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 401:
+                        print(f"❌ {endpoint} should return 401 without auth, got {response.status}")
+                        return False
+                    print(f"✅ {endpoint} correctly returns 401 without auth")
+        
+        return True
+    
+    async def test_hub_options(self) -> bool:
+        """Test hub options endpoint"""
+        print("\n📋 Testing hub options...")
+        
+        result = await self.make_request("GET", "/v1/hub/options")
+        if result["status"] != 200:
+            print(f"❌ Hub options failed: {result}")
             return False
-            
-    def test_registry_get_with_websites(self) -> bool:
-        """Test GET /api/v1/registry returns developer websites"""
-        try:
-            resp = self.session.get(f"{API_BASE}/v1/registry")
-            if resp.status_code != 200:
-                self.log_result("GET /api/v1/registry", False, f"Status {resp.status_code}: {resp.text}")
+        
+        data = result["data"]
+        required_keys = ["fastapi_connections", "patterns", "supports"]
+        for key in required_keys:
+            if key not in data:
+                print(f"❌ Missing key in hub options: {key}")
                 return False
-                
-            data = resp.json()
-            developers = data.get("developers", [])
-            
-            if not developers:
-                self.log_result("GET /api/v1/registry", False, "No developers returned")
-                return False
-                
-            # Check for website fields in default developers
-            websites_found = []
-            for dev in developers:
-                if dev.get("website"):
-                    websites_found.append(f"{dev['developer_id']}: {dev['website']}")
-                    
-            if not websites_found:
-                self.log_result("GET /api/v1/registry - websites", False, "No websites found in default developers")
-                return False
-                
-            self.log_result("GET /api/v1/registry - websites", True, f"Found websites: {', '.join(websites_found)}")
-            return True
-            
-        except Exception as e:
-            self.log_result("GET /api/v1/registry", False, f"Exception: {str(e)}")
+        
+        # Check for run archival support
+        if not data["supports"].get("run_archival"):
+            print("❌ Run archival support not enabled")
             return False
-            
-    def test_add_developer_with_website(self) -> bool:
-        """Test POST /api/v1/registry/developer with website field"""
-        try:
-            test_id = str(int(time.time() * 1000))[-8:]
-            developer_data = {
-                "developer_id": f"test_dev_{test_id}",
-                "name": f"Test Developer {test_id}",
-                "auth_type": "openai_compatible",
-                "base_url": "https://api.example.com/v1",
-                "website": "https://example.com",
-                "models": [
-                    {
-                        "model_id": f"test-model-{test_id}",
-                        "display_name": f"Test Model {test_id}",
-                        "enabled": True
-                    }
-                ]
-            }
-            
-            resp = self.session.post(f"{API_BASE}/v1/registry/developer", json=developer_data)
-            if resp.status_code != 200:
-                self.log_result("POST /api/v1/registry/developer", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            # Verify the developer was added with website
-            resp = self.session.get(f"{API_BASE}/v1/registry")
-            if resp.status_code != 200:
-                self.log_result("POST /api/v1/registry/developer - verification", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            data = resp.json()
-            developers = data.get("developers", [])
-            
-            added_dev = None
-            for dev in developers:
-                if dev["developer_id"] == developer_data["developer_id"]:
-                    added_dev = dev
-                    break
-                    
-            if not added_dev:
-                self.log_result("POST /api/v1/registry/developer - verification", False, "Added developer not found in registry")
-                return False
-                
-            if added_dev.get("website") != developer_data["website"]:
-                self.log_result("POST /api/v1/registry/developer - website", False, f"Website mismatch: expected {developer_data['website']}, got {added_dev.get('website')}")
-                return False
-                
-            self.log_result("POST /api/v1/registry/developer", True, f"Added developer with website: {added_dev['website']}")
-            return True
-            
-        except Exception as e:
-            self.log_result("POST /api/v1/registry/developer", False, f"Exception: {str(e)}")
+        
+        # Check for multi-instance chat support
+        if not data["supports"].get("same_prompt_multi_instance_chat"):
+            print("❌ Multi-instance chat support not enabled")
             return False
-            
-    def test_verify_model_endpoint(self) -> bool:
-        """Test POST /api/v1/registry/verify/model"""
-        try:
-            # Test with missing key scenario (should be common)
-            verify_data = {
-                "developer_id": "openai",
+        
+        print("✅ Hub options endpoint working with required features")
+        return True
+    
+    async def create_test_instances(self) -> bool:
+        """Create test instances for testing"""
+        print("\n🏗️ Creating test instances...")
+        
+        # Create 2 test instances with the same model
+        instance_requests = [
+            {
+                "name": "Test Instance Alpha",
                 "model_id": "gpt-4o",
-                "mode": "strict"
-            }
-            
-            resp = self.session.post(f"{API_BASE}/v1/registry/verify/model", json=verify_data)
-            if resp.status_code != 200:
-                self.log_result("POST /api/v1/registry/verify/model", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            data = resp.json()
-            
-            # Verify response structure
-            required_fields = ["scope", "verification_mode", "verified_count", "total_count", "results"]
-            for field in required_fields:
-                if field not in data:
-                    self.log_result("POST /api/v1/registry/verify/model - structure", False, f"Missing field: {field}")
-                    return False
-                    
-            if data["scope"] != "model":
-                self.log_result("POST /api/v1/registry/verify/model - scope", False, f"Expected scope 'model', got '{data['scope']}'")
-                return False
-                
-            if data["verification_mode"] != "strict":
-                self.log_result("POST /api/v1/registry/verify/model - mode", False, f"Expected mode 'strict', got '{data['verification_mode']}'")
-                return False
-                
-            if len(data["results"]) != 1:
-                self.log_result("POST /api/v1/registry/verify/model - results", False, f"Expected 1 result, got {len(data['results'])}")
-                return False
-                
-            result = data["results"][0]
-            result_fields = ["scope", "developer_id", "model_id", "status", "message", "verification_mode"]
-            for field in result_fields:
-                if field not in result:
-                    self.log_result("POST /api/v1/registry/verify/model - result structure", False, f"Missing result field: {field}")
-                    return False
-                    
-            self.log_result("POST /api/v1/registry/verify/model", True, f"Status: {result['status']}, Message: {result['message']}")
-            return True
-            
-        except Exception as e:
-            self.log_result("POST /api/v1/registry/verify/model", False, f"Exception: {str(e)}")
-            return False
-            
-    def test_verify_developer_endpoint(self) -> bool:
-        """Test POST /api/v1/registry/verify/developer/{developer_id}"""
-        try:
-            resp = self.session.post(f"{API_BASE}/v1/registry/verify/developer/openai")
-            if resp.status_code != 200:
-                self.log_result("POST /api/v1/registry/verify/developer", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            data = resp.json()
-            
-            # Verify response structure
-            required_fields = ["scope", "verification_mode", "verified_count", "total_count", "results"]
-            for field in required_fields:
-                if field not in data:
-                    self.log_result("POST /api/v1/registry/verify/developer - structure", False, f"Missing field: {field}")
-                    return False
-                    
-            if data["scope"] != "developer":
-                self.log_result("POST /api/v1/registry/verify/developer - scope", False, f"Expected scope 'developer', got '{data['scope']}'")
-                return False
-                
-            if data["verification_mode"] != "light":
-                self.log_result("POST /api/v1/registry/verify/developer - mode", False, f"Expected mode 'light', got '{data['verification_mode']}'")
-                return False
-                
-            # Should have results for OpenAI models
-            if not data["results"]:
-                self.log_result("POST /api/v1/registry/verify/developer - results", False, "No results returned")
-                return False
-                
-            # Check for free-tier semantics in messages
-            free_tier_messages = []
-            for result in data["results"]:
-                if "free-tier" in result.get("message", "").lower() or "representative" in result.get("message", "").lower():
-                    free_tier_messages.append(result["message"])
-                    
-            self.log_result("POST /api/v1/registry/verify/developer", True, f"Results: {len(data['results'])}, Free-tier messages: {len(free_tier_messages)}")
-            return True
-            
-        except Exception as e:
-            self.log_result("POST /api/v1/registry/verify/developer", False, f"Exception: {str(e)}")
-            return False
-            
-    def test_verify_all_endpoint(self) -> bool:
-        """Test POST /api/v1/registry/verify/all"""
-        try:
-            resp = self.session.post(f"{API_BASE}/v1/registry/verify/all")
-            if resp.status_code != 200:
-                self.log_result("POST /api/v1/registry/verify/all", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            data = resp.json()
-            
-            # Verify response structure
-            required_fields = ["scope", "verification_mode", "verified_count", "total_count", "results"]
-            for field in required_fields:
-                if field not in data:
-                    self.log_result("POST /api/v1/registry/verify/all - structure", False, f"Missing field: {field}")
-                    return False
-                    
-            if data["scope"] != "registry":
-                self.log_result("POST /api/v1/registry/verify/all - scope", False, f"Expected scope 'registry', got '{data['scope']}'")
-                return False
-                
-            if data["verification_mode"] != "light":
-                self.log_result("POST /api/v1/registry/verify/all - mode", False, f"Expected mode 'light', got '{data['verification_mode']}'")
-                return False
-                
-            # Should have results for all developers
-            if not data["results"]:
-                self.log_result("POST /api/v1/registry/verify/all - results", False, "No results returned")
-                return False
-                
-            # Count results by developer
-            dev_counts = {}
-            for result in data["results"]:
-                dev_id = result.get("developer_id", "unknown")
-                dev_counts[dev_id] = dev_counts.get(dev_id, 0) + 1
-                
-            self.log_result("POST /api/v1/registry/verify/all", True, f"Total results: {len(data['results'])}, Developers: {list(dev_counts.keys())}")
-            return True
-            
-        except Exception as e:
-            self.log_result("POST /api/v1/registry/verify/all", False, f"Exception: {str(e)}")
-            return False
-            
-    def test_hub_run_message_id_persistence(self) -> bool:
-        """Test hub run result persistence enhancement with message_id"""
-        try:
-            # First create a hub instance
-            instance_data = {
-                "name": f"Test Instance {int(time.time())}",
+                "role_preset": "assistant",
+                "context": {
+                    "role": "helpful assistant",
+                    "prompt_modifier": "Be concise and helpful"
+                },
+                "instance_prompt": "You are a test assistant for AIMMH hub testing",
+                "history_window_messages": 10,
+                "archived": False
+            },
+            {
+                "name": "Test Instance Beta", 
                 "model_id": "gpt-4o",
+                "role_preset": "assistant",
+                "context": {
+                    "role": "helpful assistant",
+                    "prompt_modifier": "Be detailed and thorough"
+                },
+                "instance_prompt": "You are another test assistant for AIMMH hub testing",
+                "history_window_messages": 10,
                 "archived": False
             }
-            
-            resp = self.session.post(f"{API_BASE}/v1/hub/instances", json=instance_data)
-            if resp.status_code != 200:
-                self.log_result("Hub Instance Creation", False, f"Status {resp.status_code}: {resp.text}")
+        ]
+        
+        for i, instance_req in enumerate(instance_requests):
+            result = await self.make_request("POST", "/v1/hub/instances", instance_req)
+            if result["status"] != 200:
+                print(f"❌ Failed to create instance {i+1}: {result}")
                 return False
-                
-            instance = resp.json()
-            instance_id = instance["instance_id"]
             
-            # Create a minimal hub run
-            run_data = {
-                "prompt": "Test prompt for message ID persistence",
-                "label": "Message ID Test Run",
-                "stages": [
-                    {
-                        "pattern": "fan_out",
-                        "name": "Test Stage",
-                        "prompt": "Respond with a brief test message",
-                        "participants": [
-                            {
-                                "source_type": "instance",
-                                "source_id": instance_id
-                            }
-                        ]
-                    }
-                ],
-                "persist_instance_threads": True
-            }
-            
-            resp = self.session.post(f"{API_BASE}/v1/hub/runs", json=run_data)
-            if resp.status_code != 200:
-                self.log_result("Hub Run Creation", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            run_result = resp.json()
-            run_id = run_result["run_id"]
-            
-            # Fetch the run details
-            resp = self.session.get(f"{API_BASE}/v1/hub/runs/{run_id}")
-            if resp.status_code != 200:
-                self.log_result("Hub Run Fetch", False, f"Status {resp.status_code}: {resp.text}")
-                return False
-                
-            run_details = resp.json()
-            
-            # Check for message_id in results
-            results = run_details.get("results", [])
-            if not results:
-                self.log_result("Hub Run Results", False, "No results found in run")
-                return False
-                
-            message_ids_found = []
-            for result in results:
-                if result.get("message_id"):
-                    message_ids_found.append(result["message_id"])
-                    
-            if not message_ids_found:
-                self.log_result("Hub Run Message IDs", False, "No message_id fields found in results")
-                return False
-                
-            self.log_result("Hub Run Message ID Persistence", True, f"Found {len(message_ids_found)} message IDs in results")
-            return True
-            
-        except Exception as e:
-            self.log_result("Hub Run Message ID Persistence", False, f"Exception: {str(e)}")
+            instance = result["data"]
+            self.test_instances.append(instance)
+            print(f"✅ Created instance: {instance['name']} ({instance['instance_id']})")
+        
+        return True
+    
+    async def test_run_archival_flow(self) -> bool:
+        """Test complete run archival flow"""
+        print("\n📦 Testing run archival flow...")
+        
+        # Step 1: Create a minimal hub run
+        run_request = {
+            "prompt": "Test prompt for archival testing",
+            "label": "Archival Test Run",
+            "stages": [
+                {
+                    "pattern": "fan_out",
+                    "name": "Test Stage",
+                    "participants": [
+                        {"source_type": "instance", "source_id": self.test_instances[0]["instance_id"]},
+                        {"source_type": "instance", "source_id": self.test_instances[1]["instance_id"]}
+                    ],
+                    "rounds": 1
+                }
+            ],
+            "persist_instance_threads": True
+        }
+        
+        print("Creating test run...")
+        result = await self.make_request("POST", "/v1/hub/runs", run_request)
+        if result["status"] != 200:
+            print(f"❌ Failed to create run: {result}")
             return False
+        
+        run_data = result["data"]
+        self.test_run_id = run_data["run_id"]
+        print(f"✅ Created run: {self.test_run_id}")
+        
+        # Step 2: Verify run appears in default list (not archived)
+        print("Checking run appears in default list...")
+        result = await self.make_request("GET", "/v1/hub/runs")
+        if result["status"] != 200:
+            print(f"❌ Failed to list runs: {result}")
+            return False
+        
+        runs = result["data"]["runs"]
+        run_found = any(run["run_id"] == self.test_run_id for run in runs)
+        if not run_found:
+            print(f"❌ Run {self.test_run_id} not found in default list")
+            return False
+        print("✅ Run appears in default list")
+        
+        # Step 3: Archive the run
+        print("Archiving run...")
+        result = await self.make_request("POST", f"/v1/hub/runs/{self.test_run_id}/archive")
+        if result["status"] != 200:
+            print(f"❌ Failed to archive run: {result}")
+            return False
+        
+        archived_run = result["data"]
+        if not archived_run["archived"]:
+            print("❌ Run not marked as archived")
+            return False
+        print("✅ Run archived successfully")
+        
+        # Step 4: Verify run is hidden from default list
+        print("Checking run is hidden from default list...")
+        result = await self.make_request("GET", "/v1/hub/runs")
+        if result["status"] != 200:
+            print(f"❌ Failed to list runs: {result}")
+            return False
+        
+        runs = result["data"]["runs"]
+        run_found = any(run["run_id"] == self.test_run_id for run in runs)
+        if run_found:
+            print(f"❌ Archived run {self.test_run_id} still appears in default list")
+            return False
+        print("✅ Archived run hidden from default list")
+        
+        # Step 5: Verify run appears when include_archived=true
+        print("Checking run appears with include_archived=true...")
+        result = await self.make_request("GET", "/v1/hub/runs", params={"include_archived": "true"})
+        if result["status"] != 200:
+            print(f"❌ Failed to list runs with archived: {result}")
+            return False
+        
+        runs = result["data"]["runs"]
+        run_found = any(run["run_id"] == self.test_run_id and run["archived"] for run in runs)
+        if not run_found:
+            print(f"❌ Archived run {self.test_run_id} not found with include_archived=true")
+            return False
+        print("✅ Archived run appears with include_archived=true")
+        
+        # Step 6: Unarchive the run
+        print("Unarchiving run...")
+        result = await self.make_request("POST", f"/v1/hub/runs/{self.test_run_id}/unarchive")
+        if result["status"] != 200:
+            print(f"❌ Failed to unarchive run: {result}")
+            return False
+        
+        unarchived_run = result["data"]
+        if unarchived_run["archived"]:
+            print("❌ Run still marked as archived after unarchive")
+            return False
+        print("✅ Run unarchived successfully")
+        
+        # Step 7: Verify run appears in default list again
+        print("Checking run appears in default list after unarchive...")
+        result = await self.make_request("GET", "/v1/hub/runs")
+        if result["status"] != 200:
+            print(f"❌ Failed to list runs: {result}")
+            return False
+        
+        runs = result["data"]["runs"]
+        run_found = any(run["run_id"] == self.test_run_id and not run["archived"] for run in runs)
+        if not run_found:
+            print(f"❌ Unarchived run {self.test_run_id} not found in default list")
+            return False
+        print("✅ Unarchived run appears in default list")
+        
+        # Step 8: Archive again for delete test
+        print("Re-archiving run for delete test...")
+        result = await self.make_request("POST", f"/v1/hub/runs/{self.test_run_id}/archive")
+        if result["status"] != 200:
+            print(f"❌ Failed to re-archive run: {result}")
+            return False
+        print("✅ Run re-archived")
+        
+        # Step 9: Delete archived run
+        print("Deleting archived run...")
+        result = await self.make_request("DELETE", f"/v1/hub/runs/{self.test_run_id}")
+        if result["status"] != 200:
+            print(f"❌ Failed to delete archived run: {result}")
+            return False
+        print("✅ Archived run deleted successfully")
+        
+        # Step 10: Verify run no longer exists
+        print("Verifying run no longer exists...")
+        result = await self.make_request("GET", f"/v1/hub/runs/{self.test_run_id}")
+        if result["status"] != 404:
+            print(f"❌ Deleted run still accessible: {result}")
+            return False
+        print("✅ Deleted run no longer accessible")
+        
+        return True
+    
+    async def test_multi_instance_chat(self) -> bool:
+        """Test direct multi-instance chat functionality"""
+        print("\n💬 Testing multi-instance chat...")
+        
+        # Step 1: Send prompt to multiple instances
+        chat_request = {
+            "prompt": "What is the capital of France? Please respond with just the city name.",
+            "instance_ids": [inst["instance_id"] for inst in self.test_instances],
+            "label": "Multi-Instance Test"
+        }
+        
+        print("Sending chat prompt to multiple instances...")
+        result = await self.make_request("POST", "/v1/hub/chat/prompts", chat_request)
+        if result["status"] != 200:
+            print(f"❌ Failed to send chat prompt: {result}")
+            return False
+        
+        prompt_data = result["data"]
+        self.test_prompt_id = prompt_data["prompt_id"]
+        
+        # Verify response structure
+        required_keys = ["prompt_id", "prompt", "instance_ids", "instance_names", "responses"]
+        for key in required_keys:
+            if key not in prompt_data:
+                print(f"❌ Missing key in chat prompt response: {key}")
+                return False
+        
+        # Verify we got responses from all instances
+        if len(prompt_data["responses"]) != len(self.test_instances):
+            print(f"❌ Expected {len(self.test_instances)} responses, got {len(prompt_data['responses'])}")
+            return False
+        
+        # Verify each response has required fields
+        for i, response in enumerate(prompt_data["responses"]):
+            required_response_keys = ["prompt_id", "instance_id", "instance_name", "thread_id", "model", "content", "message_id"]
+            for key in required_response_keys:
+                if key not in response:
+                    print(f"❌ Missing key in response {i}: {key}")
+                    return False
             
-    def test_unauthenticated_access(self) -> bool:
-        """Test that verification endpoints require authentication"""
+            # Verify response belongs to one of our instances
+            if response["instance_id"] not in [inst["instance_id"] for inst in self.test_instances]:
+                print(f"❌ Response from unknown instance: {response['instance_id']}")
+                return False
+        
+        print(f"✅ Multi-instance chat successful: {len(prompt_data['responses'])} responses received")
+        
+        return True
+    
+    async def test_prompt_history_persistence(self) -> bool:
+        """Test that prompts are persisted to instance thread histories"""
+        print("\n📚 Testing prompt history persistence...")
+        
+        # Check each instance's history for the chat prompt
+        for instance in self.test_instances:
+            print(f"Checking history for instance {instance['name']}...")
+            
+            result = await self.make_request("GET", f"/v1/hub/instances/{instance['instance_id']}/history")
+            if result["status"] != 200:
+                print(f"❌ Failed to get instance history: {result}")
+                return False
+            
+            history = result["data"]
+            messages = history["messages"]
+            
+            print(f"Found {len(messages)} messages in {instance['name']} history")
+            
+            # Look for our test prompt in the history
+            user_message_found = False
+            assistant_message_found = False
+            
+            for i, message in enumerate(messages):
+                if (message.get("role") == "user" and 
+                    "capital of France" in message.get("content", "") and
+                    message.get("hub_role") == "input"):
+                    user_message_found = True
+                    print(f"✅ Found user message in {instance['name']} history (hub_role=input)")
+                
+                if (message.get("role") == "assistant" and 
+                    message.get("hub_role") == "response"):
+                    assistant_message_found = True
+                    print(f"✅ Found assistant message in {instance['name']} history (hub_role=response)")
+            
+            if not user_message_found:
+                print(f"❌ User message not found in {instance['name']} history")
+                print(f"Looking for prompt_id: {self.test_prompt_id}")
+                return False
+            
+            if not assistant_message_found:
+                print(f"❌ Assistant message not found in {instance['name']} history")
+                print(f"Looking for prompt_id: {self.test_prompt_id}")
+                return False
+        
+        print("✅ Prompt history persistence verified for all instances")
+        return True
+    
+    async def test_chat_prompt_retrieval(self) -> bool:
+        """Test chat prompt retrieval endpoints"""
+        print("\n🔍 Testing chat prompt retrieval...")
+        
+        # Test list chat prompts
+        print("Testing list chat prompts...")
+        result = await self.make_request("GET", "/v1/hub/chat/prompts")
+        if result["status"] != 200:
+            print(f"❌ Failed to list chat prompts: {result}")
+            return False
+        
+        prompts_data = result["data"]
+        if "prompts" not in prompts_data or "total" not in prompts_data:
+            print("❌ Invalid chat prompts list response structure")
+            return False
+        
+        # Find our test prompt
+        test_prompt_found = False
+        for prompt in prompts_data["prompts"]:
+            if prompt["prompt_id"] == self.test_prompt_id:
+                test_prompt_found = True
+                break
+        
+        if not test_prompt_found:
+            print(f"❌ Test prompt {self.test_prompt_id} not found in list")
+            return False
+        
+        print("✅ Chat prompts list working")
+        
+        # Test get specific chat prompt
+        print("Testing get specific chat prompt...")
+        result = await self.make_request("GET", f"/v1/hub/chat/prompts/{self.test_prompt_id}")
+        if result["status"] != 200:
+            print(f"❌ Failed to get chat prompt detail: {result}")
+            return False
+        
+        prompt_detail = result["data"]
+        if prompt_detail["prompt_id"] != self.test_prompt_id:
+            print(f"❌ Wrong prompt returned: expected {self.test_prompt_id}, got {prompt_detail['prompt_id']}")
+            return False
+        
+        # Verify all responses are included
+        if len(prompt_detail["responses"]) != len(self.test_instances):
+            print(f"❌ Expected {len(self.test_instances)} responses in detail, got {len(prompt_detail['responses'])}")
+            return False
+        
+        print("✅ Chat prompt detail retrieval working")
+        return True
+    
+    async def cleanup_test_data(self):
+        """Clean up test instances and data"""
+        print("\n🧹 Cleaning up test data...")
+        
+        # Delete test instances
+        for instance in self.test_instances:
+            try:
+                result = await self.make_request("DELETE", f"/v1/hub/instances/{instance['instance_id']}")
+                print(f"✅ Cleaned up instance {instance['name']}")
+            except Exception as e:
+                print(f"⚠️ Failed to cleanup instance {instance['name']}: {e}")
+        
+        # Clean up MongoDB test data
         try:
-            # Create a new session without auth
-            unauth_session = requests.Session()
+            self.db.hub_instances.delete_many({"user_id": self.user_id})
+            self.db.hub_runs.delete_many({"user_id": self.user_id})
+            self.db.hub_run_steps.delete_many({"user_id": self.user_id})
+            self.db.hub_chat_prompts.delete_many({"user_id": self.user_id})
+            self.db.threads.delete_many({"user_id": self.user_id})
+            self.db.messages.delete_many({"user_id": self.user_id})
+            print("✅ Cleaned up MongoDB test data")
+        except Exception as e:
+            print(f"⚠️ MongoDB cleanup warning: {e}")
+    
+    async def run_all_tests(self) -> bool:
+        """Run all tests in sequence"""
+        print("🚀 Starting AIMMH Hub Backend Tests")
+        print("=" * 50)
+        
+        try:
+            # Setup
+            if not await self.setup_auth():
+                return False
             
-            endpoints_to_test = [
-                "/v1/registry/verify/model",
-                "/v1/registry/verify/developer/openai",
-                "/v1/registry/verify/all"
+            # Test sequence
+            tests = [
+                ("Authentication Protection", self.test_auth_protection),
+                ("Hub Options", self.test_hub_options),
+                ("Create Test Instances", self.create_test_instances),
+                ("Run Archival Flow", self.test_run_archival_flow),
+                ("Multi-Instance Chat", self.test_multi_instance_chat),
+                ("Prompt History Persistence", self.test_prompt_history_persistence),
+                ("Chat Prompt Retrieval", self.test_chat_prompt_retrieval),
             ]
             
-            all_protected = True
-            for endpoint in endpoints_to_test:
-                if endpoint == "/v1/registry/verify/model":
-                    resp = unauth_session.post(f"{API_BASE}{endpoint}", json={"developer_id": "openai", "model_id": "gpt-4o"})
-                else:
-                    resp = unauth_session.post(f"{API_BASE}{endpoint}")
-                    
-                if resp.status_code != 401:
-                    self.log_result(f"Auth Protection {endpoint}", False, f"Expected 401, got {resp.status_code}")
-                    all_protected = False
-                    
-            if all_protected:
-                self.log_result("Authentication Protection", True, "All verification endpoints properly protected")
-                return True
-            else:
-                return False
-                
-        except Exception as e:
-            self.log_result("Authentication Protection", False, f"Exception: {str(e)}")
-            return False
+            for test_name, test_func in tests:
+                print(f"\n{'='*20} {test_name} {'='*20}")
+                if not await test_func():
+                    print(f"❌ {test_name} FAILED")
+                    return False
+                print(f"✅ {test_name} PASSED")
             
-    def run_all_tests(self):
-        """Run all registry enrichment tests"""
-        print("🧪 Starting Registry Enrichment Backend Tests")
-        print("=" * 60)
-        
-        # Authentication
-        if not self.register_and_login():
-            print("❌ Authentication failed - stopping tests")
-            return
+            return True
             
-        # Test unauthenticated access first
-        self.test_unauthenticated_access()
+        finally:
+            # Always cleanup
+            await self.cleanup_test_data()
+            await self.cleanup_auth()
+    
+    def close(self):
+        """Close MongoDB connection"""
+        self.mongo_client.close()
+
+async def main():
+    """Main test runner"""
+    runner = TestRunner()
+    
+    try:
+        success = await runner.run_all_tests()
         
-        # Registry tests
-        self.test_registry_get_with_websites()
-        self.test_add_developer_with_website()
-        
-        # Verification tests
-        self.test_verify_model_endpoint()
-        self.test_verify_developer_endpoint()
-        self.test_verify_all_endpoint()
-        
-        # Hub message ID persistence test
-        self.test_hub_run_message_id_persistence()
-        
-        # Summary
-        print("\n" + "=" * 60)
-        print("📊 TEST SUMMARY")
-        print("=" * 60)
-        
-        passed = sum(1 for result in self.test_results if result["success"])
-        total = len(self.test_results)
-        
-        for result in self.test_results:
-            status = "✅" if result["success"] else "❌"
-            print(f"{status} {result['test']}")
-            
-        print(f"\n🎯 Results: {passed}/{total} tests passed")
-        
-        if passed == total:
-            print("🎉 All tests passed!")
+        print("\n" + "=" * 50)
+        if success:
+            print("🎉 ALL TESTS PASSED!")
+            print("✅ Hub run archival functionality working")
+            print("✅ Direct multi-instance chat functionality working")
+            print("✅ Prompt history persistence working")
+            print("✅ Chat prompt retrieval working")
+            print("✅ Authentication protection working")
         else:
-            print(f"⚠️  {total - passed} tests failed")
+            print("❌ SOME TESTS FAILED!")
+            print("Please check the output above for details")
+            sys.exit(1)
             
-        return passed == total
+    except Exception as e:
+        print(f"💥 Test runner crashed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+    
+    finally:
+        runner.close()
 
 if __name__ == "__main__":
-    runner = RegistryTestRunner()
-    success = runner.run_all_tests()
-    exit(0 if success else 1)
+    asyncio.run(main())

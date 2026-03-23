@@ -260,6 +260,8 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
         "label": req.label,
         "prompt": req.prompt,
         "status": "running",
+        "archived": False,
+        "archived_at": None,
         "stage_summaries": [],
         "created_at": now,
         "updated_at": now,
@@ -537,8 +539,11 @@ async def get_hub_run_detail(user_id: str, run_id: str) -> HubRunDetailResponse:
     )
 
 
-async def list_hub_runs(user_id: str, limit: int = 100) -> list[dict]:
-    return await db[HUB_RUN_COLLECTION].find({"user_id": user_id}, {"_id": 0}).sort("updated_at", -1).limit(limit).to_list(limit)
+async def list_hub_runs(user_id: str, include_archived: bool = False, limit: int = 100) -> list[dict]:
+    query = {"user_id": user_id}
+    if not include_archived:
+        query["archived"] = {"$ne": True}
+    return await db[HUB_RUN_COLLECTION].find(query, {"_id": 0}).sort("updated_at", -1).limit(limit).to_list(limit)
 
 
 async def list_hub_instances(user_id: str, include_archived: bool = False, limit: int = 200) -> list[dict]:

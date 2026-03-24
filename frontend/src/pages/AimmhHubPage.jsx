@@ -32,6 +32,10 @@ export default function AimmhHubPage() {
   const [chatPrompts, setChatPrompts] = React.useState([]);
   const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
   const [chatBusyKey, setChatBusyKey] = React.useState('');
+  const [synthesisBasket, setSynthesisBasket] = React.useState([]);
+  const [synthesisInstanceIds, setSynthesisInstanceIds] = React.useState([]);
+  const [synthesisBatches, setSynthesisBatches] = React.useState([]);
+  const [synthesisBusy, setSynthesisBusy] = React.useState(false);
 
   const refreshChatPrompts = React.useCallback(async () => {
     try {
@@ -48,9 +52,21 @@ export default function AimmhHubPage() {
     }
   }, [selectedChatPromptId]);
 
+  const refreshSyntheses = React.useCallback(async () => {
+    try {
+      const response = await hubApi.getSyntheses();
+      setSynthesisBatches(response?.batches || []);
+      return response?.batches || [];
+    } catch (error) {
+      toast.error(error.message || 'Failed to load synthesis batches');
+      return [];
+    }
+  }, []);
+
   React.useEffect(() => {
     refreshChatPrompts();
-  }, [refreshChatPrompts]);
+    refreshSyntheses();
+  }, [refreshChatPrompts, refreshSyntheses]);
 
   const sendChatPrompt = React.useCallback(async (payload) => {
     try {
@@ -70,6 +86,32 @@ export default function AimmhHubPage() {
       setChatBusyKey('');
     }
   }, [refreshChatPrompts, workspace]);
+
+  const toggleSynthesisBlock = React.useCallback((block) => {
+    setSynthesisBasket((prev) => prev.some((item) => item.source_id === block.source_id)
+      ? prev.filter((item) => item.source_id !== block.source_id)
+      : [...prev, block]);
+  }, []);
+
+  const runSynthesis = React.useCallback(async (payload) => {
+    try {
+      setSynthesisBusy(true);
+      const detail = await hubApi.createSynthesis(payload);
+      toast.success('Synthesis complete');
+      const nextBatches = await refreshSyntheses();
+      if (!nextBatches.find((item) => item.synthesis_batch_id === detail.synthesis_batch_id)) {
+        setSynthesisBatches((prev) => [detail, ...prev]);
+      }
+      setSynthesisBasket([]);
+      await workspace.refreshCore();
+      return detail;
+    } catch (error) {
+      toast.error(error.message || 'Synthesis failed');
+      throw error;
+    } finally {
+      setSynthesisBusy(false);
+    }
+  }, [refreshSyntheses, workspace]);
 
   const instanceOptions = workspace.instances
     .filter((item) => !item.archived)
@@ -136,6 +178,8 @@ export default function AimmhHubPage() {
             prompts={chatPrompts}
             selectedPromptId={selectedChatPromptId}
             setSelectedPromptId={setSelectedChatPromptId}
+            synthesisBasket={synthesisBasket}
+            onToggleSynthesisBlock={toggleSynthesisBlock}
           />
         );
       case 'chat':
@@ -148,6 +192,13 @@ export default function AimmhHubPage() {
             setSelectedPromptId={setSelectedChatPromptId}
             onSendPrompt={sendChatPrompt}
             busyKey={chatBusyKey}
+            synthesisBasket={synthesisBasket}
+            onToggleSynthesisBlock={toggleSynthesisBlock}
+            synthesisInstanceIds={synthesisInstanceIds}
+            setSynthesisInstanceIds={setSynthesisInstanceIds}
+            onRunSynthesis={runSynthesis}
+            synthesisBusy={synthesisBusy}
+            synthesisBatches={synthesisBatches}
           />
         );
     }
@@ -168,7 +219,7 @@ export default function AimmhHubPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} />
+      <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} onOpenPricing={() => navigate('/pricing')} />
       <main className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6">
         <div className="space-y-4">
           <HubReadmeSplash />

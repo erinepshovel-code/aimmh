@@ -13,6 +13,8 @@ export function HubResponsesPanel({
   prompts,
   selectedPromptId,
   setSelectedPromptId,
+  synthesisBasket,
+  onToggleSynthesisBlock,
 }) {
   const [sourceType, setSourceType] = React.useState('runs');
   const [selectedStageIndex, setSelectedStageIndex] = React.useState(0);
@@ -31,6 +33,17 @@ export function HubResponsesPanel({
   const stageSummaries = selectedRun?.stage_summaries || [];
   const stageOptions = stageSummaries.map((summary) => ({ value: summary.stage_index, label: summary.stage_name || summary.pattern }));
   const selectedPrompt = prompts.find((item) => item.prompt_id === selectedPromptId) || prompts[0] || null;
+  const toSynthesisBlock = React.useCallback((item) => ({
+    source_type: sourceType === 'runs' ? 'run_response' : 'prompt_response',
+    source_id: item.run_step_id,
+    source_label: sourceType === 'runs'
+      ? `Run ${selectedRunId || 'unknown'} · ${item.instance_name || item.model}`
+      : `Prompt ${selectedPromptId || 'unknown'} · ${item.instance_name || item.model}`,
+    instance_id: item.instance_id,
+    instance_name: item.instance_name,
+    model: item.model,
+    content: item.content,
+  }), [selectedPromptId, selectedRunId, sourceType]);
   const stageResponses = sourceType === 'runs'
     ? (selectedRun?.results || []).filter((item) => item.stage_index === Number(selectedStageIndex))
     : (selectedPrompt?.responses || []).map((item, index) => ({
@@ -41,6 +54,7 @@ export function HubResponsesPanel({
         role: 'assistant',
         slot_idx: index,
       }));
+  const synthesisIds = synthesisBasket.map((item) => item.source_id);
   const selectedResponses = stageResponses.filter((item) => selectedIds.includes(item.run_step_id));
 
   const toggleSelected = (item) => {
@@ -168,6 +182,8 @@ export function HubResponsesPanel({
           onFeedback={submitFeedback}
           onCopy={(item) => copyText(item.content)}
           onShare={shareResponse}
+          synthesisIds={synthesisIds}
+          onToggleSynthesis={(item) => onToggleSynthesisBlock(toSynthesisBlock(item))}
         />
       ) : (
         <div className="space-y-4">
@@ -187,6 +203,8 @@ export function HubResponsesPanel({
               onFeedback={(value) => submitFeedback(item, value)}
               onCopy={() => copyText(item.content)}
               onShare={() => shareResponse(item)}
+              synthesisSelected={synthesisIds.includes(item.run_step_id)}
+              onToggleSynthesis={() => onToggleSynthesisBlock(toSynthesisBlock(item))}
             />
           ))}
         </div>

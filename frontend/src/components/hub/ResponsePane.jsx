@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Copy, Share2, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CheckCircle2, Copy, Share2, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
 
 export function ResponsePane({
@@ -11,6 +11,8 @@ export function ResponsePane({
   onFeedback,
   onCopy,
   onShare,
+  synthesisSelected = false,
+  onToggleSynthesis = null,
 }) {
   return (
     <article className={`flex h-full flex-col rounded-3xl border p-4 transition ${selected ? 'border-emerald-500/40 bg-emerald-500/5 shadow-[0_10px_40px_rgba(16,185,129,0.12)]' : 'border-zinc-800 bg-zinc-950/70'}`}>
@@ -39,6 +41,11 @@ export function ResponsePane({
         <button onClick={() => onFeedback('down')} className={`rounded-xl border px-3 py-2 text-xs ${feedback === 'down' ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-zinc-800 text-zinc-300 hover:text-white'}`}>
           <span className="flex items-center gap-2"><ThumbsDown size={13} /> Down</span>
         </button>
+        {onToggleSynthesis && (
+          <button onClick={onToggleSynthesis} className={`rounded-xl border px-3 py-2 text-xs ${synthesisSelected ? 'border-violet-500/30 bg-violet-500/10 text-violet-300' : 'border-zinc-800 text-zinc-300 hover:text-white'}`}>
+            <span className="flex items-center gap-2"><Sparkles size={13} /> {synthesisSelected ? 'Queued for synthesis' : 'Queue for synthesis'}</span>
+          </button>
+        )}
         <button onClick={onCopy} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:text-white">
           <span className="flex items-center gap-2"><Copy size={13} /> Copy</span>
         </button>

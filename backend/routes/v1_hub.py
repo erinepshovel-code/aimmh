@@ -22,9 +22,11 @@ from models.hub import (
     HubRunRequest,
 )
 from models.hub_chat import HubChatPromptListResponse, HubChatPromptOut, HubChatPromptRequest
+from models.hub_synthesis import HubSynthesisBatchListResponse, HubSynthesisBatchOut, HubSynthesisRequest
 from services.auth import get_current_user, get_user_id
 from services.billing_tiers import current_month_start_iso, get_user_billing_profile
 from services.hub_chat import get_chat_prompt, list_chat_prompts, send_chat_prompt
+from services.hub_synthesis import create_synthesis_batch, get_synthesis_batch, list_synthesis_batches
 from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
 from services.hub_store import (
     HUB_CHAT_PROMPT_COLLECTION,
@@ -76,6 +78,11 @@ def _connections_payload() -> HubConnectionsResponse:
                 "list": "/api/v1/hub/chat/prompts",
                 "detail": "/api/v1/hub/chat/prompts/{prompt_id}",
             },
+            "synthesis": {
+                "create": "/api/v1/hub/chat/synthesize",
+                "list": "/api/v1/hub/chat/syntheses",
+                "detail": "/api/v1/hub/chat/syntheses/{synthesis_batch_id}",
+            },
             "lib_patterns": {
                 "fan_out": "/api/v1/lib/fan-out",
                 "daisy_chain": "/api/v1/lib/daisy-chain",
@@ -94,6 +101,7 @@ def _connections_payload() -> HubConnectionsResponse:
             "instance_private_thread_history": True,
             "run_archival": True,
             "same_prompt_multi_instance_chat": True,
+            "selected_response_synthesis": True,
         },
     )
 
@@ -333,6 +341,27 @@ async def delete_run(run_id: str, current_user: dict = Depends(get_current_user)
 async def get_run_detail(run_id: str, current_user: dict = Depends(get_current_user)):
     user_id = get_user_id(current_user)
     return await get_hub_run_detail(user_id, run_id)
+
+@router.post("/chat/synthesize", response_model=HubSynthesisBatchOut)
+async def create_chat_synthesis(req: HubSynthesisRequest, current_user: dict = Depends(get_current_user)):
+    return await create_synthesis_batch(current_user, req)
+
+
+@router.get("/chat/syntheses", response_model=HubSynthesisBatchListResponse)
+async def get_chat_syntheses(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_synthesis_batches(user_id, limit=limit)
+    return HubSynthesisBatchListResponse(batches=[HubSynthesisBatchOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/chat/syntheses/{synthesis_batch_id}", response_model=HubSynthesisBatchOut)
+async def get_chat_synthesis_detail(synthesis_batch_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    return await get_synthesis_batch(user_id, synthesis_batch_id)
+
 
 
 @router.post("/chat/prompts", response_model=HubChatPromptOut)

@@ -24,6 +24,8 @@ export function ResponseCarousel({
   onFeedback,
   onCopy,
   onShare,
+  synthesisIds = [],
+  onToggleSynthesis = null,
 }) {
   const gestureRef = React.useRef({ startDistance: 0, lastAverageY: 0, moved: false });
 
@@ -86,6 +88,8 @@ export function ResponseCarousel({
           onFeedback={(value) => onFeedback(current, value)}
           onCopy={() => onCopy(current)}
           onShare={() => onShare(current)}
+          synthesisSelected={synthesisIds.includes(current.run_step_id)}
+          onToggleSynthesis={onToggleSynthesis ? () => onToggleSynthesis(current) : null}
         />
       </div>
     </div>

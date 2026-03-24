@@ -53,5 +53,8 @@ export const hubApi = {
   getChatPrompts: () => request('/v1/hub/chat/prompts'),
   getChatPrompt: (promptId) => request(`/v1/hub/chat/prompts/${promptId}`),
   sendChatPrompt: (payload) => request('/v1/hub/chat/prompts', { method: 'POST', body: JSON.stringify(payload) }),
+  getSyntheses: () => request('/v1/hub/chat/syntheses'),
+  getSynthesis: (batchId) => request(`/v1/hub/chat/syntheses/${batchId}`),
+  createSynthesis: (payload) => request('/v1/hub/chat/synthesize', { method: 'POST', body: JSON.stringify(payload) }),
   submitFeedback: (messageId, feedback) => request('/v1/a0/feedback', { method: 'POST', body: JSON.stringify({ message_id: messageId, feedback }) }),
 };

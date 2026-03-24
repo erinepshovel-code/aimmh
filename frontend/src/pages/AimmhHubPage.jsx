@@ -36,6 +36,7 @@ export default function AimmhHubPage() {
   const [synthesisInstanceIds, setSynthesisInstanceIds] = React.useState([]);
   const [synthesisBatches, setSynthesisBatches] = React.useState([]);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
+  const tabAnchorRef = React.useRef(null);
 
   const refreshChatPrompts = React.useCallback(async () => {
     try {
@@ -67,6 +68,14 @@ export default function AimmhHubPage() {
     refreshChatPrompts();
     refreshSyntheses();
   }, [refreshChatPrompts, refreshSyntheses]);
+
+  React.useEffect(() => {
+    const node = tabAnchorRef.current;
+    if (!node) return;
+    window.requestAnimationFrame(() => {
+      node.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }, [activeTab]);
 
   const sendChatPrompt = React.useCallback(async (payload) => {
     try {
@@ -218,13 +227,16 @@ export default function AimmhHubPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100" data-testid="aimmh-hub-page">
       <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} onOpenPricing={() => navigate('/pricing')} />
       <main className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6">
         <div className="space-y-4">
           <HubReadmeSplash />
+          <div ref={tabAnchorRef} data-testid="hub-tab-anchor" />
           <HubTabsNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
-          {renderTab()}
+          <div data-testid={`hub-tab-panel-${activeTab}`}>
+            {renderTab()}
+          </div>
         </div>
       </main>
     </div>

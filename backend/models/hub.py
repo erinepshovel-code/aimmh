@@ -191,6 +191,8 @@ class HubHistoryMessage(BaseModel):
     hub_stage_index: Optional[int] = None
     hub_pattern: Optional[str] = None
     hub_instance_id: Optional[str] = None
+    hub_prompt_id: Optional[str] = None
+    hub_synthesis_batch_id: Optional[str] = None
     hub_role: Optional[str] = None
 
 

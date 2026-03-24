@@ -14,7 +14,7 @@ import aiohttp
 
 class SynthesisBackendTester:
     def __init__(self):
-        self.base_url = "https://aimmh-hub.preview.emergentagent.com"
+        self.base_url = "https://synthesis-chat.preview.emergentagent.com"
         self.session_token: Optional[str] = None
         self.user_id: Optional[str] = None
         self.test_instances: List[Dict] = []

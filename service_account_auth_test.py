@@ -11,7 +11,7 @@ Testing scenarios as per review request:
 6) Use returned service token on protected endpoints (/api/a0/non-ui/options and /api/conversations/search) and verify success
 7) JWT and existing auth flows should remain functional
 
-Target URL: https://aimmh-hub.preview.emergentagent.com
+Target URL: https://synthesis-chat.preview.emergentagent.com
 """
 
 import asyncio
@@ -436,7 +436,7 @@ class ServiceAccountAuthTester:
 
 async def main():
     """Main test runner"""
-    BASE_URL = "https://aimmh-hub.preview.emergentagent.com"
+    BASE_URL = "https://synthesis-chat.preview.emergentagent.com"
     
     tester = ServiceAccountAuthTester(BASE_URL)
     success = await tester.run_service_account_auth_tests()

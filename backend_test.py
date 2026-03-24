@@ -1,445 +1,506 @@
 #!/usr/bin/env python3
 """
-Backend test for AIMMH Hub Synthesis functionality
-Tests the selected-response synthesis backend endpoints
+AIMMH Backend Test Script
+Testing hub chat/synthesis metadata fields in instance history responses.
+
+Test scenarios from review request:
+1. Register a fresh user and authenticate
+2. Create at least 2 hub instances via `/api/v1/hub/instances`
+3. Send a direct chat prompt via `/api/v1/hub/chat/prompts` to those instances
+4. Fetch one instance history via `/api/v1/hub/instances/{instance_id}/history`
+5. Verify the recent chat history messages include `hub_prompt_id` on both input and response messages, and `hub_role` values remain correct
+6. Create a synthesis batch via `/api/v1/hub/chat/synthesize` using a selected block and one synthesis instance
+7. Fetch the synthesis instance history again
+8. Verify the recent synthesis history messages include `hub_synthesis_batch_id` on both synthesis input and synthesis output messages, and `hub_role` values remain correct
+9. Confirm no regression in the normal chat/synthesis API response structures
 """
 
 import asyncio
 import json
+import random
+import string
 import time
 from typing import Dict, List, Optional
 
 import aiohttp
 
 
-class SynthesisBackendTester:
-    def __init__(self):
-        self.base_url = "https://synthesis-chat.preview.emergentagent.com"
+class AimmhBackendTester:
+    def __init__(self, base_url: str = "https://synthesis-chat.preview.emergentagent.com"):
+        self.base_url = base_url
         self.session_token: Optional[str] = None
         self.user_id: Optional[str] = None
-        self.test_instances: List[Dict] = []
-        self.test_synthesis_batch_id: Optional[str] = None
+        self.session: Optional[aiohttp.ClientSession] = None
         
-    async def setup_auth(self) -> bool:
-        """Create test user and get session token"""
-        print("🔐 Setting up authentication...")
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
         
-        # Register a test user
-        timestamp = int(time.time())
-        test_username = f"synthtest_{timestamp}"
-        test_password = "TestPass123!"
-        
-        async with aiohttp.ClientSession() as session:
-            # Register user
-            register_data = {
-                "username": test_username,
-                "password": test_password
-            }
-            
-            async with session.post(f"{self.base_url}/api/auth/register", json=register_data) as resp:
-                if resp.status != 200:
-                    print(f"❌ Registration failed: {resp.status}")
-                    error_text = await resp.text()
-                    print(f"Error details: {error_text}")
-                    return False
-                
-                result = await resp.json()
-                self.session_token = result.get("access_token")
-                self.user_id = result.get("user", {}).get("id")
-                
-                if not self.session_token:
-                    print("❌ No session token received")
-                    return False
-                    
-                print(f"✅ User registered: {test_username}")
-                print(f"✅ Session token obtained: {self.session_token[:20]}...")
-                return True
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
 
-    async def test_auth_protection(self) -> bool:
-        """Test that synthesis endpoints require authentication"""
-        print("\n🔒 Testing authentication protection...")
-        
-        async with aiohttp.ClientSession() as session:
-            # Test synthesis endpoints without auth - use correct HTTP methods
-            test_cases = [
-                ("POST", "/api/v1/hub/chat/synthesize", {"synthesis_instance_ids": ["test"], "selected_blocks": [{"source_id": "test", "content": "test"}]}),
-                ("GET", "/api/v1/hub/chat/syntheses", None),
-                ("GET", "/api/v1/hub/options", None)
-            ]
-            
-            for method, endpoint, data in test_cases:
-                if method == "POST":
-                    async with session.post(f"{self.base_url}{endpoint}", json=data) as resp:
-                        if resp.status != 401:
-                            print(f"❌ {endpoint} should return 401 without auth, got {resp.status}")
-                            return False
-                        print(f"✅ {endpoint} correctly returns 401 without auth")
-                else:
-                    async with session.get(f"{self.base_url}{endpoint}") as resp:
-                        if resp.status != 401:
-                            print(f"❌ {endpoint} should return 401 without auth, got {resp.status}")
-                            return False
-                        print(f"✅ {endpoint} correctly returns 401 without auth")
-            
-            return True
+    def _generate_test_user(self) -> tuple[str, str]:
+        """Generate a unique test username and password."""
+        suffix = ''.join(random.choices(string.digits, k=10))
+        username = f"aimmh_test_{suffix}"
+        password = f"TestPass{suffix}!"
+        return username, password
 
-    async def test_hub_options_synthesis_support(self) -> bool:
-        """Test that hub options advertises synthesis support"""
-        print("\n📋 Testing hub options synthesis support...")
+    async def _make_request(self, method: str, endpoint: str, json_data: dict = None, params: dict = None) -> tuple[int, dict]:
+        """Make an HTTP request with proper authentication headers."""
+        url = f"{self.base_url}{endpoint}"
+        headers = {}
+        if self.session_token:
+            headers["Authorization"] = f"Bearer {self.session_token}"
         
-        headers = {"Authorization": f"Bearer {self.session_token}"}
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.base_url}/api/v1/hub/options", headers=headers) as resp:
-                if resp.status != 200:
-                    print(f"❌ Hub options failed: {resp.status}")
-                    return False
-                
-                data = await resp.json()
-                
-                # Check synthesis support flag
-                supports = data.get("supports", {})
-                if not supports.get("selected_response_synthesis"):
-                    print("❌ Hub options missing selected_response_synthesis support flag")
-                    return False
-                
-                # Check synthesis endpoints in fastapi_connections
-                connections = data.get("fastapi_connections", {})
-                synthesis_endpoints = connections.get("synthesis", {})
-                
-                expected_endpoints = ["create", "list", "detail"]
-                for endpoint in expected_endpoints:
-                    if endpoint not in synthesis_endpoints:
-                        print(f"❌ Missing synthesis endpoint: {endpoint}")
-                        return False
-                
-                print("✅ Hub options correctly advertises synthesis support")
-                print(f"✅ Synthesis endpoints: {list(synthesis_endpoints.keys())}")
-                return True
+        try:
+            async with self.session.request(method, url, json=json_data, params=params, headers=headers) as response:
+                try:
+                    response_data = await response.json()
+                except:
+                    response_data = {"error": "Invalid JSON response", "text": await response.text()}
+                return response.status, response_data
+        except Exception as e:
+            return 500, {"error": str(e)}
 
-    async def create_test_instances(self) -> bool:
-        """Create test instances for synthesis"""
-        print("\n🏗️ Creating test instances for synthesis...")
+    async def test_1_register_and_authenticate(self) -> bool:
+        """Test 1: Register a fresh user and authenticate."""
+        print("🔐 Test 1: Register a fresh user and authenticate")
         
-        headers = {"Authorization": f"Bearer {self.session_token}"}
+        username, password = self._generate_test_user()
+        print(f"   Generated test user: {username}")
         
-        async with aiohttp.ClientSession() as session:
-            # Create 2 test instances with different models
-            instance_configs = [
-                {"model_id": "gpt-4o", "name": "Synthesis Test Instance 1"},
-                {"model_id": "claude-sonnet-4-5-20250929", "name": "Synthesis Test Instance 2"}
-            ]
-            
-            for config in instance_configs:
-                async with session.post(f"{self.base_url}/api/v1/hub/instances", 
-                                      json=config, headers=headers) as resp:
-                    if resp.status != 200:
-                        print(f"❌ Failed to create instance: {resp.status}")
-                        return False
-                    
-                    instance = await resp.json()
-                    self.test_instances.append(instance)
-                    print(f"✅ Created instance: {instance['name']} ({instance['instance_id']})")
-            
-            return True
-
-    async def test_synthesis_creation(self) -> bool:
-        """Test synthesis batch creation"""
-        print("\n🧪 Testing synthesis creation...")
-        
-        if len(self.test_instances) < 2:
-            print("❌ Need at least 2 test instances")
-            return False
-        
-        headers = {"Authorization": f"Bearer {self.session_token}"}
-        
-        # Prepare synthesis request
-        synthesis_request = {
-            "synthesis_instance_ids": [inst["instance_id"] for inst in self.test_instances],
-            "selected_blocks": [
-                {
-                    "source_type": "response_block",
-                    "source_id": "test_source_1",
-                    "source_label": "GPT-4o Analysis",
-                    "instance_id": self.test_instances[0]["instance_id"],
-                    "instance_name": self.test_instances[0]["name"],
-                    "model": "gpt-4o",
-                    "content": "Machine learning is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed. It involves algorithms that can identify patterns in data and make predictions or decisions based on those patterns."
-                },
-                {
-                    "source_type": "response_block", 
-                    "source_id": "test_source_2",
-                    "source_label": "Claude Analysis",
-                    "instance_id": self.test_instances[1]["instance_id"],
-                    "instance_name": self.test_instances[1]["name"],
-                    "model": "claude-sonnet-4-5-20250929",
-                    "content": "Machine learning represents a paradigm shift in computing where systems can automatically improve their performance on a specific task through experience. Rather than following pre-programmed instructions, ML algorithms build mathematical models based on training data to make predictions or decisions without being explicitly programmed for every scenario."
-                }
-            ],
-            "instruction": "Compare and contrast these two explanations of machine learning, highlighting key similarities and differences in their approaches and emphasis.",
-            "label": "ML Definition Synthesis Test"
+        # Register user
+        register_data = {
+            "username": username,
+            "password": password
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.base_url}/api/v1/hub/chat/synthesize",
-                                  json=synthesis_request, headers=headers) as resp:
-                if resp.status != 200:
-                    print(f"❌ Synthesis creation failed: {resp.status}")
-                    error_text = await resp.text()
-                    print(f"Error details: {error_text}")
-                    return False
-                
-                synthesis_batch = await resp.json()
-                self.test_synthesis_batch_id = synthesis_batch["synthesis_batch_id"]
-                
-                # Validate response structure
-                required_fields = [
-                    "synthesis_batch_id", "selected_blocks", "synthesis_instance_ids", 
-                    "synthesis_instance_names", "outputs", "created_at", "updated_at"
-                ]
-                
-                for field in required_fields:
-                    if field not in synthesis_batch:
-                        print(f"❌ Missing field in synthesis response: {field}")
-                        return False
-                
-                # Validate outputs
-                outputs = synthesis_batch["outputs"]
-                if len(outputs) != len(self.test_instances):
-                    print(f"❌ Expected {len(self.test_instances)} outputs, got {len(outputs)}")
-                    return False
-                
-                for output in outputs:
-                    required_output_fields = [
-                        "synthesis_batch_id", "synthesis_instance_id", "synthesis_instance_name",
-                        "model", "thread_id", "content", "message_id", "created_at"
-                    ]
-                    for field in required_output_fields:
-                        if field not in output:
-                            print(f"❌ Missing field in synthesis output: {field}")
-                            return False
-                    
-                    if not output["content"].strip():
-                        print("❌ Empty synthesis content")
-                        return False
-                
-                print(f"✅ Synthesis batch created: {self.test_synthesis_batch_id}")
-                print(f"✅ Generated {len(outputs)} synthesis outputs")
-                print(f"✅ Label: {synthesis_batch.get('label')}")
-                return True
-
-    async def test_synthesis_persistence_and_listing(self) -> bool:
-        """Test synthesis batch persistence and listing"""
-        print("\n📚 Testing synthesis persistence and listing...")
-        
-        if not self.test_synthesis_batch_id:
-            print("❌ No synthesis batch ID available")
+        status, response = await self._make_request("POST", "/api/auth/register", register_data)
+        if status != 200:
+            print(f"   ❌ Registration failed: {status} - {response}")
             return False
-        
-        headers = {"Authorization": f"Bearer {self.session_token}"}
-        
-        async with aiohttp.ClientSession() as session:
-            # Test list syntheses
-            async with session.get(f"{self.base_url}/api/v1/hub/chat/syntheses", headers=headers) as resp:
-                if resp.status != 200:
-                    print(f"❌ List syntheses failed: {resp.status}")
-                    return False
-                
-                list_response = await resp.json()
-                batches = list_response.get("batches", [])
-                
-                # Find our test batch
-                test_batch = None
-                for batch in batches:
-                    if batch["synthesis_batch_id"] == self.test_synthesis_batch_id:
-                        test_batch = batch
-                        break
-                
-                if not test_batch:
-                    print("❌ Test synthesis batch not found in list")
-                    return False
-                
-                print(f"✅ Synthesis batch found in list: {test_batch['label']}")
             
-            # Test get synthesis detail
-            async with session.get(f"{self.base_url}/api/v1/hub/chat/syntheses/{self.test_synthesis_batch_id}", 
-                                 headers=headers) as resp:
-                if resp.status != 200:
-                    print(f"❌ Get synthesis detail failed: {resp.status}")
-                    return False
-                
-                detail_batch = await resp.json()
-                
-                # Validate detail response
-                if detail_batch["synthesis_batch_id"] != self.test_synthesis_batch_id:
-                    print("❌ Synthesis batch ID mismatch in detail")
-                    return False
-                
-                if not detail_batch.get("outputs"):
-                    print("❌ No outputs in synthesis detail")
-                    return False
-                
-                print(f"✅ Synthesis detail retrieved successfully")
-                print(f"✅ Outputs count: {len(detail_batch['outputs'])}")
-                return True
-
-    async def test_thread_history_append(self) -> bool:
-        """Test that synthesis prompts and outputs are appended to instance thread histories"""
-        print("\n📝 Testing thread history append behavior...")
-        
-        if not self.test_instances:
-            print("❌ No test instances available")
+        if "access_token" not in response:
+            print(f"   ❌ No access_token in registration response: {response}")
             return False
-        
-        headers = {"Authorization": f"Bearer {self.session_token}"}
-        
-        async with aiohttp.ClientSession() as session:
-            for instance in self.test_instances:
-                instance_id = instance["instance_id"]
-                
-                # Get instance history
-                async with session.get(f"{self.base_url}/api/v1/hub/instances/{instance_id}/history",
-                                     headers=headers) as resp:
-                    if resp.status != 200:
-                        print(f"❌ Failed to get history for instance {instance_id}: {resp.status}")
-                        return False
-                    
-                    history = await resp.json()
-                    messages = history.get("messages", [])
-                    
-                    # Look for synthesis-related messages
-                    synthesis_user_msg = None
-                    synthesis_assistant_msg = None
-                    
-                    for msg in messages:
-                        if msg.get("hub_role") == "synthesis_input":
-                            synthesis_user_msg = msg
-                        elif msg.get("hub_role") == "synthesis_output":
-                            synthesis_assistant_msg = msg
-                    
-                    if not synthesis_user_msg:
-                        print(f"❌ No synthesis input message found in instance {instance_id} history")
-                        return False
-                    
-                    if not synthesis_assistant_msg:
-                        print(f"❌ No synthesis output message found in instance {instance_id} history")
-                        return False
-                    
-                    # Validate message structure
-                    if synthesis_user_msg["role"] != "user":
-                        print(f"❌ Synthesis input message should have role 'user', got '{synthesis_user_msg['role']}'")
-                        return False
-                    
-                    if synthesis_assistant_msg["role"] != "assistant":
-                        print(f"❌ Synthesis output message should have role 'assistant', got '{synthesis_assistant_msg['role']}'")
-                        return False
-                    
-                    # Validate that synthesis content is present
-                    if not synthesis_user_msg.get("content", "").strip():
-                        print(f"❌ Synthesis input message has empty content")
-                        return False
-                    
-                    if not synthesis_assistant_msg.get("content", "").strip():
-                        print(f"❌ Synthesis output message has empty content")
-                        return False
-                    
-                    # Check that the synthesis prompt contains our instruction
-                    user_content = synthesis_user_msg["content"]
-                    if "Compare and contrast these two explanations" not in user_content:
-                        print(f"❌ Synthesis input message doesn't contain expected instruction")
-                        return False
-                    
-                    # Check for synthesis batch ID in metadata (note: this field may be None due to persistence issue)
-                    user_batch_id = synthesis_user_msg.get("hub_synthesis_batch_id")
-                    assistant_batch_id = synthesis_assistant_msg.get("hub_synthesis_batch_id")
-                    
-                    if user_batch_id is None and assistant_batch_id is None:
-                        print(f"⚠️  Minor: Synthesis batch ID not persisted in thread history (functionality works)")
-                    elif user_batch_id == self.test_synthesis_batch_id and assistant_batch_id == self.test_synthesis_batch_id:
-                        print(f"✅ Synthesis batch ID correctly persisted in thread history")
-                    else:
-                        print(f"⚠️  Minor: Synthesis batch ID partially persisted (user: {user_batch_id}, assistant: {assistant_batch_id})")
-                    
-                    print(f"✅ Instance {instance['name']} has correct synthesis messages in history")
-                    print(f"   - User message: {synthesis_user_msg['content'][:50]}...")
-                    print(f"   - Assistant message: {synthesis_assistant_msg['content'][:50]}...")
             
-            return True
+        self.session_token = response["access_token"]
+        self.user_id = response.get("user", {}).get("id")
+        print(f"   ✅ User registered successfully, access_token obtained")
+        print(f"   ✅ User ID: {self.user_id}")
+        
+        # Verify authentication with /api/auth/me
+        status, response = await self._make_request("GET", "/api/auth/me")
+        if status != 200:
+            print(f"   ❌ Auth verification failed: {status} - {response}")
+            return False
+            
+        print(f"   ✅ Authentication verified: {response.get('username')}")
+        return True
 
-    async def test_invalid_scenarios(self) -> bool:
-        """Test error handling for invalid scenarios"""
-        print("\n🚫 Testing invalid scenarios...")
+    async def test_2_create_hub_instances(self) -> List[str]:
+        """Test 2: Create at least 2 hub instances."""
+        print("🏗️  Test 2: Create at least 2 hub instances")
         
-        headers = {"Authorization": f"Bearer {self.session_token}"}
+        instance_ids = []
+        models = ["gpt-4o", "claude-sonnet-4-5-20250929"]
         
-        async with aiohttp.ClientSession() as session:
-            # Test with non-existent instance ID
-            invalid_request = {
-                "synthesis_instance_ids": ["nonexistent_instance"],
-                "selected_blocks": [
-                    {
-                        "source_type": "response_block",
-                        "source_id": "test",
-                        "content": "Test content"
-                    }
-                ],
-                "instruction": "Test instruction"
+        for i, model in enumerate(models, 1):
+            instance_data = {
+                "name": f"Test Instance {i}",
+                "model_id": model,
+                "role_preset": None,
+                "instance_prompt": f"You are test instance {i} using {model}",
+                "history_window_messages": 20,
+                "archived": False
             }
             
-            async with session.post(f"{self.base_url}/api/v1/hub/chat/synthesize",
-                                  json=invalid_request, headers=headers) as resp:
-                if resp.status != 404:
-                    print(f"❌ Expected 404 for non-existent instance, got {resp.status}")
-                    return False
-                print("✅ Correctly returns 404 for non-existent synthesis instance")
+            status, response = await self._make_request("POST", "/api/v1/hub/instances", instance_data)
+            if status != 200:
+                print(f"   ❌ Failed to create instance {i}: {status} - {response}")
+                continue
+                
+            instance_id = response.get("instance_id")
+            if not instance_id:
+                print(f"   ❌ No instance_id in response: {response}")
+                continue
+                
+            instance_ids.append(instance_id)
+            print(f"   ✅ Created instance {i}: {instance_id} ({model})")
             
-            # Test get non-existent synthesis batch
-            async with session.get(f"{self.base_url}/api/v1/hub/chat/syntheses/nonexistent_batch",
-                                 headers=headers) as resp:
-                if resp.status != 404:
-                    print(f"❌ Expected 404 for non-existent synthesis batch, got {resp.status}")
-                    return False
-                print("✅ Correctly returns 404 for non-existent synthesis batch")
+        if len(instance_ids) < 2:
+            print(f"   ❌ Only created {len(instance_ids)} instances, need at least 2")
+            return []
             
-            return True
+        print(f"   ✅ Successfully created {len(instance_ids)} instances")
+        return instance_ids
 
-    async def run_all_tests(self) -> bool:
-        """Run all synthesis backend tests"""
-        print("🧪 Starting AIMMH Hub Synthesis Backend Tests")
+    async def test_3_send_chat_prompt(self, instance_ids: List[str]) -> Optional[str]:
+        """Test 3: Send a direct chat prompt to instances."""
+        print("💬 Test 3: Send a direct chat prompt to instances")
+        
+        prompt_data = {
+            "prompt": "Explain quantum computing in exactly 2 sentences. Focus on superposition and entanglement.",
+            "label": "Quantum Computing Test Prompt",
+            "instance_ids": instance_ids
+        }
+        
+        status, response = await self._make_request("POST", "/api/v1/hub/chat/prompts", prompt_data)
+        if status != 200:
+            print(f"   ❌ Failed to send chat prompt: {status} - {response}")
+            return None
+            
+        prompt_id = response.get("prompt_id")
+        if not prompt_id:
+            print(f"   ❌ No prompt_id in response: {response}")
+            return None
+            
+        responses = response.get("responses", [])
+        print(f"   ✅ Chat prompt sent successfully: {prompt_id}")
+        print(f"   ✅ Received {len(responses)} responses from instances")
+        
+        # Verify response structure
+        for i, resp in enumerate(responses):
+            instance_id = resp.get("instance_id")
+            content_preview = resp.get("content", "")[:100] + "..." if len(resp.get("content", "")) > 100 else resp.get("content", "")
+            print(f"   ✅ Response {i+1} from {instance_id}: {content_preview}")
+            
+        return prompt_id
+
+    async def test_4_fetch_instance_history(self, instance_id: str) -> List[dict]:
+        """Test 4: Fetch instance history and verify structure."""
+        print(f"📜 Test 4: Fetch instance history for {instance_id}")
+        
+        status, response = await self._make_request("GET", f"/api/v1/hub/instances/{instance_id}/history")
+        if status != 200:
+            print(f"   ❌ Failed to fetch instance history: {status} - {response}")
+            return []
+            
+        messages = response.get("messages", [])
+        thread_id = response.get("thread_id")
+        
+        print(f"   ✅ Fetched history for instance {instance_id}")
+        print(f"   ✅ Thread ID: {thread_id}")
+        print(f"   ✅ Found {len(messages)} messages in history")
+        
+        return messages
+
+    async def test_5_verify_chat_metadata(self, messages: List[dict], expected_prompt_id: str) -> bool:
+        """Test 5: Verify chat history messages include hub_prompt_id and correct hub_role values."""
+        print("🔍 Test 5: Verify chat history metadata fields")
+        
+        chat_messages = []
+        for msg in messages:
+            if msg.get("hub_prompt_id") == expected_prompt_id:
+                chat_messages.append(msg)
+                
+        if not chat_messages:
+            print(f"   ❌ No messages found with hub_prompt_id: {expected_prompt_id}")
+            return False
+            
+        print(f"   ✅ Found {len(chat_messages)} messages with hub_prompt_id: {expected_prompt_id}")
+        
+        # Verify required fields and hub_role values
+        input_found = False
+        response_found = False
+        
+        for msg in chat_messages:
+            role = msg.get("role")
+            hub_role = msg.get("hub_role")
+            hub_prompt_id = msg.get("hub_prompt_id")
+            
+            print(f"   📝 Message: role={role}, hub_role={hub_role}, hub_prompt_id={hub_prompt_id}")
+            
+            # Verify hub_prompt_id is present and matches
+            if hub_prompt_id != expected_prompt_id:
+                print(f"   ❌ hub_prompt_id mismatch: expected {expected_prompt_id}, got {hub_prompt_id}")
+                return False
+                
+            # Verify hub_role values
+            if role == "user" and hub_role == "input":
+                input_found = True
+                print(f"   ✅ Found user input message with correct hub_role: {hub_role}")
+            elif role == "assistant" and hub_role == "response":
+                response_found = True
+                print(f"   ✅ Found assistant response message with correct hub_role: {hub_role}")
+            else:
+                print(f"   ⚠️  Unexpected role/hub_role combination: role={role}, hub_role={hub_role}")
+                
+        if not input_found:
+            print("   ❌ No user input message with hub_role='input' found")
+            return False
+            
+        if not response_found:
+            print("   ❌ No assistant response message with hub_role='response' found")
+            return False
+            
+        print("   ✅ All chat metadata fields verified correctly")
+        return True
+
+    async def test_6_create_synthesis_batch(self, instance_ids: List[str], messages: List[dict]) -> Optional[str]:
+        """Test 6: Create a synthesis batch using a selected block and one synthesis instance."""
+        print("🔬 Test 6: Create synthesis batch")
+        
+        # Find a response message to use as synthesis source
+        response_message = None
+        for msg in messages:
+            if msg.get("role") == "assistant" and msg.get("content"):
+                response_message = msg
+                break
+                
+        if not response_message:
+            print("   ❌ No assistant response message found for synthesis")
+            return None
+            
+        # Use the first instance as synthesis instance
+        synthesis_instance_id = instance_ids[0]
+        
+        synthesis_data = {
+            "label": "Test Synthesis Batch",
+            "instruction": "Compare and synthesize the quantum computing explanations, highlighting key differences in approach.",
+            "selected_blocks": [
+                {
+                    "source_id": response_message.get("message_id"),
+                    "source_label": "Quantum Computing Response",
+                    "instance_id": response_message.get("hub_instance_id"),
+                    "instance_name": "Test Instance Response",
+                    "model": response_message.get("model"),
+                    "content": response_message.get("content")
+                }
+            ],
+            "synthesis_instance_ids": [synthesis_instance_id]
+        }
+        
+        status, response = await self._make_request("POST", "/api/v1/hub/chat/synthesize", synthesis_data)
+        if status != 200:
+            print(f"   ❌ Failed to create synthesis batch: {status} - {response}")
+            return None
+            
+        batch_id = response.get("synthesis_batch_id")
+        if not batch_id:
+            print(f"   ❌ No synthesis_batch_id in response: {response}")
+            return None
+            
+        outputs = response.get("outputs", [])
+        print(f"   ✅ Synthesis batch created successfully: {batch_id}")
+        print(f"   ✅ Generated {len(outputs)} synthesis outputs")
+        
+        for i, output in enumerate(outputs):
+            content_preview = output.get("content", "")[:100] + "..." if len(output.get("content", "")) > 100 else output.get("content", "")
+            print(f"   ✅ Synthesis output {i+1}: {content_preview}")
+            
+        return batch_id
+
+    async def test_7_fetch_synthesis_history(self, instance_id: str) -> List[dict]:
+        """Test 7: Fetch synthesis instance history again."""
+        print(f"📜 Test 7: Fetch synthesis instance history for {instance_id}")
+        
+        status, response = await self._make_request("GET", f"/api/v1/hub/instances/{instance_id}/history")
+        if status != 200:
+            print(f"   ❌ Failed to fetch synthesis instance history: {status} - {response}")
+            return []
+            
+        messages = response.get("messages", [])
+        print(f"   ✅ Fetched synthesis history: {len(messages)} total messages")
+        
+        return messages
+
+    async def test_8_verify_synthesis_metadata(self, messages: List[dict], expected_batch_id: str) -> bool:
+        """Test 8: Verify synthesis history messages include hub_synthesis_batch_id and correct hub_role values."""
+        print("🔍 Test 8: Verify synthesis history metadata fields")
+        
+        synthesis_messages = []
+        for msg in messages:
+            if msg.get("hub_synthesis_batch_id") == expected_batch_id:
+                synthesis_messages.append(msg)
+                
+        if not synthesis_messages:
+            print(f"   ❌ No messages found with hub_synthesis_batch_id: {expected_batch_id}")
+            return False
+            
+        print(f"   ✅ Found {len(synthesis_messages)} messages with hub_synthesis_batch_id: {expected_batch_id}")
+        
+        # Verify required fields and hub_role values
+        synthesis_input_found = False
+        synthesis_output_found = False
+        
+        for msg in synthesis_messages:
+            role = msg.get("role")
+            hub_role = msg.get("hub_role")
+            hub_synthesis_batch_id = msg.get("hub_synthesis_batch_id")
+            
+            print(f"   📝 Message: role={role}, hub_role={hub_role}, hub_synthesis_batch_id={hub_synthesis_batch_id}")
+            
+            # Verify hub_synthesis_batch_id is present and matches
+            if hub_synthesis_batch_id != expected_batch_id:
+                print(f"   ❌ hub_synthesis_batch_id mismatch: expected {expected_batch_id}, got {hub_synthesis_batch_id}")
+                return False
+                
+            # Verify hub_role values
+            if role == "user" and hub_role == "synthesis_input":
+                synthesis_input_found = True
+                print(f"   ✅ Found synthesis input message with correct hub_role: {hub_role}")
+            elif role == "assistant" and hub_role == "synthesis_output":
+                synthesis_output_found = True
+                print(f"   ✅ Found synthesis output message with correct hub_role: {hub_role}")
+            else:
+                print(f"   ⚠️  Unexpected role/hub_role combination: role={role}, hub_role={hub_role}")
+                
+        if not synthesis_input_found:
+            print("   ❌ No synthesis input message with hub_role='synthesis_input' found")
+            return False
+            
+        if not synthesis_output_found:
+            print("   ❌ No synthesis output message with hub_role='synthesis_output' found")
+            return False
+            
+        print("   ✅ All synthesis metadata fields verified correctly")
+        return True
+
+    async def test_9_verify_api_response_structures(self, instance_ids: List[str]) -> bool:
+        """Test 9: Confirm no regression in normal chat/synthesis API response structures."""
+        print("🔧 Test 9: Verify API response structures (no regression)")
+        
+        # Test hub options endpoint
+        status, response = await self._make_request("GET", "/api/v1/hub/options")
+        if status != 200:
+            print(f"   ❌ Hub options endpoint failed: {status} - {response}")
+            return False
+            
+        required_keys = ["fastapi_connections", "patterns", "supports"]
+        for key in required_keys:
+            if key not in response:
+                print(f"   ❌ Missing key in hub options: {key}")
+                return False
+                
+        print("   ✅ Hub options endpoint structure verified")
+        
+        # Test instances list endpoint
+        status, response = await self._make_request("GET", "/api/v1/hub/instances")
+        if status != 200:
+            print(f"   ❌ Instances list endpoint failed: {status} - {response}")
+            return False
+            
+        if "instances" not in response or "total" not in response:
+            print(f"   ❌ Invalid instances list response structure: {response}")
+            return False
+            
+        print("   ✅ Instances list endpoint structure verified")
+        
+        # Test chat prompts list endpoint
+        status, response = await self._make_request("GET", "/api/v1/hub/chat/prompts")
+        if status != 200:
+            print(f"   ❌ Chat prompts list endpoint failed: {status} - {response}")
+            return False
+            
+        if "prompts" not in response or "total" not in response:
+            print(f"   ❌ Invalid chat prompts list response structure: {response}")
+            return False
+            
+        print("   ✅ Chat prompts list endpoint structure verified")
+        
+        # Test synthesis batches list endpoint
+        status, response = await self._make_request("GET", "/api/v1/hub/chat/syntheses")
+        if status != 200:
+            print(f"   ❌ Synthesis batches list endpoint failed: {status} - {response}")
+            return False
+            
+        if "batches" not in response or "total" not in response:
+            print(f"   ❌ Invalid synthesis batches list response structure: {response}")
+            return False
+            
+        print("   ✅ Synthesis batches list endpoint structure verified")
+        print("   ✅ All API response structures verified - no regressions detected")
+        
+        return True
+
+    async def run_comprehensive_test(self) -> bool:
+        """Run all test scenarios in sequence."""
+        print("🚀 Starting AIMMH Backend Comprehensive Test")
         print("=" * 60)
         
-        test_methods = [
-            self.setup_auth,
-            self.test_auth_protection,
-            self.test_hub_options_synthesis_support,
-            self.create_test_instances,
-            self.test_synthesis_creation,
-            self.test_synthesis_persistence_and_listing,
-            self.test_thread_history_append,
-            self.test_invalid_scenarios
-        ]
-        
-        for test_method in test_methods:
-            try:
-                success = await test_method()
-                if not success:
-                    print(f"\n❌ Test failed: {test_method.__name__}")
-                    return False
-            except Exception as e:
-                print(f"\n❌ Test error in {test_method.__name__}: {str(e)}")
+        try:
+            # Test 1: Register and authenticate
+            if not await self.test_1_register_and_authenticate():
                 return False
-        
-        print("\n" + "=" * 60)
-        print("🎉 All synthesis backend tests passed!")
-        return True
+                
+            print()
+            
+            # Test 2: Create hub instances
+            instance_ids = await self.test_2_create_hub_instances()
+            if not instance_ids:
+                return False
+                
+            print()
+            
+            # Test 3: Send chat prompt
+            prompt_id = await self.test_3_send_chat_prompt(instance_ids)
+            if not prompt_id:
+                return False
+                
+            print()
+            
+            # Test 4: Fetch instance history
+            messages = await self.test_4_fetch_instance_history(instance_ids[0])
+            if not messages:
+                return False
+                
+            print()
+            
+            # Test 5: Verify chat metadata
+            if not await self.test_5_verify_chat_metadata(messages, prompt_id):
+                return False
+                
+            print()
+            
+            # Test 6: Create synthesis batch
+            synthesis_batch_id = await self.test_6_create_synthesis_batch(instance_ids, messages)
+            if not synthesis_batch_id:
+                return False
+                
+            print()
+            
+            # Test 7: Fetch synthesis history
+            synthesis_messages = await self.test_7_fetch_synthesis_history(instance_ids[0])
+            if not synthesis_messages:
+                return False
+                
+            print()
+            
+            # Test 8: Verify synthesis metadata
+            if not await self.test_8_verify_synthesis_metadata(synthesis_messages, synthesis_batch_id):
+                return False
+                
+            print()
+            
+            # Test 9: Verify API response structures
+            if not await self.test_9_verify_api_response_structures(instance_ids):
+                return False
+                
+            print()
+            print("🎉 ALL TESTS PASSED! AIMMH backend metadata fields are working correctly.")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Test suite failed with exception: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
 
 async def main():
-    tester = SynthesisBackendTester()
-    success = await tester.run_all_tests()
-    return success
+    """Main test runner."""
+    async with AimmhBackendTester() as tester:
+        success = await tester.run_comprehensive_test()
+        if success:
+            print("\n✅ AIMMH Backend Test Suite: PASSED")
+            exit(0)
+        else:
+            print("\n❌ AIMMH Backend Test Suite: FAILED")
+            exit(1)
 
 
 if __name__ == "__main__":
-    success = asyncio.run(main())
-    exit(0 if success else 1)
+    asyncio.run(main())

@@ -66,8 +66,8 @@ export function HubMultiChatPanel({
             <div className="mb-2 text-xs font-medium text-zinc-300">Recipients</div>
             <div className="grid gap-2 sm:grid-cols-2">
               {activeInstances.length === 0 ? <div className="text-xs text-zinc-500">Create instances first in the instantiation tab.</div> : activeInstances.map((instance) => (
-                <label key={instance.instance_id} className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-300">
-                  <input type="checkbox" checked={selectedInstanceIds.includes(instance.instance_id)} onChange={() => toggleInstance(instance.instance_id)} className="mt-0.5" />
+                <label key={instance.instance_id} className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-300" data-testid={`chat-recipient-option-${instance.instance_id}`}>
+                  <input type="checkbox" checked={selectedInstanceIds.includes(instance.instance_id)} onChange={() => toggleInstance(instance.instance_id)} className="mt-0.5" data-testid={`chat-recipient-checkbox-${instance.instance_id}`} aria-label={`chat recipient ${instance.name}`} />
                   <span>{instance.name} · {instance.model_id}</span>
                 </label>
               ))}
@@ -95,15 +95,24 @@ export function HubMultiChatPanel({
             ))}
           </div>
           <div className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-            <div className="text-xs font-medium text-zinc-300">Synthesis models</div>
+            <div className="text-xs font-medium text-zinc-300">Synthesis models ({synthesisInstanceIds.length} selected)</div>
             <div className="space-y-2">
               {activeInstances.length === 0 ? <div className="text-sm text-zinc-500">Create instances first.</div> : activeInstances.map((instance) => (
-                <label key={instance.instance_id} className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-300">
-                  <input type="checkbox" checked={synthesisInstanceIds.includes(instance.instance_id)} onChange={() => toggleSynthesisInstance(instance.instance_id)} className="mt-0.5" />
+                <label key={instance.instance_id} className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-xs ${synthesisInstanceIds.includes(instance.instance_id) ? 'border-violet-500/30 bg-violet-500/10 text-violet-200' : 'border-zinc-800 bg-zinc-900/60 text-zinc-300'}`} data-testid={`synthesis-model-option-${instance.instance_id}`}>
+                  <input type="checkbox" checked={synthesisInstanceIds.includes(instance.instance_id)} onChange={() => toggleSynthesisInstance(instance.instance_id)} className="mt-0.5" data-testid={`synthesis-model-checkbox-${instance.instance_id}`} aria-label={`synthesis model ${instance.name}`} />
                   <span>{instance.name} · {instance.model_id}</span>
                 </label>
               ))}
             </div>
+            {synthesisInstanceIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 text-[11px] text-violet-200">
+                {activeInstances.filter((instance) => synthesisInstanceIds.includes(instance.instance_id)).map((instance) => (
+                  <span key={instance.instance_id} className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-1">
+                    {instance.name}
+                  </span>
+                ))}
+              </div>
+            )}
             <textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={5} placeholder="Synthesis instruction"
               className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-violet-500/50" />
             <button onClick={submitSynthesis} disabled={synthesisBasket.length === 0 || synthesisInstanceIds.length === 0 || synthesisBusy} className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-60">

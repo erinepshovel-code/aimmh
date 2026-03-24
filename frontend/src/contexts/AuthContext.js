@@ -69,16 +69,28 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAuth = async (isInitial = false) => {
-    // Only show loading spinner on initial mount — never on focus re-checks
     if (isInitial) setLoading(true);
-    
-    // First check if we have a JWT token
+
     const storedToken = localStorage.getItem('token');
     if (storedToken && !isJwtExpired(storedToken)) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
       setToken(storedToken);
-      setIsAuthenticated(true);
-      if (isInitial) setLoading(false);
+      try {
+        const response = await axios.get(`${API}/auth/me`);
+        if (response.data) {
+          setUser(response.data);
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        if (error.response?.status === 401) {
+          clearLocalAuth();
+          setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (isInitial) setLoading(false);
+      }
       return;
     }
 
@@ -86,8 +98,7 @@ export const AuthProvider = ({ children }) => {
       clearLocalAuth();
       setToken(null);
     }
-    
-    // Otherwise, check if we have a session cookie (Google OAuth)
+
     try {
       const response = await axios.get(`${API}/auth/me`);
       if (response.data) {
@@ -95,7 +106,6 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
       }
     } catch (error) {
-      // Not authenticated - but don't clear if we're just checking
       if (error.response?.status === 401) {
         setUser(null);
         setIsAuthenticated(false);
@@ -104,6 +114,14 @@ export const AuthProvider = ({ children }) => {
       if (isInitial) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const tier = user?.subscription_tier || 'free';
+    document.body.dataset.tier = tier;
+    return () => {
+      delete document.body.dataset.tier;
+    };
+  }, [user]);
 
   const login = async (username, password) => {
     const response = await axios.post(`${API}/auth/login`, { username, password });

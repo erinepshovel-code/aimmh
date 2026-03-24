@@ -156,7 +156,7 @@ export default function AimmhHubPage() {
   if (workspace.loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100">
-        <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} />
+        <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} onOpenPricing={() => navigate('/pricing')} />
         <div className="flex min-h-[70vh] items-center justify-center px-4">
           <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-5 py-4 text-sm text-zinc-400">
             <Loader2 size={16} className="animate-spin text-emerald-400" /> Loading AIMMH…

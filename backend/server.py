@@ -18,6 +18,7 @@ from routes.keys import router as keys_router
 from routes.v1_analysis import router as analysis_router
 from routes.v1_lib import router as v1_lib_router
 from routes.v1_hub import router as v1_hub_router
+from routes.payments_v2 import router as payments_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +39,7 @@ app.include_router(keys_router)
 app.include_router(analysis_router)
 app.include_router(v1_lib_router)
 app.include_router(v1_hub_router)
+app.include_router(payments_router)
 
 cors_origins_raw = os.environ.get('CORS_ORIGINS')
 if not cors_origins_raw:

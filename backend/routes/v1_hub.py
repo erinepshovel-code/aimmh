@@ -23,6 +23,7 @@ from models.hub import (
 )
 from models.hub_chat import HubChatPromptListResponse, HubChatPromptOut, HubChatPromptRequest
 from services.auth import get_current_user, get_user_id
+from services.billing_tiers import current_month_start_iso, get_user_billing_profile
 from services.hub_chat import get_chat_prompt, list_chat_prompts, send_chat_prompt
 from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
 from services.hub_store import (
@@ -110,6 +111,12 @@ async def get_hub_fastapi_connections(current_user: dict = Depends(get_current_u
 @router.post("/instances", response_model=HubInstanceOut)
 async def create_instance(req: HubInstanceCreateRequest, current_user: dict = Depends(get_current_user)):
     user_id = get_user_id(current_user)
+    billing_profile = await get_user_billing_profile(user_id)
+    max_instances = billing_profile.get("max_instances")
+    if max_instances is not None:
+        active_instance_count = await db[HUB_INSTANCE_COLLECTION].count_documents({"user_id": user_id, "archived": {"$ne": True}})
+        if active_instance_count >= int(max_instances):
+            raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_instances} active instances. Archive an instance or upgrade to continue.")
     await ensure_models_exist(user_id, [req.model_id])
     now = iso_now()
     doc = req.model_dump()
@@ -265,6 +272,13 @@ async def unarchive_group(group_id: str, current_user: dict = Depends(get_curren
 
 @router.post("/runs", response_model=HubRunDetailResponse)
 async def create_hub_run(req: HubRunRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    billing_profile = await get_user_billing_profile(user_id)
+    max_runs = billing_profile.get("max_runs_per_month")
+    if max_runs is not None:
+        run_count = await db[HUB_RUN_COLLECTION].count_documents({"user_id": user_id, "created_at": {"$gte": current_month_start_iso()}})
+        if run_count >= int(max_runs):
+            raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows {max_runs} runs per month. Upgrade to continue.")
     return await execute_hub_run(current_user, req)
 
 

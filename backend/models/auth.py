@@ -17,6 +17,8 @@ class UserResponse(BaseModel):
     id: str
     username: str
     created_at: datetime
+    subscription_tier: str = "free"
+    hide_emergent_badge: bool = False
 
 
 class TokenResponse(BaseModel):

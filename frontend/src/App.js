@@ -7,6 +7,8 @@ import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import AimmhHubPage from './pages/AimmhHubPage';
 import SettingsPageV2 from './pages/SettingsPageV2';
+import PricingPageV2 from './pages/PricingPageV2';
+import HallOfMakersPage from './pages/HallOfMakersPage';
 import AnalysisPage from './pages/AnalysisPage';
 import './App.css';
 
@@ -57,6 +59,8 @@ function AppRoutes() {
       <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
       <Route path="/chat" element={<ProtectedRoute><AimmhHubPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPageV2 /></ProtectedRoute>} />
+      <Route path="/pricing" element={<ProtectedRoute><PricingPageV2 /></ProtectedRoute>} />
+      <Route path="/makers" element={<HallOfMakersPage />} />
       <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/chat" replace />} />
     </Routes>

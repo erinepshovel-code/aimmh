@@ -68,17 +68,17 @@ export function ResponseCarousel({
   const current = items[activeIndex] || items[0];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="response-carousel">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
-        <div>Two fingers: swipe vertically to change pane, pinch to zoom. One finger: scroll inside response.</div>
+        <div data-testid="response-carousel-hint">Two fingers: swipe vertically to change pane, pinch to zoom. One finger: scroll inside response.</div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setActiveIndex((prev) => clampIndex(prev - 1))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ChevronUp size={13} /></button>
-          <button onClick={() => setActiveIndex((prev) => clampIndex(prev + 1))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ChevronDown size={13} /></button>
-          <button onClick={() => setFontScale((prev) => Math.max(0.9, Number((prev - 0.05).toFixed(2))))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ZoomOut size={13} /></button>
-          <button onClick={() => setFontScale((prev) => Math.min(1.6, Number((prev + 0.05).toFixed(2))))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white"><ZoomIn size={13} /></button>
+          <button type="button" onClick={() => setActiveIndex((prev) => clampIndex(prev - 1))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white" data-testid="response-carousel-prev-button"><ChevronUp size={13} /></button>
+          <button type="button" onClick={() => setActiveIndex((prev) => clampIndex(prev + 1))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white" data-testid="response-carousel-next-button"><ChevronDown size={13} /></button>
+          <button type="button" onClick={() => setFontScale((prev) => Math.max(0.9, Number((prev - 0.05).toFixed(2))))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white" data-testid="response-carousel-zoom-out-button"><ZoomOut size={13} /></button>
+          <button type="button" onClick={() => setFontScale((prev) => Math.min(1.6, Number((prev + 0.05).toFixed(2))))} className="rounded-full border border-zinc-800 p-2 text-zinc-300 hover:text-white" data-testid="response-carousel-zoom-in-button"><ZoomIn size={13} /></button>
         </div>
       </div>
-      <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} className="h-[72vh] touch-none">
+      <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} className="h-[72vh] touch-none" data-testid="response-carousel-pane">
         <ResponsePane
           item={current}
           selected={selectedIds.includes(current.run_step_id)}

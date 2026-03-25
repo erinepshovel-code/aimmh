@@ -2,16 +2,17 @@ import React from 'react';
 import { ArrowDownToLine, Plus, Trash2, Workflow } from 'lucide-react';
 import { createEmptyStage, INPUT_MODE_OPTIONS, PATTERN_OPTIONS } from './hubConfig';
 
-function SourceSelector({ title, selected, onToggle, sourceOptions }) {
+function SourceSelector({ title, selected, onToggle, sourceOptions, testIdPrefix }) {
   return (
-    <div className="space-y-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+    <div className="space-y-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`${testIdPrefix}-selector`}>
       <div className="text-xs font-medium text-zinc-300">{title}</div>
       <div className="grid gap-2 sm:grid-cols-2">
         {sourceOptions.map((option) => {
           const checked = selected.some((item) => item.source_type === option.source_type && item.source_id === option.source_id);
+          const optionKey = `${option.source_type}-${option.source_id}`;
           return (
-            <label key={`${option.source_type}:${option.source_id}`} className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-300">
-              <input type="checkbox" checked={checked} onChange={() => onToggle(option)} className="mt-0.5" />
+            <label key={`${option.source_type}:${option.source_id}`} className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-300" data-testid={`${testIdPrefix}-option-${optionKey}`}>
+              <input type="checkbox" checked={checked} onChange={() => onToggle(option)} className="mt-0.5" data-testid={`${testIdPrefix}-checkbox-${optionKey}`} />
               <span>{option.label}</span>
             </label>
           );
@@ -29,87 +30,101 @@ function toggleSource(list, option) {
 function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onRemove }) {
   const isRoleplay = stage.pattern === 'roleplay';
   const isSynthRoom = stage.pattern === 'room_synthesized';
+  const stageId = `run-stage-${index + 1}`;
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4" data-testid={`${stageId}-card`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Stage {index + 1}</div>
           <input value={stage.name} onChange={(e) => onChange({ ...stage, name: e.target.value })} placeholder="Optional stage label"
+            data-testid={`${stageId}-name-input`}
             className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
         </div>
-        <button type="button" onClick={onRemove} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-400 transition hover:border-red-500/30 hover:text-red-300">
+        <button type="button" onClick={onRemove} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-400 transition hover:border-red-500/30 hover:text-red-300" data-testid={`${stageId}-remove-button`}>
           <span className="flex items-center gap-2"><Trash2 size={13} /> Remove</span>
         </button>
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <select value={stage.pattern} onChange={(e) => onChange({ ...createEmptyStage(), ...stage, pattern: e.target.value })}
+          data-testid={`${stageId}-pattern-select`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
           {PATTERN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <select value={stage.input_mode} onChange={(e) => onChange({ ...stage, input_mode: e.target.value })}
+          data-testid={`${stageId}-input-mode-select`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
           {INPUT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <input type="number" min={1} max={10} value={stage.rounds} onChange={(e) => onChange({ ...stage, rounds: Number(e.target.value) || 1 })}
           placeholder="Rounds"
+          data-testid={`${stageId}-rounds-input`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
         <input type="number" min={1} max={10} value={stage.verbosity} onChange={(e) => onChange({ ...stage, verbosity: Number(e.target.value) || 5 })}
           placeholder="Verbosity"
+          data-testid={`${stageId}-verbosity-input`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
         <input type="number" min={1} max={200} value={stage.max_history} onChange={(e) => onChange({ ...stage, max_history: Number(e.target.value) || 30 })}
           placeholder="Max history"
+          data-testid={`${stageId}-max-history-input`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
         {!isRoleplay && (
           <label className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
-            <input type="checkbox" checked={stage.include_original_prompt} onChange={(e) => onChange({ ...stage, include_original_prompt: e.target.checked })} />
+            <input type="checkbox" checked={stage.include_original_prompt} onChange={(e) => onChange({ ...stage, include_original_prompt: e.target.checked })} data-testid={`${stageId}-include-original-checkbox`} />
             Keep original prompt in chain
           </label>
         )}
         <textarea value={stage.prompt} onChange={(e) => onChange({ ...stage, prompt: e.target.value })} rows={3} placeholder="Optional stage prompt override"
+          data-testid={`${stageId}-prompt-textarea`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 lg:col-span-2" />
       </div>
 
       {isRoleplay ? (
         <div className="mt-4 space-y-3">
-          <SourceSelector title="Player participants" selected={stage.player_participants} sourceOptions={sourceOptions} onToggle={(option) => onChange({ ...stage, player_participants: toggleSource(stage.player_participants, option) })} />
+          <SourceSelector title="Player participants" selected={stage.player_participants} sourceOptions={sourceOptions} onToggle={(option) => onChange({ ...stage, player_participants: toggleSource(stage.player_participants, option) })} testIdPrefix={`${stageId}-player-participants`} />
           <div className="grid gap-3 lg:grid-cols-2">
             <select value={stage.dm_instance_id} onChange={(e) => onChange({ ...stage, dm_instance_id: e.target.value, dm_group_id: '' })}
+              data-testid={`${stageId}-dm-instance-select`}
               className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
               <option value="">Fixed DM instance (optional)</option>
               {instanceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             <select value={stage.dm_group_id} onChange={(e) => onChange({ ...stage, dm_group_id: e.target.value, dm_instance_id: '' })}
+              data-testid={`${stageId}-dm-group-select`}
               className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
               <option value="">DM rotation group (optional)</option>
               {sourceOptions.filter((option) => option.source_type === 'group').map((option) => <option key={option.source_id} value={option.source_id}>{option.label}</option>)}
             </select>
             <input type="number" min={10} max={2000} value={stage.action_word_limit} onChange={(e) => onChange({ ...stage, action_word_limit: Number(e.target.value) || 120 })}
               placeholder="Action word limit"
+              data-testid={`${stageId}-action-word-limit-input`}
               className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
             <div className="flex flex-wrap gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-xs text-zinc-300">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={stage.use_initiative} onChange={(e) => onChange({ ...stage, use_initiative: e.target.checked })} /> Use initiative</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={stage.allow_reactions} onChange={(e) => onChange({ ...stage, allow_reactions: e.target.checked })} /> Allow reactions</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={stage.use_initiative} onChange={(e) => onChange({ ...stage, use_initiative: e.target.checked })} data-testid={`${stageId}-use-initiative-checkbox`} /> Use initiative</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={stage.allow_reactions} onChange={(e) => onChange({ ...stage, allow_reactions: e.target.checked })} data-testid={`${stageId}-allow-reactions-checkbox`} /> Allow reactions</label>
             </div>
           </div>
         </div>
       ) : (
         <div className="mt-4 space-y-3">
-          <SourceSelector title="Participants" selected={stage.participants} sourceOptions={sourceOptions} onToggle={(option) => onChange({ ...stage, participants: toggleSource(stage.participants, option) })} />
+          <SourceSelector title="Participants" selected={stage.participants} sourceOptions={sourceOptions} onToggle={(option) => onChange({ ...stage, participants: toggleSource(stage.participants, option) })} testIdPrefix={`${stageId}-participants`} />
           {isSynthRoom && (
             <div className="grid gap-3 lg:grid-cols-2">
               <select value={stage.synthesis_instance_id} onChange={(e) => onChange({ ...stage, synthesis_instance_id: e.target.value, synthesis_group_id: '' })}
+                data-testid={`${stageId}-synthesis-instance-select`}
                 className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
                 <option value="">Synthesis instance</option>
                 {instanceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               <select value={stage.synthesis_group_id} onChange={(e) => onChange({ ...stage, synthesis_group_id: e.target.value, synthesis_instance_id: '' })}
+                data-testid={`${stageId}-synthesis-group-select`}
                 className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
                 <option value="">Single-member synthesis group</option>
                 {sourceOptions.filter((option) => option.source_type === 'group').map((option) => <option key={option.source_id} value={option.source_id}>{option.label}</option>)}
               </select>
               <textarea value={stage.synthesis_prompt} onChange={(e) => onChange({ ...stage, synthesis_prompt: e.target.value })} rows={2} placeholder="Synthesis prompt"
+                data-testid={`${stageId}-synthesis-prompt-textarea`}
                 className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 lg:col-span-2" />
             </div>
           )}
@@ -151,13 +166,13 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
   };
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="hub-run-builder">
       <div>
         <h2 className="text-base font-semibold text-zinc-100">Pipeline builder</h2>
         <p className="text-xs text-zinc-500">Compose nested groups and isolated instances into aimmh-lib stage pipelines.</p>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-zinc-300">
+      <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-zinc-300" data-testid="hub-run-builder-guide">
         <div className="flex items-center gap-2 text-emerald-300"><ArrowDownToLine size={14} /> How to start a run</div>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-zinc-400">
           <li>Create one or more instances on the left. The same model can appear many times.</li>
@@ -167,10 +182,12 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
         </ol>
       </div>
 
-      <form onSubmit={submit} className="mt-4 space-y-4">
+      <form onSubmit={submit} className="mt-4 space-y-4" data-testid="run-builder-form">
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Run label (optional)"
+          data-testid="run-label-input"
           className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
         <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="Root prompt"
+          data-testid="run-root-prompt-textarea"
           className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
 
         <div className="space-y-4">
@@ -182,10 +199,12 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
 
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => setStages((prev) => [...prev, createEmptyStage()])}
+            data-testid="add-run-stage-button"
             className="rounded-xl border border-zinc-800 px-4 py-2 text-sm text-zinc-300 transition hover:border-zinc-700 hover:text-white">
             <span className="flex items-center gap-2"><Plus size={14} /> Add stage</span>
           </button>
           <button type="submit" disabled={!prompt.trim() || stages.length === 0 || busyKey === 'create-run'}
+            data-testid="execute-run-button"
             className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60">
             <span className="flex items-center gap-2"><Workflow size={14} /> Execute pipeline</span>
           </button>

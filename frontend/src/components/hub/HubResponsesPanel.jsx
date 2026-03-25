@@ -119,24 +119,24 @@ export function HubResponsesPanel({
   };
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+    <section className="space-y-4" data-testid="hub-responses-panel">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="responses-toolbar">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-zinc-100">Responses</h2>
             <p className="mt-1 text-xs text-zinc-500">Native formatting preserved. Compare vertically in stack mode or pane mode.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => setSourceType('runs')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'runs' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
+            <button type="button" onClick={() => setSourceType('runs')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'runs' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-source-runs-button">
               Run responses
             </button>
-            <button onClick={() => setSourceType('prompts')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'prompts' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
+            <button type="button" onClick={() => setSourceType('prompts')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'prompts' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-source-prompts-button">
               Prompt responses
             </button>
-            <button onClick={() => setCompareMode('stack')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'stack' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
+            <button type="button" onClick={() => setCompareMode('stack')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'stack' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-compare-stack-button">
               <span className="flex items-center gap-2"><Rows3 size={13} /> Stack</span>
             </button>
-            <button onClick={() => setCompareMode('carousel')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'carousel' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`}>
+            <button type="button" onClick={() => setCompareMode('carousel')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'carousel' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-compare-carousel-button">
               <span className="flex items-center gap-2"><LayoutPanelTop size={13} /> Pane mode</span>
             </button>
           </div>
@@ -144,31 +144,31 @@ export function HubResponsesPanel({
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           {sourceType === 'runs' ? (
             <>
-              <select value={selectedRunId || ''} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
+              <select value={selectedRunId || ''} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" data-testid="responses-run-select">
                 <option value="">Select a run</option>
                 {runs.map((run) => <option key={run.run_id} value={run.run_id}>{run.label || run.run_id}</option>)}
               </select>
-              <select value={selectedStageIndex} onChange={(event) => setSelectedStageIndex(Number(event.target.value))} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
+              <select value={selectedStageIndex} onChange={(event) => setSelectedStageIndex(Number(event.target.value))} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" data-testid="responses-stage-select">
                 {stageOptions.length === 0 ? <option value={0}>Stage 1</option> : stageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
               </select>
             </>
           ) : (
             <>
-              <select value={selectedPromptId || ''} onChange={(event) => setSelectedPromptId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 md:col-span-2">
+              <select value={selectedPromptId || ''} onChange={(event) => setSelectedPromptId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 md:col-span-2" data-testid="responses-prompt-select">
                 <option value="">Select a prompt batch</option>
                 {prompts.map((prompt) => <option key={prompt.prompt_id} value={prompt.prompt_id}>{prompt.label || prompt.prompt}</option>)}
               </select>
             </>
           )}
           <div className="flex gap-2">
-            <button onClick={copySelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"><span className="flex items-center gap-2"><Copy size={13} /> Copy selected</span></button>
-            <button onClick={shareSelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"><span className="flex items-center gap-2"><Share2 size={13} /> Share selected</span></button>
+            <button type="button" onClick={copySelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-copy-selected-button"><span className="flex items-center gap-2"><Copy size={13} /> Copy selected</span></button>
+            <button type="button" onClick={shareSelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-share-selected-button"><span className="flex items-center gap-2"><Share2 size={13} /> Share selected</span></button>
           </div>
         </div>
       </div>
 
       {(sourceType === 'runs' && !selectedRun) || (sourceType === 'prompts' && !selectedPrompt) ? (
-        <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">Select a {sourceType === 'runs' ? 'run' : 'prompt batch'} to compare responses.</div>
+        <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500" data-testid="responses-empty-state">Select a {sourceType === 'runs' ? 'run' : 'prompt batch'} to compare responses.</div>
       ) : compareMode === 'carousel' ? (
         <ResponseCarousel
           items={stageResponses}
@@ -186,12 +186,12 @@ export function HubResponsesPanel({
           onToggleSynthesis={(item) => onToggleSynthesisBlock(toSynthesisBlock(item))}
         />
       ) : (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-500">
+        <div className="space-y-4" data-testid="responses-stack-mode">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-500" data-testid="responses-gesture-hint">
             Pinch/spread to zoom font size. Switch to pane mode for two-finger vertical pane sliding while one-finger scrolling within each response.
           </div>
           {stageResponses.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">No responses yet for this selection.</div>
+            <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500" data-testid="responses-no-results">No responses yet for this selection.</div>
           ) : stageResponses.map((item) => (
             <ResponsePane
               key={item.run_step_id}

@@ -54,11 +54,13 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Reworked hub tab navigation into a responsive grid so long tab labels no longer clip or behave inconsistently
 - [x] Added auto-scroll on tab change in `AimmhHubPage.jsx` so switching from a scrolled tab lands users at the correct content anchor
 - [x] Added stronger `data-testid` coverage for hub tabs, instance creation, prompt batches, synthesis selection, and synthesis outputs
+- [x] Expanded `data-testid` coverage across header actions, group management, run builder controls, run inventory, responses controls, response panes, and carousel controls
 - [x] Exposed `hub_prompt_id` and `hub_synthesis_batch_id` through instance history responses in `backend/models/hub.py`
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
+- [x] Expanded hub control test-id coverage passed frontend validation with no layout or click-target regressions
 - [x] Backend metadata exposure passed for both direct chat and synthesis history messages
 
 ## Important File References

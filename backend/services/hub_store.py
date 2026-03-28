@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set
 from uuid import uuid4
 
 from db import db
-from services.llm import DEFAULT_REGISTRY
+from services.llm import DEFAULT_REGISTRY, reconcile_registry_developers
 
 HUB_INSTANCE_COLLECTION = "hub_instances"
 HUB_GROUP_COLLECTION = "hub_groups"
@@ -34,10 +34,19 @@ def without_mongo_id(doc: Optional[dict]) -> Optional[dict]:
 async def get_registry_doc(user_id: str) -> dict:
     doc = await db.model_registry.find_one({"user_id": user_id}, {"_id": 0})
     if doc:
+        developers, changed = reconcile_registry_developers(doc.get("developers", {}))
+        if changed:
+            updated_at = iso_now()
+            doc["developers"] = developers
+            doc["updated_at"] = updated_at
+            await db.model_registry.update_one(
+                {"user_id": user_id},
+                {"$set": {"developers": developers, "updated_at": updated_at}},
+            )
         return doc
     return {
         "user_id": user_id,
-        "developers": DEFAULT_REGISTRY,
+        "developers": reconcile_registry_developers(DEFAULT_REGISTRY)[0],
         "created_at": iso_now(),
         "updated_at": iso_now(),
     }

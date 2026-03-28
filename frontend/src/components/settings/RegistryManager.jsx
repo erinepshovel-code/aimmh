@@ -206,6 +206,7 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
         </div>
         <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 text-xs text-zinc-400">
           Free-tier safe mode is enabled by default: single-model verification uses a strict tiny probe, while developer/full-registry checks prefer low-cost listing/provider checks when available.
+          <div className="mt-2 text-blue-200">OpenAI, Anthropic, and Google are now curated to only show models confirmed to work with the universal key.</div>
           {verificationSummary.total > 0 && <div className="mt-2 text-zinc-300">Verified {verificationSummary.verified} / {verificationSummary.total} tracked models.</div>}
         </div>
         {error && (

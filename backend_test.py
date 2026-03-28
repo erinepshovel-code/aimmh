@@ -1,506 +1,521 @@
 #!/usr/bin/env python3
 """
-AIMMH Backend Test Script
-Testing hub chat/synthesis metadata fields in instance history responses.
-
-Test scenarios from review request:
-1. Register a fresh user and authenticate
-2. Create at least 2 hub instances via `/api/v1/hub/instances`
-3. Send a direct chat prompt via `/api/v1/hub/chat/prompts` to those instances
-4. Fetch one instance history via `/api/v1/hub/instances/{instance_id}/history`
-5. Verify the recent chat history messages include `hub_prompt_id` on both input and response messages, and `hub_role` values remain correct
-6. Create a synthesis batch via `/api/v1/hub/chat/synthesize` using a selected block and one synthesis instance
-7. Fetch the synthesis instance history again
-8. Verify the recent synthesis history messages include `hub_synthesis_batch_id` on both synthesis input and synthesis output messages, and `hub_role` values remain correct
-9. Confirm no regression in the normal chat/synthesis API response structures
+Registry API Universal Key Compatibility Test
+Tests the registry API cleanup and protection rules after universal-key compatibility changes.
 """
 
 import asyncio
 import json
-import random
-import string
-import time
-from typing import Dict, List, Optional
+import uuid
+import httpx
+from typing import Dict, Any, Optional
 
-import aiohttp
+# Test configuration
+BASE_URL = "https://synthesis-chat.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
 
-
-class AimmhBackendTester:
-    def __init__(self, base_url: str = "https://synthesis-chat.preview.emergentagent.com"):
-        self.base_url = base_url
+class RegistryAPITest:
+    def __init__(self):
         self.session_token: Optional[str] = None
-        self.user_id: Optional[str] = None
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.user_email: Optional[str] = None
+        self.test_results = []
         
-    async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
-        return self
-        
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
-
-    def _generate_test_user(self) -> tuple[str, str]:
-        """Generate a unique test username and password."""
-        suffix = ''.join(random.choices(string.digits, k=10))
-        username = f"aimmh_test_{suffix}"
-        password = f"TestPass{suffix}!"
-        return username, password
-
-    async def _make_request(self, method: str, endpoint: str, json_data: dict = None, params: dict = None) -> tuple[int, dict]:
-        """Make an HTTP request with proper authentication headers."""
-        url = f"{self.base_url}{endpoint}"
-        headers = {}
-        if self.session_token:
-            headers["Authorization"] = f"Bearer {self.session_token}"
-        
-        try:
-            async with self.session.request(method, url, json=json_data, params=params, headers=headers) as response:
-                try:
-                    response_data = await response.json()
-                except:
-                    response_data = {"error": "Invalid JSON response", "text": await response.text()}
-                return response.status, response_data
-        except Exception as e:
-            return 500, {"error": str(e)}
-
-    async def test_1_register_and_authenticate(self) -> bool:
-        """Test 1: Register a fresh user and authenticate."""
-        print("🔐 Test 1: Register a fresh user and authenticate")
-        
-        username, password = self._generate_test_user()
-        print(f"   Generated test user: {username}")
-        
-        # Register user
-        register_data = {
-            "username": username,
-            "password": password
+    async def log_result(self, test_name: str, success: bool, details: str = "", data: Any = None):
+        """Log test result"""
+        result = {
+            "test": test_name,
+            "success": success,
+            "details": details,
+            "data": data
         }
-        
-        status, response = await self._make_request("POST", "/api/auth/register", register_data)
-        if status != 200:
-            print(f"   ❌ Registration failed: {status} - {response}")
-            return False
-            
-        if "access_token" not in response:
-            print(f"   ❌ No access_token in registration response: {response}")
-            return False
-            
-        self.session_token = response["access_token"]
-        self.user_id = response.get("user", {}).get("id")
-        print(f"   ✅ User registered successfully, access_token obtained")
-        print(f"   ✅ User ID: {self.user_id}")
-        
-        # Verify authentication with /api/auth/me
-        status, response = await self._make_request("GET", "/api/auth/me")
-        if status != 200:
-            print(f"   ❌ Auth verification failed: {status} - {response}")
-            return False
-            
-        print(f"   ✅ Authentication verified: {response.get('username')}")
-        return True
+        self.test_results.append(result)
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        if not success and data:
+            print(f"   Data: {json.dumps(data, indent=2)}")
+        print()
 
-    async def test_2_create_hub_instances(self) -> List[str]:
-        """Test 2: Create at least 2 hub instances."""
-        print("🏗️  Test 2: Create at least 2 hub instances")
+    async def register_fresh_user(self) -> bool:
+        """Register a fresh user for testing"""
+        test_id = str(uuid.uuid4())[:8]
+        self.user_email = f"registry_test_{test_id}"
+        password = "TestPass123!"
         
-        instance_ids = []
-        models = ["gpt-4o", "claude-sonnet-4-5-20250929"]
-        
-        for i, model in enumerate(models, 1):
-            instance_data = {
-                "name": f"Test Instance {i}",
-                "model_id": model,
-                "role_preset": None,
-                "instance_prompt": f"You are test instance {i} using {model}",
-                "history_window_messages": 20,
-                "archived": False
-            }
-            
-            status, response = await self._make_request("POST", "/api/v1/hub/instances", instance_data)
-            if status != 200:
-                print(f"   ❌ Failed to create instance {i}: {status} - {response}")
-                continue
-                
-            instance_id = response.get("instance_id")
-            if not instance_id:
-                print(f"   ❌ No instance_id in response: {response}")
-                continue
-                
-            instance_ids.append(instance_id)
-            print(f"   ✅ Created instance {i}: {instance_id} ({model})")
-            
-        if len(instance_ids) < 2:
-            print(f"   ❌ Only created {len(instance_ids)} instances, need at least 2")
-            return []
-            
-        print(f"   ✅ Successfully created {len(instance_ids)} instances")
-        return instance_ids
-
-    async def test_3_send_chat_prompt(self, instance_ids: List[str]) -> Optional[str]:
-        """Test 3: Send a direct chat prompt to instances."""
-        print("💬 Test 3: Send a direct chat prompt to instances")
-        
-        prompt_data = {
-            "prompt": "Explain quantum computing in exactly 2 sentences. Focus on superposition and entanglement.",
-            "label": "Quantum Computing Test Prompt",
-            "instance_ids": instance_ids
-        }
-        
-        status, response = await self._make_request("POST", "/api/v1/hub/chat/prompts", prompt_data)
-        if status != 200:
-            print(f"   ❌ Failed to send chat prompt: {status} - {response}")
-            return None
-            
-        prompt_id = response.get("prompt_id")
-        if not prompt_id:
-            print(f"   ❌ No prompt_id in response: {response}")
-            return None
-            
-        responses = response.get("responses", [])
-        print(f"   ✅ Chat prompt sent successfully: {prompt_id}")
-        print(f"   ✅ Received {len(responses)} responses from instances")
-        
-        # Verify response structure
-        for i, resp in enumerate(responses):
-            instance_id = resp.get("instance_id")
-            content_preview = resp.get("content", "")[:100] + "..." if len(resp.get("content", "")) > 100 else resp.get("content", "")
-            print(f"   ✅ Response {i+1} from {instance_id}: {content_preview}")
-            
-        return prompt_id
-
-    async def test_4_fetch_instance_history(self, instance_id: str) -> List[dict]:
-        """Test 4: Fetch instance history and verify structure."""
-        print(f"📜 Test 4: Fetch instance history for {instance_id}")
-        
-        status, response = await self._make_request("GET", f"/api/v1/hub/instances/{instance_id}/history")
-        if status != 200:
-            print(f"   ❌ Failed to fetch instance history: {status} - {response}")
-            return []
-            
-        messages = response.get("messages", [])
-        thread_id = response.get("thread_id")
-        
-        print(f"   ✅ Fetched history for instance {instance_id}")
-        print(f"   ✅ Thread ID: {thread_id}")
-        print(f"   ✅ Found {len(messages)} messages in history")
-        
-        return messages
-
-    async def test_5_verify_chat_metadata(self, messages: List[dict], expected_prompt_id: str) -> bool:
-        """Test 5: Verify chat history messages include hub_prompt_id and correct hub_role values."""
-        print("🔍 Test 5: Verify chat history metadata fields")
-        
-        chat_messages = []
-        for msg in messages:
-            if msg.get("hub_prompt_id") == expected_prompt_id:
-                chat_messages.append(msg)
-                
-        if not chat_messages:
-            print(f"   ❌ No messages found with hub_prompt_id: {expected_prompt_id}")
-            return False
-            
-        print(f"   ✅ Found {len(chat_messages)} messages with hub_prompt_id: {expected_prompt_id}")
-        
-        # Verify required fields and hub_role values
-        input_found = False
-        response_found = False
-        
-        for msg in chat_messages:
-            role = msg.get("role")
-            hub_role = msg.get("hub_role")
-            hub_prompt_id = msg.get("hub_prompt_id")
-            
-            print(f"   📝 Message: role={role}, hub_role={hub_role}, hub_prompt_id={hub_prompt_id}")
-            
-            # Verify hub_prompt_id is present and matches
-            if hub_prompt_id != expected_prompt_id:
-                print(f"   ❌ hub_prompt_id mismatch: expected {expected_prompt_id}, got {hub_prompt_id}")
-                return False
-                
-            # Verify hub_role values
-            if role == "user" and hub_role == "input":
-                input_found = True
-                print(f"   ✅ Found user input message with correct hub_role: {hub_role}")
-            elif role == "assistant" and hub_role == "response":
-                response_found = True
-                print(f"   ✅ Found assistant response message with correct hub_role: {hub_role}")
-            else:
-                print(f"   ⚠️  Unexpected role/hub_role combination: role={role}, hub_role={hub_role}")
-                
-        if not input_found:
-            print("   ❌ No user input message with hub_role='input' found")
-            return False
-            
-        if not response_found:
-            print("   ❌ No assistant response message with hub_role='response' found")
-            return False
-            
-        print("   ✅ All chat metadata fields verified correctly")
-        return True
-
-    async def test_6_create_synthesis_batch(self, instance_ids: List[str], messages: List[dict]) -> Optional[str]:
-        """Test 6: Create a synthesis batch using a selected block and one synthesis instance."""
-        print("🔬 Test 6: Create synthesis batch")
-        
-        # Find a response message to use as synthesis source
-        response_message = None
-        for msg in messages:
-            if msg.get("role") == "assistant" and msg.get("content"):
-                response_message = msg
-                break
-                
-        if not response_message:
-            print("   ❌ No assistant response message found for synthesis")
-            return None
-            
-        # Use the first instance as synthesis instance
-        synthesis_instance_id = instance_ids[0]
-        
-        synthesis_data = {
-            "label": "Test Synthesis Batch",
-            "instruction": "Compare and synthesize the quantum computing explanations, highlighting key differences in approach.",
-            "selected_blocks": [
-                {
-                    "source_id": response_message.get("message_id"),
-                    "source_label": "Quantum Computing Response",
-                    "instance_id": response_message.get("hub_instance_id"),
-                    "instance_name": "Test Instance Response",
-                    "model": response_message.get("model"),
-                    "content": response_message.get("content")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                # Register user
+                register_data = {
+                    "username": self.user_email,
+                    "password": password
                 }
-            ],
-            "synthesis_instance_ids": [synthesis_instance_id]
+                
+                response = await client.post(f"{API_BASE}/auth/register", json=register_data)
+                
+                if response.status_code != 200:
+                    await self.log_result(
+                        "Register Fresh User", 
+                        False, 
+                        f"Registration failed with status {response.status_code}",
+                        response.text
+                    )
+                    return False
+                
+                # Login to get session token
+                login_data = {
+                    "username": self.user_email,
+                    "password": password
+                }
+                
+                response = await client.post(f"{API_BASE}/auth/login", json=login_data)
+                
+                if response.status_code != 200:
+                    await self.log_result(
+                        "Register Fresh User", 
+                        False, 
+                        f"Login failed with status {response.status_code}",
+                        response.text
+                    )
+                    return False
+                
+                login_result = response.json()
+                self.session_token = login_result.get("access_token")
+                
+                if not self.session_token:
+                    await self.log_result(
+                        "Register Fresh User", 
+                        False, 
+                        "No access token in login response",
+                        login_result
+                    )
+                    return False
+                
+                await self.log_result(
+                    "Register Fresh User", 
+                    True, 
+                    f"Successfully registered and logged in user: {self.user_email}"
+                )
+                return True
+                
+            except Exception as e:
+                await self.log_result(
+                    "Register Fresh User", 
+                    False, 
+                    f"Exception during registration: {str(e)}"
+                )
+                return False
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Get authorization headers"""
+        if not self.session_token:
+            raise ValueError("No session token available")
+        return {
+            "Authorization": f"Bearer {self.session_token}",
+            "Content-Type": "application/json"
         }
-        
-        status, response = await self._make_request("POST", "/api/v1/hub/chat/synthesize", synthesis_data)
-        if status != 200:
-            print(f"   ❌ Failed to create synthesis batch: {status} - {response}")
-            return None
-            
-        batch_id = response.get("synthesis_batch_id")
-        if not batch_id:
-            print(f"   ❌ No synthesis_batch_id in response: {response}")
-            return None
-            
-        outputs = response.get("outputs", [])
-        print(f"   ✅ Synthesis batch created successfully: {batch_id}")
-        print(f"   ✅ Generated {len(outputs)} synthesis outputs")
-        
-        for i, output in enumerate(outputs):
-            content_preview = output.get("content", "")[:100] + "..." if len(output.get("content", "")) > 100 else output.get("content", "")
-            print(f"   ✅ Synthesis output {i+1}: {content_preview}")
-            
-        return batch_id
 
-    async def test_7_fetch_synthesis_history(self, instance_id: str) -> List[dict]:
-        """Test 7: Fetch synthesis instance history again."""
-        print(f"📜 Test 7: Fetch synthesis instance history for {instance_id}")
-        
-        status, response = await self._make_request("GET", f"/api/v1/hub/instances/{instance_id}/history")
-        if status != 200:
-            print(f"   ❌ Failed to fetch synthesis instance history: {status} - {response}")
-            return []
-            
-        messages = response.get("messages", [])
-        print(f"   ✅ Fetched synthesis history: {len(messages)} total messages")
-        
-        return messages
+    async def test_get_registry_structure(self) -> bool:
+        """Test GET /api/v1/registry and verify curated universal-key-compatible model sets"""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.get(
+                    f"{API_BASE}/v1/registry",
+                    headers=self.get_auth_headers()
+                )
+                
+                if response.status_code != 200:
+                    await self.log_result(
+                        "GET Registry Structure", 
+                        False, 
+                        f"Registry GET failed with status {response.status_code}",
+                        response.text
+                    )
+                    return False
+                
+                registry_data = response.json()
+                developers = registry_data.get("developers", [])
+                
+                # Convert to dict for easier lookup
+                dev_dict = {dev["developer_id"]: dev for dev in developers}
+                
+                # Expected universal-key-compatible model sets
+                expected_models = {
+                    "openai": {"gpt-4o", "gpt-4o-mini", "o1"},
+                    "anthropic": {"claude-3-5-sonnet", "claude-3-5-haiku"},
+                    "google": {"gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"}
+                }
+                
+                # Check each universal-key developer
+                all_checks_passed = True
+                details = []
+                
+                for dev_id, expected_model_set in expected_models.items():
+                    if dev_id not in dev_dict:
+                        details.append(f"Missing developer: {dev_id}")
+                        all_checks_passed = False
+                        continue
+                    
+                    developer = dev_dict[dev_id]
+                    actual_models = {model["model_id"] for model in developer.get("models", [])}
+                    
+                    # Check if expected models are present
+                    missing_models = expected_model_set - actual_models
+                    if missing_models:
+                        details.append(f"{dev_id}: Missing models {missing_models}")
+                        all_checks_passed = False
+                    
+                    # Check if only expected models are present (no extra models)
+                    extra_models = actual_models - expected_model_set
+                    if extra_models:
+                        details.append(f"{dev_id}: Extra models {extra_models}")
+                        all_checks_passed = False
+                    
+                    # Verify auth_type is emergent for universal-key developers
+                    if developer.get("auth_type") != "emergent":
+                        details.append(f"{dev_id}: Expected auth_type 'emergent', got '{developer.get('auth_type')}'")
+                        all_checks_passed = False
+                
+                # Check that xAI, DeepSeek, Perplexity are still available as separate providers
+                expected_other_providers = {"xai", "deepseek", "perplexity"}
+                actual_other_providers = {dev_id for dev_id in dev_dict.keys() if dev_id not in expected_models}
+                
+                missing_providers = expected_other_providers - actual_other_providers
+                if missing_providers:
+                    details.append(f"Missing other providers: {missing_providers}")
+                    all_checks_passed = False
+                
+                # Verify these providers have openai_compatible auth_type
+                for provider in expected_other_providers:
+                    if provider in dev_dict:
+                        if dev_dict[provider].get("auth_type") != "openai_compatible":
+                            details.append(f"{provider}: Expected auth_type 'openai_compatible', got '{dev_dict[provider].get('auth_type')}'")
+                            all_checks_passed = False
+                
+                await self.log_result(
+                    "GET Registry Structure", 
+                    all_checks_passed, 
+                    "; ".join(details) if details else "All expected model sets and providers verified correctly",
+                    {"developers_found": list(dev_dict.keys()), "total_developers": len(developers)}
+                )
+                return all_checks_passed
+                
+            except Exception as e:
+                await self.log_result(
+                    "GET Registry Structure", 
+                    False, 
+                    f"Exception during registry GET: {str(e)}"
+                )
+                return False
 
-    async def test_8_verify_synthesis_metadata(self, messages: List[dict], expected_batch_id: str) -> bool:
-        """Test 8: Verify synthesis history messages include hub_synthesis_batch_id and correct hub_role values."""
-        print("🔍 Test 8: Verify synthesis history metadata fields")
-        
-        synthesis_messages = []
-        for msg in messages:
-            if msg.get("hub_synthesis_batch_id") == expected_batch_id:
-                synthesis_messages.append(msg)
+    async def test_post_unsupported_model(self) -> bool:
+        """Test POST /api/v1/registry/developer/openai/model with unsupported model and verify rejection"""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                # Try to add an unsupported model like 'o3'
+                model_data = {
+                    "model_id": "o3",
+                    "display_name": "o3"
+                }
                 
-        if not synthesis_messages:
-            print(f"   ❌ No messages found with hub_synthesis_batch_id: {expected_batch_id}")
-            return False
-            
-        print(f"   ✅ Found {len(synthesis_messages)} messages with hub_synthesis_batch_id: {expected_batch_id}")
-        
-        # Verify required fields and hub_role values
-        synthesis_input_found = False
-        synthesis_output_found = False
-        
-        for msg in synthesis_messages:
-            role = msg.get("role")
-            hub_role = msg.get("hub_role")
-            hub_synthesis_batch_id = msg.get("hub_synthesis_batch_id")
-            
-            print(f"   📝 Message: role={role}, hub_role={hub_role}, hub_synthesis_batch_id={hub_synthesis_batch_id}")
-            
-            # Verify hub_synthesis_batch_id is present and matches
-            if hub_synthesis_batch_id != expected_batch_id:
-                print(f"   ❌ hub_synthesis_batch_id mismatch: expected {expected_batch_id}, got {hub_synthesis_batch_id}")
+                response = await client.post(
+                    f"{API_BASE}/v1/registry/developer/openai/model",
+                    headers=self.get_auth_headers(),
+                    json=model_data
+                )
+                
+                # Should be rejected with 400 status
+                if response.status_code == 400:
+                    response_data = response.json()
+                    detail = response_data.get("detail", "")
+                    
+                    # Check if rejection message mentions universal-key curation
+                    if "universal-key" in detail.lower() and "curated" in detail.lower():
+                        await self.log_result(
+                            "POST Unsupported Model Rejection", 
+                            True, 
+                            f"Correctly rejected unsupported model with message: {detail}"
+                        )
+                        return True
+                    else:
+                        await self.log_result(
+                            "POST Unsupported Model Rejection", 
+                            False, 
+                            f"Rejected but with unexpected message: {detail}"
+                        )
+                        return False
+                else:
+                    await self.log_result(
+                        "POST Unsupported Model Rejection", 
+                        False, 
+                        f"Expected 400 rejection, got status {response.status_code}",
+                        response.text
+                    )
+                    return False
+                
+            except Exception as e:
+                await self.log_result(
+                    "POST Unsupported Model Rejection", 
+                    False, 
+                    f"Exception during unsupported model POST: {str(e)}"
+                )
                 return False
-                
-            # Verify hub_role values
-            if role == "user" and hub_role == "synthesis_input":
-                synthesis_input_found = True
-                print(f"   ✅ Found synthesis input message with correct hub_role: {hub_role}")
-            elif role == "assistant" and hub_role == "synthesis_output":
-                synthesis_output_found = True
-                print(f"   ✅ Found synthesis output message with correct hub_role: {hub_role}")
-            else:
-                print(f"   ⚠️  Unexpected role/hub_role combination: role={role}, hub_role={hub_role}")
-                
-        if not synthesis_input_found:
-            print("   ❌ No synthesis input message with hub_role='synthesis_input' found")
-            return False
-            
-        if not synthesis_output_found:
-            print("   ❌ No synthesis output message with hub_role='synthesis_output' found")
-            return False
-            
-        print("   ✅ All synthesis metadata fields verified correctly")
-        return True
 
-    async def test_9_verify_api_response_structures(self, instance_ids: List[str]) -> bool:
-        """Test 9: Confirm no regression in normal chat/synthesis API response structures."""
-        print("🔧 Test 9: Verify API response structures (no regression)")
-        
-        # Test hub options endpoint
-        status, response = await self._make_request("GET", "/api/v1/hub/options")
-        if status != 200:
-            print(f"   ❌ Hub options endpoint failed: {status} - {response}")
-            return False
-            
-        required_keys = ["fastapi_connections", "patterns", "supports"]
-        for key in required_keys:
-            if key not in response:
-                print(f"   ❌ Missing key in hub options: {key}")
-                return False
+    async def test_delete_curated_model(self) -> bool:
+        """Test DELETE /api/v1/registry/developer/openai/model/gpt-4o and verify rejection"""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.delete(
+                    f"{API_BASE}/v1/registry/developer/openai/model/gpt-4o",
+                    headers=self.get_auth_headers()
+                )
                 
-        print("   ✅ Hub options endpoint structure verified")
-        
-        # Test instances list endpoint
-        status, response = await self._make_request("GET", "/api/v1/hub/instances")
-        if status != 200:
-            print(f"   ❌ Instances list endpoint failed: {status} - {response}")
-            return False
-            
-        if "instances" not in response or "total" not in response:
-            print(f"   ❌ Invalid instances list response structure: {response}")
-            return False
-            
-        print("   ✅ Instances list endpoint structure verified")
-        
-        # Test chat prompts list endpoint
-        status, response = await self._make_request("GET", "/api/v1/hub/chat/prompts")
-        if status != 200:
-            print(f"   ❌ Chat prompts list endpoint failed: {status} - {response}")
-            return False
-            
-        if "prompts" not in response or "total" not in response:
-            print(f"   ❌ Invalid chat prompts list response structure: {response}")
-            return False
-            
-        print("   ✅ Chat prompts list endpoint structure verified")
-        
-        # Test synthesis batches list endpoint
-        status, response = await self._make_request("GET", "/api/v1/hub/chat/syntheses")
-        if status != 200:
-            print(f"   ❌ Synthesis batches list endpoint failed: {status} - {response}")
-            return False
-            
-        if "batches" not in response or "total" not in response:
-            print(f"   ❌ Invalid synthesis batches list response structure: {response}")
-            return False
-            
-        print("   ✅ Synthesis batches list endpoint structure verified")
-        print("   ✅ All API response structures verified - no regressions detected")
-        
-        return True
+                # Should be rejected with 400 status
+                if response.status_code == 400:
+                    response_data = response.json()
+                    detail = response_data.get("detail", "")
+                    
+                    # Check if rejection message mentions universal-key management
+                    if "universal-key" in detail.lower() and ("managed" in detail.lower() or "cannot be removed" in detail.lower()):
+                        await self.log_result(
+                            "DELETE Curated Model Rejection", 
+                            True, 
+                            f"Correctly rejected curated model deletion with message: {detail}"
+                        )
+                        return True
+                    else:
+                        await self.log_result(
+                            "DELETE Curated Model Rejection", 
+                            False, 
+                            f"Rejected but with unexpected message: {detail}"
+                        )
+                        return False
+                else:
+                    await self.log_result(
+                        "DELETE Curated Model Rejection", 
+                        False, 
+                        f"Expected 400 rejection, got status {response.status_code}",
+                        response.text
+                    )
+                    return False
+                
+            except Exception as e:
+                await self.log_result(
+                    "DELETE Curated Model Rejection", 
+                    False, 
+                    f"Exception during curated model DELETE: {str(e)}"
+                )
+                return False
 
-    async def run_comprehensive_test(self) -> bool:
-        """Run all test scenarios in sequence."""
-        print("🚀 Starting AIMMH Backend Comprehensive Test")
-        print("=" * 60)
-        
-        try:
-            # Test 1: Register and authenticate
-            if not await self.test_1_register_and_authenticate():
-                return False
+    async def test_delete_universal_developer(self) -> bool:
+        """Test DELETE /api/v1/registry/developer/openai and verify rejection"""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.delete(
+                    f"{API_BASE}/v1/registry/developer/openai",
+                    headers=self.get_auth_headers()
+                )
                 
-            print()
-            
-            # Test 2: Create hub instances
-            instance_ids = await self.test_2_create_hub_instances()
-            if not instance_ids:
-                return False
+                # Should be rejected with 400 status
+                if response.status_code == 400:
+                    response_data = response.json()
+                    detail = response_data.get("detail", "")
+                    
+                    # Check if rejection message mentions universal-key management
+                    if "universal-key" in detail.lower() and ("managed" in detail.lower() or "cannot be removed" in detail.lower()):
+                        await self.log_result(
+                            "DELETE Universal Developer Rejection", 
+                            True, 
+                            f"Correctly rejected universal developer deletion with message: {detail}"
+                        )
+                        return True
+                    else:
+                        await self.log_result(
+                            "DELETE Universal Developer Rejection", 
+                            False, 
+                            f"Rejected but with unexpected message: {detail}"
+                        )
+                        return False
+                else:
+                    await self.log_result(
+                        "DELETE Universal Developer Rejection", 
+                        False, 
+                        f"Expected 400 rejection, got status {response.status_code}",
+                        response.text
+                    )
+                    return False
                 
-            print()
-            
-            # Test 3: Send chat prompt
-            prompt_id = await self.test_3_send_chat_prompt(instance_ids)
-            if not prompt_id:
+            except Exception as e:
+                await self.log_result(
+                    "DELETE Universal Developer Rejection", 
+                    False, 
+                    f"Exception during universal developer DELETE: {str(e)}"
+                )
                 return False
-                
-            print()
-            
-            # Test 4: Fetch instance history
-            messages = await self.test_4_fetch_instance_history(instance_ids[0])
-            if not messages:
-                return False
-                
-            print()
-            
-            # Test 5: Verify chat metadata
-            if not await self.test_5_verify_chat_metadata(messages, prompt_id):
-                return False
-                
-            print()
-            
-            # Test 6: Create synthesis batch
-            synthesis_batch_id = await self.test_6_create_synthesis_batch(instance_ids, messages)
-            if not synthesis_batch_id:
-                return False
-                
-            print()
-            
-            # Test 7: Fetch synthesis history
-            synthesis_messages = await self.test_7_fetch_synthesis_history(instance_ids[0])
-            if not synthesis_messages:
-                return False
-                
-            print()
-            
-            # Test 8: Verify synthesis metadata
-            if not await self.test_8_verify_synthesis_metadata(synthesis_messages, synthesis_batch_id):
-                return False
-                
-            print()
-            
-            # Test 9: Verify API response structures
-            if not await self.test_9_verify_api_response_structures(instance_ids):
-                return False
-                
-            print()
-            print("🎉 ALL TESTS PASSED! AIMMH backend metadata fields are working correctly.")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Test suite failed with exception: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
 
+    async def test_registry_response_structure(self) -> bool:
+        """Test that normal registry response structure is valid and no regression affects auth-protected access"""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                # Test authenticated access
+                response = await client.get(
+                    f"{API_BASE}/v1/registry",
+                    headers=self.get_auth_headers()
+                )
+                
+                if response.status_code != 200:
+                    await self.log_result(
+                        "Registry Response Structure", 
+                        False, 
+                        f"Authenticated registry access failed with status {response.status_code}",
+                        response.text
+                    )
+                    return False
+                
+                registry_data = response.json()
+                
+                # Validate response structure
+                if "developers" not in registry_data:
+                    await self.log_result(
+                        "Registry Response Structure", 
+                        False, 
+                        "Missing 'developers' field in registry response",
+                        registry_data
+                    )
+                    return False
+                
+                developers = registry_data["developers"]
+                if not isinstance(developers, list):
+                    await self.log_result(
+                        "Registry Response Structure", 
+                        False, 
+                        "Developers field is not a list",
+                        {"developers_type": type(developers).__name__}
+                    )
+                    return False
+                
+                # Validate developer structure
+                for dev in developers:
+                    required_fields = ["developer_id", "name", "auth_type", "models"]
+                    for field in required_fields:
+                        if field not in dev:
+                            await self.log_result(
+                                "Registry Response Structure", 
+                                False, 
+                                f"Missing required field '{field}' in developer",
+                                dev
+                            )
+                            return False
+                    
+                    # Validate models structure
+                    models = dev["models"]
+                    if not isinstance(models, list):
+                        await self.log_result(
+                            "Registry Response Structure", 
+                            False, 
+                            f"Models field is not a list for developer {dev['developer_id']}",
+                            dev
+                        )
+                        return False
+                    
+                    for model in models:
+                        if "model_id" not in model:
+                            await self.log_result(
+                                "Registry Response Structure", 
+                                False, 
+                                f"Missing model_id in model for developer {dev['developer_id']}",
+                                model
+                            )
+                            return False
+                
+                # Test unauthenticated access should fail
+                response_unauth = await client.get(f"{API_BASE}/v1/registry")
+                
+                if response_unauth.status_code != 401:
+                    await self.log_result(
+                        "Registry Response Structure", 
+                        False, 
+                        f"Unauthenticated access should return 401, got {response_unauth.status_code}",
+                        response_unauth.text
+                    )
+                    return False
+                
+                await self.log_result(
+                    "Registry Response Structure", 
+                    True, 
+                    f"Registry response structure valid, auth protection working. Found {len(developers)} developers."
+                )
+                return True
+                
+            except Exception as e:
+                await self.log_result(
+                    "Registry Response Structure", 
+                    False, 
+                    f"Exception during registry structure test: {str(e)}"
+                )
+                return False
+
+    async def run_all_tests(self):
+        """Run all registry API tests"""
+        print("🧪 Starting Registry API Universal Key Compatibility Tests")
+        print("=" * 70)
+        print()
+        
+        # Step 1: Register fresh user
+        if not await self.register_fresh_user():
+            print("❌ Cannot proceed without user registration")
+            return
+        
+        # Step 2: Test registry structure and curated models
+        await self.test_get_registry_structure()
+        
+        # Step 3: Test unsupported model rejection
+        await self.test_post_unsupported_model()
+        
+        # Step 4: Test curated model deletion rejection
+        await self.test_delete_curated_model()
+        
+        # Step 5: Test universal developer deletion rejection
+        await self.test_delete_universal_developer()
+        
+        # Step 6: Test registry response structure and auth
+        await self.test_registry_response_structure()
+        
+        # Summary
+        print("=" * 70)
+        print("📊 TEST SUMMARY")
+        print("=" * 70)
+        
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for result in self.test_results if result["success"])
+        failed_tests = total_tests - passed_tests
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests} ✅")
+        print(f"Failed: {failed_tests} ❌")
+        print()
+        
+        if failed_tests > 0:
+            print("❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result["success"]:
+                    print(f"  - {result['test']}: {result['details']}")
+            print()
+        
+        success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
+        print(f"Success Rate: {success_rate:.1f}%")
+        
+        if success_rate == 100:
+            print("🎉 ALL TESTS PASSED! Registry API cleanup and protection rules are working correctly.")
+        elif success_rate >= 80:
+            print("⚠️  Most tests passed, but some issues need attention.")
+        else:
+            print("🚨 Multiple test failures detected. Registry API needs investigation.")
 
 async def main():
-    """Main test runner."""
-    async with AimmhBackendTester() as tester:
-        success = await tester.run_comprehensive_test()
-        if success:
-            print("\n✅ AIMMH Backend Test Suite: PASSED")
-            exit(0)
-        else:
-            print("\n❌ AIMMH Backend Test Suite: FAILED")
-            exit(1)
-
+    """Main test runner"""
+    test_runner = RegistryAPITest()
+    await test_runner.run_all_tests()
 
 if __name__ == "__main__":
     asyncio.run(main())

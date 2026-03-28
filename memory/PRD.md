@@ -49,19 +49,25 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Response pane controls/gestures for pane switching and font zoom
 - [x] Pricing and Hall of Makers pages
 
-## Latest Verified Fixes — 2026-03-24
+## Latest Verified Fixes — 2026-03-28
 - [x] Resolved the blocking Chat & Synthesis usability issue: instances now reliably appear after tab switching because the tab interaction itself is reliable
 - [x] Reworked hub tab navigation into a responsive grid so long tab labels no longer clip or behave inconsistently
 - [x] Added auto-scroll on tab change in `AimmhHubPage.jsx` so switching from a scrolled tab lands users at the correct content anchor
 - [x] Added stronger `data-testid` coverage for hub tabs, instance creation, prompt batches, synthesis selection, and synthesis outputs
 - [x] Expanded `data-testid` coverage across header actions, group management, run builder controls, run inventory, responses controls, response panes, and carousel controls
 - [x] Exposed `hub_prompt_id` and `hub_synthesis_batch_id` through instance history responses in `backend/models/hub.py`
+- [x] Curated the universal-key registry to only supported models for OpenAI, Anthropic, and Google
+- [x] Added automatic reconciliation so existing user registries are brought back to the curated universal-key model set
+- [x] Added registry UI labeling so universal-key-compatible developers and models are visibly marked
+- [x] Added backend guardrails preventing unsupported model additions or removals for universal-key-managed developers
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
 - [x] Expanded hub control test-id coverage passed frontend validation with no layout or click-target regressions
 - [x] Backend metadata exposure passed for both direct chat and synthesis history messages
+- [x] Universal-key registry UI passed frontend validation: correct curated models shown, unsupported models removed, labels present, no visual regressions
+- [x] Universal-key registry API passed backend validation: curated model sets returned, unsupported add/remove/delete operations rejected cleanly
 
 ## Important File References
 - `/app/frontend/src/pages/AimmhHubPage.jsx`
@@ -69,21 +75,29 @@ The application is now a full-stack AIMMH workspace with:
 - `/app/frontend/src/components/hub/HubTabsNav.jsx`
 - `/app/frontend/src/components/hub/HubMultiChatPanel.jsx`
 - `/app/frontend/src/components/hub/HubInstancesPanel.jsx`
+- `/app/frontend/src/components/settings/RegistryManager.jsx`
+- `/app/frontend/src/components/settings/RegistryDeveloperCard.jsx`
 - `/app/backend/models/hub.py`
+- `/app/backend/routes/registry.py`
 - `/app/backend/routes/v1_hub.py`
+- `/app/backend/routes/v1_a0.py`
+- `/app/backend/routes/v1_analysis.py`
 - `/app/backend/services/hub_chat.py`
 - `/app/backend/services/hub_synthesis.py`
+- `/app/backend/services/llm.py`
+- `/app/backend/services/hub_store.py`
 
 ## Prioritized Backlog
 
 ### P0 — Resolved
 - [x] Chat & Synthesis tab rendering / usability blocker
 - [x] Instance history metadata exposure for chat and synthesis
+- [x] Universal-key registry cleanup and protection rules
 
 ### P1 — Next
 - [ ] Deployment/release pass when requested
-- [ ] Broader `data-testid` coverage across remaining untouched controls for stronger regression automation
 - [ ] Optional modularization pass for `AimmhHubPage.jsx` and `useHubWorkspace.js`
+- [ ] Saved workflow/templates for favorite orchestration setups
 
 ### P2 — Important Enhancements
 - [ ] Save and reuse orchestration workflows
@@ -99,3 +113,4 @@ The application is now a full-stack AIMMH workspace with:
 - Use `frontend/.env` `REACT_APP_BACKEND_URL` as the preview source of truth
 - The current synthesis workflow is working in preview after the tab-navigation fix
 - If a future report says instances are missing from Chat & Synthesis, first verify the tab actually changed and the page scrolled to the tab anchor
+- OpenAI / Anthropic / Google registry entries are now intentionally curated to universal-key-compatible models only; do not reintroduce unsupported models unless universal-key support changes and is re-verified

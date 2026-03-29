@@ -189,3 +189,7 @@ aimmh_lib.egg-info/
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*

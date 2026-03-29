@@ -41,8 +41,9 @@ DEFAULT_REGISTRY = {
         "base_url": None,
         "website": "https://anthropic.com",
         "models": [
-            {"model_id": "claude-3-5-sonnet", "display_name": "Claude 3.5 Sonnet"},
-            {"model_id": "claude-3-5-haiku", "display_name": "Claude 3.5 Haiku"},
+            {"model_id": "claude-sonnet-4-5-20250929", "display_name": "Claude Sonnet 4.5"},
+            {"model_id": "claude-haiku-4-5-20251001", "display_name": "Claude Haiku 4.5"},
+            {"model_id": "claude-opus-4-5-20251101", "display_name": "Claude Opus 4.5"},
         ],
     },
     "google": {
@@ -52,8 +53,9 @@ DEFAULT_REGISTRY = {
         "website": "https://ai.google.dev",
         "models": [
             {"model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash"},
-            {"model_id": "gemini-1.5-pro", "display_name": "Gemini 1.5 Pro"},
-            {"model_id": "gemini-1.5-flash", "display_name": "Gemini 1.5 Flash"},
+            {"model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro"},
+            {"model_id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash"},
+            {"model_id": "gemini-2.5-flash-lite", "display_name": "Gemini 2.5 Flash Lite"},
         ],
     },
     "xai": {

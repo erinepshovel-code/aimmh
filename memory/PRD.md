@@ -75,6 +75,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Added select-all responses control and compare popout modal for multi-response side-by-side analysis
 - [x] Added recipient select-all control in Chat & Synthesis direct chat recipients list
 - [x] Refreshed curated Universal Key model IDs for Anthropic/Google in `backend/services/llm.py` to remove deprecated 3.5/1.5 IDs causing verify/auth failures
+- [x] Simplified workspace layout to splash-first flow: splash screen appears briefly, then only top tab selector + current tab content are shown (no persistent README/header chrome)
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

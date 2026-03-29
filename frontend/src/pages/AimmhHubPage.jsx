@@ -1,13 +1,9 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '../contexts/AuthContext';
 import { HubGroupsPanel } from '../components/hub/HubGroupsPanel';
-import { HubHeader } from '../components/hub/HubHeader';
 import { HubInstancesPanel } from '../components/hub/HubInstancesPanel';
 import { HubMultiChatPanel } from '../components/hub/HubMultiChatPanel';
-import { HubReadmeSplash } from '../components/hub/HubReadmeSplash';
 import { HubResponsesPanel } from '../components/hub/HubResponsesPanel';
 import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
@@ -25,10 +21,9 @@ const TABS = [
 ];
 
 export default function AimmhHubPage() {
-  const navigate = useNavigate();
-  const { logout } = useAuth();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
+  const [showSplash, setShowSplash] = React.useState(true);
   const [chatPrompts, setChatPrompts] = React.useState([]);
   const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
   const [chatBusyKey, setChatBusyKey] = React.useState('');
@@ -36,7 +31,6 @@ export default function AimmhHubPage() {
   const [synthesisInstanceIds, setSynthesisInstanceIds] = React.useState([]);
   const [synthesisBatches, setSynthesisBatches] = React.useState([]);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
-  const tabAnchorRef = React.useRef(null);
 
   const refreshChatPrompts = React.useCallback(async () => {
     try {
@@ -70,12 +64,9 @@ export default function AimmhHubPage() {
   }, [refreshChatPrompts, refreshSyntheses]);
 
   React.useEffect(() => {
-    const node = tabAnchorRef.current;
-    if (!node) return;
-    window.requestAnimationFrame(() => {
-      node.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    });
-  }, [activeTab]);
+    const timer = window.setTimeout(() => setShowSplash(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const sendChatPrompt = React.useCallback(async (payload) => {
     try {
@@ -220,7 +211,6 @@ export default function AimmhHubPage() {
   if (workspace.loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100">
-        <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} onOpenPricing={() => navigate('/pricing')} />
         <div className="flex min-h-[70vh] items-center justify-center px-4">
           <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-5 py-4 text-sm text-zinc-400">
             <Loader2 size={16} className="animate-spin text-emerald-400" /> Loading AIMMH…
@@ -230,14 +220,33 @@ export default function AimmhHubPage() {
     );
   }
 
+  if (showSplash) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4" data-testid="hub-splash-screen">
+        <div className="w-full max-w-2xl space-y-4 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+          <div className="text-xs uppercase tracking-[0.24em] text-emerald-300">AIMMH HUB</div>
+          <h1 className="text-4xl font-semibold text-zinc-100 sm:text-5xl">Multi-model orchestration workspace</h1>
+          <p className="text-sm text-zinc-400 sm:text-base">Persistent isolated instances, nested groups, staged runs, and synthesis workflows.</p>
+          <button
+            type="button"
+            onClick={() => setShowSplash(false)}
+            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
+            data-testid="dismiss-hub-splash-button"
+          >
+            Enter workspace
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100" data-testid="aimmh-hub-page">
-      <HubHeader onLogout={logout} onOpenSettings={() => navigate('/settings')} onExportInventory={workspace.exportInventory} onOpenPricing={() => navigate('/pricing')} />
       <main className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6">
-        <div className="space-y-4">
-          <HubReadmeSplash />
-          <div ref={tabAnchorRef} data-testid="hub-tab-anchor" />
+        <div className="space-y-3">
+          <div className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/95 pb-3 backdrop-blur" data-testid="hub-tab-selector-shell">
           <HubTabsNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+          </div>
           <div data-testid={`hub-tab-panel-${activeTab}`}>
             {renderTab()}
           </div>

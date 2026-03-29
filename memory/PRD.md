@@ -29,6 +29,7 @@ The application is now a full-stack AIMMH workspace with:
 
 ## Implemented Backend Features
 - [x] `/api/v1/hub/instances` create/list/update/archive/unarchive/history
+- [x] `/api/v1/hub/instances/{instance_id}` delete support for archived instances only
 - [x] `/api/v1/hub/groups` nested group management
 - [x] `/api/v1/hub/runs` orchestration runs across `fan_out`, `daisy_chain`, `room_all`, `room_synthesized`, `council`, and `roleplay`
 - [x] `/api/v1/hub/chat/prompts` direct multi-instance chat
@@ -47,6 +48,11 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Response actions: thumbs up/down, copy, share
 - [x] Response formatting preserved via markdown rendering
 - [x] Response pane controls/gestures for pane switching and font zoom
+- [x] Per-instance archive/delete UX: archive button on cards, undo archive + delete for archived cards
+- [x] Bulk instance controls: select-all, archive selected, undo archive selected, delete archived selected
+- [x] Response workspace controls: per-response archive/undo, show archived toggle, select-all responses
+- [x] Compare popout modal for side-by-side review of 2+ selected responses
+- [x] Chat recipients select-all toggle in Chat & Synthesis tab
 - [x] Pricing and Hall of Makers pages
 
 ## Latest Verified Fixes — 2026-03-28
@@ -60,6 +66,14 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Added automatic reconciliation so existing user registries are brought back to the curated universal-key model set
 - [x] Added registry UI labeling so universal-key-compatible developers and models are visibly marked
 - [x] Added backend guardrails preventing unsupported model additions or removals for universal-key-managed developers
+
+## Latest Verified Fixes — 2026-03-29
+- [x] Added archived-instance delete endpoint with archive-before-delete guardrail in `backend/routes/v1_hub.py`
+- [x] Added instance card actions so every card exposes archive flow, with archived cards showing undo archive + delete
+- [x] Added bulk instance controls with select-all plus batch archive/restore/delete actions
+- [x] Added response-level archive controls in both stack and pane/carousel views, with show archived filter
+- [x] Added select-all responses control and compare popout modal for multi-response side-by-side analysis
+- [x] Added recipient select-all control in Chat & Synthesis direct chat recipients list
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
@@ -100,6 +114,7 @@ The application is now a full-stack AIMMH workspace with:
 - [ ] Saved workflow/templates for favorite orchestration setups
 
 ### P2 — Important Enhancements
+- [x] Mobile response gestures and font scaling refinements (pinch/spread zoom + pane swipe)
 - [ ] Save and reuse orchestration workflows
 - [ ] Drag-and-drop stage reordering in the runs builder
 - [ ] Richer per-instance thread drill-down/history inspection

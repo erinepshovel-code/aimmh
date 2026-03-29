@@ -74,6 +74,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Added response-level archive controls in both stack and pane/carousel views, with show archived filter
 - [x] Added select-all responses control and compare popout modal for multi-response side-by-side analysis
 - [x] Added recipient select-all control in Chat & Synthesis direct chat recipients list
+- [x] Refreshed curated Universal Key model IDs for Anthropic/Google in `backend/services/llm.py` to remove deprecated 3.5/1.5 IDs causing verify/auth failures
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

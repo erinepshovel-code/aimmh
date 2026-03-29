@@ -1,8 +1,9 @@
 import React from 'react';
-import { Copy, LayoutPanelTop, Rows3, Share2 } from 'lucide-react';
+import { CheckCheck, Copy, LayoutPanelTop, Rows3, Share2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { hubApi } from '../../lib/hubApi';
 import { ResponseCarousel } from './ResponseCarousel';
+import { ResponseMarkdown } from './ResponseMarkdown';
 import { ResponsePane } from './ResponsePane';
 
 export function HubResponsesPanel({
@@ -23,6 +24,9 @@ export function HubResponsesPanel({
   const [feedbackMap, setFeedbackMap] = React.useState({});
   const [fontScale, setFontScale] = React.useState(1);
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const [archivedResponseIds, setArchivedResponseIds] = React.useState([]);
+  const [showArchivedResponses, setShowArchivedResponses] = React.useState(false);
+  const [comparePopoutOpen, setComparePopoutOpen] = React.useState(false);
 
   React.useEffect(() => {
     setSelectedStageIndex(0);
@@ -54,11 +58,21 @@ export function HubResponsesPanel({
         role: 'assistant',
         slot_idx: index,
       }));
+  const visibleResponses = stageResponses.filter((item) => showArchivedResponses || !archivedResponseIds.includes(item.run_step_id));
   const synthesisIds = synthesisBasket.map((item) => item.source_id);
-  const selectedResponses = stageResponses.filter((item) => selectedIds.includes(item.run_step_id));
+  const selectedResponses = visibleResponses.filter((item) => selectedIds.includes(item.run_step_id));
 
   const toggleSelected = (item) => {
     setSelectedIds((prev) => prev.includes(item.run_step_id) ? prev.filter((id) => id !== item.run_step_id) : [...prev, item.run_step_id]);
+  };
+
+  const toggleResponseArchive = (item) => {
+    setArchivedResponseIds((prev) => prev.includes(item.run_step_id)
+      ? prev.filter((id) => id !== item.run_step_id)
+      : [...prev, item.run_step_id]);
+    if (!archivedResponseIds.includes(item.run_step_id)) {
+      setSelectedIds((prev) => prev.filter((id) => id !== item.run_step_id));
+    }
   };
 
   const copyText = async (text, label = 'Response copied') => {
@@ -118,6 +132,16 @@ export function HubResponsesPanel({
     await copyText(text, 'Share unavailable — copied selected responses');
   };
 
+  const toggleSelectAllResponses = () => {
+    if (visibleResponses.length === 0) return;
+    const visibleIds = visibleResponses.map((item) => item.run_step_id);
+    const allSelected = visibleIds.every((id) => selectedIds.includes(id));
+    setSelectedIds(allSelected ? selectedIds.filter((id) => !visibleIds.includes(id)) : Array.from(new Set([...selectedIds, ...visibleIds])));
+  };
+
+  const visibleIds = visibleResponses.map((item) => item.run_step_id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+
   return (
     <section className="space-y-4" data-testid="hub-responses-panel">
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="responses-toolbar">
@@ -127,6 +151,15 @@ export function HubResponsesPanel({
             <p className="mt-1 text-xs text-zinc-500">Native formatting preserved. Compare vertically in stack mode or pane mode.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300" data-testid="responses-show-archived-toggle-wrap">
+              <input
+                type="checkbox"
+                checked={showArchivedResponses}
+                onChange={(event) => setShowArchivedResponses(event.target.checked)}
+                data-testid="responses-show-archived-checkbox"
+              />
+              Show archived
+            </label>
             <button type="button" onClick={() => setSourceType('runs')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'runs' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-source-runs-button">
               Run responses
             </button>
@@ -161,8 +194,20 @@ export function HubResponsesPanel({
             </>
           )}
           <div className="flex gap-2">
+            <button type="button" onClick={toggleSelectAllResponses} disabled={visibleResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-select-all-button">
+              <span className="flex items-center gap-2"><CheckCheck size={13} /> {allVisibleSelected ? 'Clear visible' : 'Select all responses'}</span>
+            </button>
             <button type="button" onClick={copySelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-copy-selected-button"><span className="flex items-center gap-2"><Copy size={13} /> Copy selected</span></button>
             <button type="button" onClick={shareSelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-share-selected-button"><span className="flex items-center gap-2"><Share2 size={13} /> Share selected</span></button>
+            <button
+              type="button"
+              onClick={() => setComparePopoutOpen(true)}
+              disabled={selectedResponses.length < 2}
+              className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"
+              data-testid="responses-compare-popout-button"
+            >
+              Compare popout
+            </button>
           </div>
         </div>
       </div>
@@ -171,7 +216,7 @@ export function HubResponsesPanel({
         <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500" data-testid="responses-empty-state">Select a {sourceType === 'runs' ? 'run' : 'prompt batch'} to compare responses.</div>
       ) : compareMode === 'carousel' ? (
         <ResponseCarousel
-          items={stageResponses}
+          items={visibleResponses}
           activeIndex={activeIndex}
           setActiveIndex={setActiveIndex}
           fontScale={fontScale}
@@ -182,6 +227,8 @@ export function HubResponsesPanel({
           onFeedback={submitFeedback}
           onCopy={(item) => copyText(item.content)}
           onShare={shareResponse}
+          archivedIds={archivedResponseIds}
+          onToggleArchive={toggleResponseArchive}
           synthesisIds={synthesisIds}
           onToggleSynthesis={(item) => onToggleSynthesisBlock(toSynthesisBlock(item))}
         />
@@ -190,9 +237,9 @@ export function HubResponsesPanel({
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-500" data-testid="responses-gesture-hint">
             Pinch/spread to zoom font size. Switch to pane mode for two-finger vertical pane sliding while one-finger scrolling within each response.
           </div>
-          {stageResponses.length === 0 ? (
+          {visibleResponses.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500" data-testid="responses-no-results">No responses yet for this selection.</div>
-          ) : stageResponses.map((item) => (
+          ) : visibleResponses.map((item) => (
             <ResponsePane
               key={item.run_step_id}
               item={item}
@@ -203,10 +250,36 @@ export function HubResponsesPanel({
               onFeedback={(value) => submitFeedback(item, value)}
               onCopy={() => copyText(item.content)}
               onShare={() => shareResponse(item)}
+              archived={archivedResponseIds.includes(item.run_step_id)}
+              onToggleArchive={() => toggleResponseArchive(item)}
               synthesisSelected={synthesisIds.includes(item.run_step_id)}
               onToggleSynthesis={() => onToggleSynthesisBlock(toSynthesisBlock(item))}
             />
           ))}
+        </div>
+      )}
+
+      {comparePopoutOpen && selectedResponses.length >= 2 && (
+        <div className="fixed inset-0 z-50 bg-black/70 p-4 sm:p-8" data-testid="responses-compare-popout-overlay">
+          <div className="mx-auto flex h-full w-full max-w-[1300px] flex-col rounded-3xl border border-zinc-700 bg-zinc-950" data-testid="responses-compare-popout-modal">
+            <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
+              <div className="text-sm font-semibold text-zinc-100" data-testid="responses-compare-popout-title">Compare selected responses ({selectedResponses.length})</div>
+              <button type="button" onClick={() => setComparePopoutOpen(false)} className="rounded-full border border-zinc-700 p-2 text-zinc-300 hover:text-white" data-testid="responses-compare-popout-close-button">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-4 md:grid-cols-2 xl:grid-cols-3" data-testid="responses-compare-popout-grid">
+              {selectedResponses.map((item) => (
+                <article key={`compare-${item.run_step_id}`} className="flex min-h-0 flex-col rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`responses-compare-popout-item-${item.run_step_id}`}>
+                  <div className="mb-2 text-sm font-medium text-zinc-100">{item.instance_name || item.model}</div>
+                  <div className="rounded-full border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-400">{item.model}</div>
+                  <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3" data-testid={`responses-compare-popout-content-${item.run_step_id}`}>
+                    <ResponseMarkdown content={item.content} fontScale={fontScale} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </section>

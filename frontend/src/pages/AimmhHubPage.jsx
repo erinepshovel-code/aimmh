@@ -146,6 +146,10 @@ export default function AimmhHubPage() {
               onCreate={workspace.createInstance}
               onUpdate={workspace.updateInstance}
               onToggleArchive={workspace.toggleInstanceArchive}
+              onDeleteArchived={workspace.deleteArchivedInstance}
+              onArchiveMany={workspace.archiveManyInstances}
+              onRestoreMany={workspace.restoreManyInstances}
+              onDeleteMany={workspace.deleteManyArchivedInstances}
               onFetchHistory={workspace.fetchInstanceHistory}
               busyKey={workspace.busyKey}
             />

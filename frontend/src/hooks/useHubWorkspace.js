@@ -132,6 +132,32 @@ export function useHubWorkspace() {
     await reloadInstances();
   }, instance.archived ? 'Instance restored' : 'Instance archived'), [reloadInstances, runTask]);
 
+  const deleteArchivedInstance = useCallback(async (instanceId) => runTask(`delete-instance-${instanceId}`, async () => {
+    await hubApi.deleteInstance(instanceId);
+    await reloadInstances();
+  }, 'Archived instance deleted'), [reloadInstances, runTask]);
+
+  const archiveManyInstances = useCallback(async (instanceIds) => runTask('archive-many-instances', async () => {
+    const targets = instances.filter((item) => instanceIds.includes(item.instance_id) && !item.archived);
+    if (targets.length === 0) return;
+    await Promise.all(targets.map((instance) => hubApi.archiveInstance(instance.instance_id)));
+    await reloadInstances();
+  }, 'Selected instances archived'), [instances, reloadInstances, runTask]);
+
+  const restoreManyInstances = useCallback(async (instanceIds) => runTask('restore-many-instances', async () => {
+    const targets = instances.filter((item) => instanceIds.includes(item.instance_id) && item.archived);
+    if (targets.length === 0) return;
+    await Promise.all(targets.map((instance) => hubApi.unarchiveInstance(instance.instance_id)));
+    await reloadInstances();
+  }, 'Selected instances restored'), [instances, reloadInstances, runTask]);
+
+  const deleteManyArchivedInstances = useCallback(async (instanceIds) => runTask('delete-many-instances', async () => {
+    const targets = instances.filter((item) => instanceIds.includes(item.instance_id) && item.archived);
+    if (targets.length === 0) return;
+    await Promise.all(targets.map((instance) => hubApi.deleteInstance(instance.instance_id)));
+    await reloadInstances();
+  }, 'Selected archived instances deleted'), [instances, reloadInstances, runTask]);
+
   const fetchInstanceHistory = useCallback((instanceId) => hubApi.getInstanceHistory(instanceId), []);
 
   const createGroup = useCallback(async (payload) => runTask('create-group', async () => {
@@ -241,6 +267,10 @@ export function useHubWorkspace() {
     createInstance,
     updateInstance,
     toggleInstanceArchive,
+    deleteArchivedInstance,
+    archiveManyInstances,
+    restoreManyInstances,
+    deleteManyArchivedInstances,
     fetchInstanceHistory,
     createGroup,
     updateGroup,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Copy, Share2, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Archive, CheckCircle2, Copy, RotateCcw, Share2, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
 
 export function ResponsePane({
@@ -11,6 +11,8 @@ export function ResponsePane({
   onFeedback,
   onCopy,
   onShare,
+  archived = false,
+  onToggleArchive = null,
   synthesisSelected = false,
   onToggleSynthesis = null,
 }) {
@@ -54,6 +56,16 @@ export function ResponsePane({
         <button type="button" onClick={onShare} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:text-white" data-testid={`response-share-button-${responseId}`}>
           <span className="flex items-center gap-2"><Share2 size={13} /> Share</span>
         </button>
+        {onToggleArchive && (
+          <button
+            type="button"
+            onClick={onToggleArchive}
+            className={`rounded-xl border px-3 py-2 text-xs ${archived ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-zinc-800 text-zinc-300 hover:text-white'}`}
+            data-testid={`response-archive-button-${responseId}`}
+          >
+            <span className="flex items-center gap-2">{archived ? <RotateCcw size={13} /> : <Archive size={13} />}{archived ? 'Undo archive' : 'Archive'}</span>
+          </button>
+        )}
       </div>
 
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid={`response-content-${responseId}`}>

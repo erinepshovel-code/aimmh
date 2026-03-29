@@ -38,6 +38,7 @@ export const hubApi = {
   updateInstance: (instanceId, payload) => request(`/v1/hub/instances/${instanceId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   archiveInstance: (instanceId) => request(`/v1/hub/instances/${instanceId}/archive`, { method: 'POST' }),
   unarchiveInstance: (instanceId) => request(`/v1/hub/instances/${instanceId}/unarchive`, { method: 'POST' }),
+  deleteInstance: (instanceId) => request(`/v1/hub/instances/${instanceId}`, { method: 'DELETE' }),
   getInstanceHistory: (instanceId, limit = 200) => request(`/v1/hub/instances/${instanceId}/history?limit=${limit}`),
   getGroups: (includeArchived = false) => request(`/v1/hub/groups?include_archived=${includeArchived}`),
   createGroup: (payload) => request('/v1/hub/groups', { method: 'POST', body: JSON.stringify(payload) }),

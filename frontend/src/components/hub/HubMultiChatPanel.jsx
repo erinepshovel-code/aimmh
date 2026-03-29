@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, MessageSquareShare, Send, Sparkles } from 'lucide-react';
+import { CheckCheck, Loader2, MessageSquareShare, Send, Sparkles } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
 
 export function HubMultiChatPanel({
@@ -38,6 +38,12 @@ export function HubMultiChatPanel({
     setSynthesisInstanceIds((prev) => prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId]);
   };
 
+  const allRecipientsSelected = activeInstances.length > 0 && selectedInstanceIds.length === activeInstances.length;
+
+  const toggleSelectAllRecipients = () => {
+    setSelectedInstanceIds(allRecipientsSelected ? [] : activeInstances.map((instance) => instance.instance_id));
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (!prompt.trim() || selectedInstanceIds.length === 0) return;
@@ -63,7 +69,12 @@ export function HubMultiChatPanel({
         <p className="mt-1 text-xs text-zinc-500">Send the exact same prompt to one or more selected instances at once. Each reply appends to that instance’s private thread history.</p>
         <form onSubmit={submit} className="mt-4 space-y-4">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3" data-testid="chat-recipient-list">
-            <div className="mb-2 text-xs font-medium text-zinc-300">Recipients</div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-xs font-medium text-zinc-300">Recipients</div>
+              <button type="button" onClick={toggleSelectAllRecipients} className="rounded-xl border border-zinc-800 px-3 py-1 text-xs text-zinc-300" data-testid="chat-select-all-instances-button">
+                <span className="flex items-center gap-2"><CheckCheck size={12} /> {allRecipientsSelected ? 'Clear all' : 'Select all instances'}</span>
+              </button>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {activeInstances.length === 0 ? <div className="text-xs text-zinc-500">Create instances first in the instantiation tab.</div> : activeInstances.map((instance) => (
                 <label key={instance.instance_id} className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-300" data-testid={`chat-recipient-option-${instance.instance_id}`}>

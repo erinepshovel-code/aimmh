@@ -24,6 +24,8 @@ export function ResponseCarousel({
   onFeedback,
   onCopy,
   onShare,
+  archivedIds = [],
+  onToggleArchive = null,
   synthesisIds = [],
   onToggleSynthesis = null,
 }) {
@@ -43,6 +45,7 @@ export function ResponseCarousel({
 
   const handleTouchMove = (event) => {
     if (event.touches.length < 2) return;
+    event.preventDefault();
     const nextDistance = distance(event.touches);
     const nextAverageY = averageY(event.touches);
     const zoomDelta = (nextDistance - gestureRef.current.startDistance) / 180;
@@ -88,6 +91,8 @@ export function ResponseCarousel({
           onFeedback={(value) => onFeedback(current, value)}
           onCopy={() => onCopy(current)}
           onShare={() => onShare(current)}
+          archived={archivedIds.includes(current.run_step_id)}
+          onToggleArchive={onToggleArchive ? () => onToggleArchive(current) : null}
           synthesisSelected={synthesisIds.includes(current.run_step_id)}
           onToggleSynthesis={onToggleSynthesis ? () => onToggleSynthesis(current) : null}
         />

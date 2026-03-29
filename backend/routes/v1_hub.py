@@ -55,6 +55,7 @@ def _connections_payload() -> HubConnectionsResponse:
                 "update": "/api/v1/hub/instances/{instance_id}",
                 "archive": "/api/v1/hub/instances/{instance_id}/archive",
                 "unarchive": "/api/v1/hub/instances/{instance_id}/unarchive",
+                "delete": "/api/v1/hub/instances/{instance_id}",
                 "history": "/api/v1/hub/instances/{instance_id}/history",
             },
             "groups": {
@@ -193,6 +194,36 @@ async def archive_instance(instance_id: str, current_user: dict = Depends(get_cu
 @router.post("/instances/{instance_id}/unarchive", response_model=HubInstanceOut)
 async def unarchive_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
     return await update_instance(instance_id, HubInstanceUpdateRequest(archived=False), current_user)
+
+
+@router.delete("/instances/{instance_id}")
+async def delete_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    existing = await db[HUB_INSTANCE_COLLECTION].find_one(
+        {"user_id": user_id, "instance_id": instance_id},
+        {"_id": 0, "instance_id": 1, "thread_id": 1, "archived": 1},
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    if not existing.get("archived"):
+        raise HTTPException(status_code=400, detail="Archive the instance before deleting it")
+
+    await db[HUB_INSTANCE_COLLECTION].delete_one({"user_id": user_id, "instance_id": instance_id, "archived": True})
+
+    thread_id = existing.get("thread_id")
+    if thread_id:
+        await db.threads.delete_one({"user_id": user_id, "thread_id": thread_id})
+        await db.messages.delete_many({"user_id": user_id, "thread_id": thread_id})
+
+    await db[HUB_GROUP_COLLECTION].update_many(
+        {"user_id": user_id},
+        {
+            "$pull": {"members": {"member_type": "instance", "member_id": instance_id}},
+            "$set": {"updated_at": iso_now()},
+        },
+    )
+
+    return {"message": f"Archived instance {instance_id} deleted"}
 
 
 @router.get("/instances/{instance_id}/history", response_model=HubInstanceHistoryResponse)

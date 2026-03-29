@@ -11,7 +11,7 @@ import httpx
 from typing import Dict, Any, Optional
 
 # Test configuration
-BASE_URL = "https://synthesis-chat.preview.emergentagent.com"
+BASE_URL = "https://aimmh-hub-1.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 class RegistryAPITest:

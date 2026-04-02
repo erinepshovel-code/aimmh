@@ -158,7 +158,7 @@ def _stripe_key() -> str:
 
 def _build_checkout(request: Request) -> StripeCheckout:
     host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
+    webhook_url = f"{host_url}/api/payments/webhook/stripe"
     return StripeCheckout(api_key=_stripe_key(), webhook_url=webhook_url)
 
 

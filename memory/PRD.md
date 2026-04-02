@@ -82,6 +82,9 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Added backend readiness endpoint `GET /api/ready` (Mongo ping check; returns 503 when not ready)
 - [x] Added backend liveness endpoint `GET /api/health` for simple startup/health probes
 - [x] Kept existing `/api/v1/health` intact; readiness/liveness checks verified via curl on preview URL
+- [x] Added AI visitor instruction endpoints: `GET /api/ai-instructions`, `GET /api/v1/ai-instructions`, and public text guide at `/ai-instructions.txt`
+- [x] Added in-app hybrid AI/Human guidance: splash summary + per-tab guide panel with persistent top-shell “Help for AI” toggle
+- [x] Added first-visit guide memory via localStorage key `aimmh-ai-guide-seen-v1`
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { HubGroupsPanel } from '../components/hub/HubGroupsPanel';
 import { HubInstancesPanel } from '../components/hub/HubInstancesPanel';
@@ -24,6 +25,7 @@ const TABS = [
 const AI_GUIDE_SEEN_KEY = 'aimmh-ai-guide-seen-v1';
 
 export default function AimmhHubPage() {
+  const navigate = useNavigate();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
@@ -277,7 +279,15 @@ export default function AimmhHubPage() {
       <main className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6">
         <div className="space-y-3">
           <div className="sticky top-0 z-20 space-y-2 border-b border-zinc-800 bg-zinc-950/95 pb-3 backdrop-blur" data-testid="hub-tab-selector-shell">
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/pricing')}
+                className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                data-testid="hub-open-pricing-button"
+              >
+                Pricing
+              </button>
               <button
                 type="button"
                 onClick={() => {

@@ -78,6 +78,11 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Simplified workspace layout to splash-first flow: splash screen appears briefly, then only top tab selector + current tab content are shown (no persistent README/header chrome)
 - [x] Deployment hardening: cleaned corrupted root `.gitignore` and removed environment-file ignore patterns (`*.env`, `*.env.*`) to prevent production deployment config omissions
 
+## Latest Verified Fixes — 2026-04-02
+- [x] Added backend readiness endpoint `GET /api/ready` (Mongo ping check; returns 503 when not ready)
+- [x] Added backend liveness endpoint `GET /api/health` for simple startup/health probes
+- [x] Kept existing `/api/v1/health` intact; readiness/liveness checks verified via curl on preview URL
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

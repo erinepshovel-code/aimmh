@@ -1,229 +1,216 @@
 #!/usr/bin/env python3
 """
-Backend API Test for AIMMH Hub Registry
-Tests fresh auth flow and registry model validation
+Backend Health/Readiness Endpoints Validation Test
+Tests the health and readiness endpoints on the preview URL.
 """
 
-import asyncio
-import httpx
+import requests
 import json
-import uuid
-from datetime import datetime
+import sys
+from typing import Dict, Any
 
-# Test configuration
+# Use the production URL from frontend/.env
 BASE_URL = "https://aimmh-hub-1.preview.emergentagent.com"
-TIMEOUT = 30.0
 
-# Expected model IDs from the review request
-EXPECTED_ANTHROPIC_MODELS = {
-    "claude-sonnet-4-5-20250929",
-    "claude-haiku-4-5-20251001", 
-    "claude-opus-4-5-20251101"
-}
-
-EXPECTED_GOOGLE_MODELS = {
-    "gemini-2.0-flash",
-    "gemini-2.5-pro", 
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite"
-}
-
-# Old model IDs that should be absent
-OLD_ANTHROPIC_MODELS = {
-    "claude-3-5-sonnet",
-    "claude-3-5-haiku"
-}
-
-OLD_GOOGLE_MODELS = {
-    "gemini-1.5-pro",
-    "gemini-1.5-flash"
-}
-
-class RegistryTestResult:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.details = []
+def test_endpoint(method: str, url: str, expected_status: int = 200) -> Dict[str, Any]:
+    """Test an endpoint and return structured results."""
+    try:
+        if method.upper() == "GET":
+            response = requests.get(url, timeout=10)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
         
-    def add_pass(self, test_name: str, details: str = ""):
-        self.passed += 1
-        self.details.append(f"✅ {test_name}: {details}")
+        result = {
+            "url": url,
+            "method": method,
+            "status_code": response.status_code,
+            "expected_status": expected_status,
+            "success": response.status_code == expected_status,
+            "response_time_ms": round(response.elapsed.total_seconds() * 1000, 2)
+        }
         
-    def add_fail(self, test_name: str, details: str = ""):
-        self.failed += 1
-        self.details.append(f"❌ {test_name}: {details}")
-        
-    def summary(self):
-        total = self.passed + self.failed
-        status = "PASS" if self.failed == 0 else "FAIL"
-        return f"{status} ({self.passed}/{total} tests passed)"
-
-async def test_registry_api():
-    """Main test function for registry API validation"""
-    result = RegistryTestResult()
-    
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        # Try to parse JSON response
         try:
-            # Step 1: Register fresh user
-            username = f"registry_test_{int(datetime.now().timestamp())}"
-            password = "test_password_123"
+            result["response_json"] = response.json()
+        except:
+            result["response_text"] = response.text[:500]  # Truncate long responses
             
-            register_data = {
-                "username": username,
-                "password": password
-            }
-            
-            print(f"🔄 Registering user: {username}")
-            register_response = await client.post(
-                f"{BASE_URL}/api/auth/register",
-                json=register_data
-            )
-            
-            if register_response.status_code != 200:
-                result.add_fail("User Registration", f"Status {register_response.status_code}: {register_response.text}")
-                return result
-                
-            register_json = register_response.json()
-            access_token = register_json.get("access_token")
-            
-            if not access_token:
-                result.add_fail("User Registration", "No access token in response")
-                return result
-                
-            result.add_pass("User Registration", f"User {username} registered successfully")
-            
-            # Step 2: Test authentication with /api/auth/me
-            print("🔄 Testing authentication...")
-            auth_headers = {"Authorization": f"Bearer {access_token}"}
-            
-            me_response = await client.get(
-                f"{BASE_URL}/api/auth/me",
-                headers=auth_headers
-            )
-            
-            if me_response.status_code != 200:
-                result.add_fail("Authentication Test", f"Status {me_response.status_code}: {me_response.text}")
-                return result
-                
-            result.add_pass("Authentication Test", "Bearer token authentication working")
-            
-            # Step 3: Call GET /api/v1/registry with auth token
-            print("🔄 Fetching registry...")
-            registry_response = await client.get(
-                f"{BASE_URL}/api/v1/registry",
-                headers=auth_headers
-            )
-            
-            if registry_response.status_code != 200:
-                result.add_fail("Registry API Call", f"Status {registry_response.status_code}: {registry_response.text}")
-                return result
-                
-            registry_data = registry_response.json()
-            result.add_pass("Registry API Call", "Successfully fetched registry")
-            
-            # Step 4: Validate registry structure
-            if "developers" not in registry_data:
-                result.add_fail("Registry Structure", "Missing 'developers' field")
-                return result
-                
-            developers = registry_data["developers"]
-            if not isinstance(developers, list):
-                result.add_fail("Registry Structure", "'developers' is not a list")
-                return result
-                
-            result.add_pass("Registry Structure", f"Found {len(developers)} developers")
-            
-            # Step 5: Find and validate Anthropic models
-            anthropic_dev = None
-            google_dev = None
-            
-            for dev in developers:
-                if dev.get("developer_id") == "anthropic":
-                    anthropic_dev = dev
-                elif dev.get("developer_id") == "google":
-                    google_dev = dev
-                    
-            # Test Anthropic models
-            if not anthropic_dev:
-                result.add_fail("Anthropic Developer", "Anthropic developer not found")
-            else:
-                anthropic_models = {model.get("model_id") for model in anthropic_dev.get("models", [])}
-                
-                # Check expected models are present
-                missing_anthropic = EXPECTED_ANTHROPIC_MODELS - anthropic_models
-                if missing_anthropic:
-                    result.add_fail("Anthropic Expected Models", f"Missing: {missing_anthropic}")
-                else:
-                    result.add_pass("Anthropic Expected Models", f"All expected models present: {EXPECTED_ANTHROPIC_MODELS}")
-                
-                # Check old models are absent
-                present_old_anthropic = OLD_ANTHROPIC_MODELS & anthropic_models
-                if present_old_anthropic:
-                    result.add_fail("Anthropic Old Models Absent", f"Old models still present: {present_old_anthropic}")
-                else:
-                    result.add_pass("Anthropic Old Models Absent", f"Old models correctly absent: {OLD_ANTHROPIC_MODELS}")
-                    
-            # Test Google models
-            if not google_dev:
-                result.add_fail("Google Developer", "Google developer not found")
-            else:
-                google_models = {model.get("model_id") for model in google_dev.get("models", [])}
-                
-                # Check expected models are present
-                missing_google = EXPECTED_GOOGLE_MODELS - google_models
-                if missing_google:
-                    result.add_fail("Google Expected Models", f"Missing: {missing_google}")
-                else:
-                    result.add_pass("Google Expected Models", f"All expected models present: {EXPECTED_GOOGLE_MODELS}")
-                
-                # Check old models are absent
-                present_old_google = OLD_GOOGLE_MODELS & google_models
-                if present_old_google:
-                    result.add_fail("Google Old Models Absent", f"Old models still present: {present_old_google}")
-                else:
-                    result.add_pass("Google Old Models Absent", f"Old models correctly absent: {OLD_GOOGLE_MODELS}")
-            
-            # Step 6: Print registry response snippet for verification
-            print("\n📋 Registry Response Snippet:")
-            print("=" * 50)
-            
-            for dev in developers:
-                if dev.get("developer_id") in ["anthropic", "google"]:
-                    print(f"\n{dev.get('name', dev.get('developer_id'))} ({dev.get('developer_id')}):")
-                    for model in dev.get("models", []):
-                        print(f"  - {model.get('model_id')} ({model.get('display_name', 'N/A')})")
-                        
-            print("=" * 50)
-            
-        except httpx.TimeoutException:
-            result.add_fail("Network", "Request timeout")
-        except httpx.RequestError as e:
-            result.add_fail("Network", f"Request error: {e}")
-        except Exception as e:
-            result.add_fail("Unexpected Error", f"Exception: {e}")
-            
-    return result
-
-async def main():
-    """Main entry point"""
-    print("🚀 Starting AIMMH Hub Registry API Test")
-    print(f"📍 Base URL: {BASE_URL}")
-    print("=" * 60)
-    
-    result = await test_registry_api()
-    
-    print("\n📊 Test Results:")
-    print("=" * 60)
-    for detail in result.details:
-        print(detail)
+        return result
         
-    print("=" * 60)
-    print(f"🏁 Final Result: {result.summary()}")
+    except Exception as e:
+        return {
+            "url": url,
+            "method": method,
+            "status_code": None,
+            "expected_status": expected_status,
+            "success": False,
+            "error": str(e),
+            "response_time_ms": None
+        }
+
+def validate_health_response(response_data: Dict[str, Any], endpoint_name: str) -> Dict[str, Any]:
+    """Validate health endpoint response structure."""
+    validation = {
+        "endpoint": endpoint_name,
+        "valid_structure": True,
+        "issues": []
+    }
     
-    if result.failed > 0:
-        exit(1)
+    # Check required fields
+    if "status" not in response_data:
+        validation["valid_structure"] = False
+        validation["issues"].append("Missing 'status' field")
+    elif response_data["status"] != "ok":
+        validation["valid_structure"] = False
+        validation["issues"].append(f"Status is '{response_data['status']}', expected 'ok'")
+    
+    return validation
+
+def validate_ready_response(response_data: Dict[str, Any], endpoint_name: str) -> Dict[str, Any]:
+    """Validate readiness endpoint response structure."""
+    validation = {
+        "endpoint": endpoint_name,
+        "valid_structure": True,
+        "issues": []
+    }
+    
+    # Check required fields
+    required_fields = ["status", "checks"]
+    for field in required_fields:
+        if field not in response_data:
+            validation["valid_structure"] = False
+            validation["issues"].append(f"Missing '{field}' field")
+    
+    # Check status value
+    if "status" in response_data:
+        if response_data["status"] not in ["ready", "not_ready"]:
+            validation["valid_structure"] = False
+            validation["issues"].append(f"Invalid status '{response_data['status']}', expected 'ready' or 'not_ready'")
+    
+    # Check checks.mongo structure
+    if "checks" in response_data:
+        if "mongo" not in response_data["checks"]:
+            validation["valid_structure"] = False
+            validation["issues"].append("Missing 'checks.mongo' field")
+        else:
+            mongo_check = response_data["checks"]["mongo"]
+            if "ok" not in mongo_check:
+                validation["valid_structure"] = False
+                validation["issues"].append("Missing 'checks.mongo.ok' field")
+            if "message" not in mongo_check:
+                validation["valid_structure"] = False
+                validation["issues"].append("Missing 'checks.mongo.message' field")
+    
+    return validation
+
+def main():
+    """Run all health/readiness endpoint tests."""
+    print("🔍 BACKEND HEALTH/READINESS ENDPOINTS VALIDATION")
+    print(f"Testing against: {BASE_URL}")
+    print("=" * 60)
+    
+    test_results = []
+    validations = []
+    
+    # Test 1: GET /api/health should return 200 with JSON containing status=ok
+    print("\n1️⃣  Testing GET /api/health")
+    result = test_endpoint("GET", f"{BASE_URL}/api/health", 200)
+    test_results.append(result)
+    
+    if result["success"] and "response_json" in result:
+        validation = validate_health_response(result["response_json"], "/api/health")
+        validations.append(validation)
+        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
+        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
+        if validation["valid_structure"]:
+            print(f"   ✅ Structure validation: PASSED")
+        else:
+            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
     else:
-        print("🎉 All tests passed!")
+        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
+    
+    # Test 2: GET /api/ready should return 200/503 with proper structure
+    print("\n2️⃣  Testing GET /api/ready")
+    result = test_endpoint("GET", f"{BASE_URL}/api/ready")  # Don't specify expected status
+    test_results.append(result)
+    
+    if "response_json" in result:
+        validation = validate_ready_response(result["response_json"], "/api/ready")
+        validations.append(validation)
+        
+        response_data = result["response_json"]
+        mongo_status = response_data.get("checks", {}).get("mongo", {}).get("ok", False)
+        expected_status = 200 if mongo_status else 503
+        
+        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
+        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
+        
+        if result["status_code"] == expected_status:
+            print(f"   ✅ Status code validation: PASSED (expected {expected_status} based on mongo.ok={mongo_status})")
+        else:
+            print(f"   ❌ Status code validation: FAILED (got {result['status_code']}, expected {expected_status})")
+            
+        if validation["valid_structure"]:
+            print(f"   ✅ Structure validation: PASSED")
+        else:
+            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
+    else:
+        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
+    
+    # Test 3: GET /api/v1/health should return 200
+    print("\n3️⃣  Testing GET /api/v1/health")
+    result = test_endpoint("GET", f"{BASE_URL}/api/v1/health", 200)
+    test_results.append(result)
+    
+    if result["success"] and "response_json" in result:
+        validation = validate_health_response(result["response_json"], "/api/v1/health")
+        validations.append(validation)
+        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
+        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
+        if validation["valid_structure"]:
+            print(f"   ✅ Structure validation: PASSED")
+        else:
+            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
+    else:
+        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
+    
+    total_tests = len(test_results)
+    passed_tests = sum(1 for r in test_results if r["success"])
+    failed_tests = total_tests - passed_tests
+    
+    print(f"Total tests: {total_tests}")
+    print(f"Passed: {passed_tests}")
+    print(f"Failed: {failed_tests}")
+    
+    if failed_tests == 0:
+        print("\n🎉 ALL TESTS PASSED!")
+    else:
+        print(f"\n⚠️  {failed_tests} TEST(S) FAILED")
+        
+    # Detailed results
+    print("\n📋 DETAILED RESULTS:")
+    for i, result in enumerate(test_results, 1):
+        status_icon = "✅" if result["success"] else "❌"
+        print(f"{i}. {status_icon} {result['method']} {result['url']} - Status: {result.get('status_code', 'N/A')}")
+        if not result["success"] and "error" in result:
+            print(f"   Error: {result['error']}")
+    
+    # Structure validation summary
+    print("\n🔍 STRUCTURE VALIDATION SUMMARY:")
+    for validation in validations:
+        status_icon = "✅" if validation["valid_structure"] else "❌"
+        print(f"{status_icon} {validation['endpoint']}")
+        if not validation["valid_structure"]:
+            for issue in validation["issues"]:
+                print(f"   - {issue}")
+    
+    return failed_tests == 0
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    success = main()
+    sys.exit(0 if success else 1)

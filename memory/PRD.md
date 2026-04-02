@@ -86,6 +86,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Added in-app hybrid AI/Human guidance: splash summary + per-tab guide panel with persistent top-shell “Help for AI” toggle
 - [x] Added first-visit guide memory via localStorage key `aimmh-ai-guide-seen-v1`
 - [x] Stripe hardening: corrected checkout webhook URL target to `/api/payments/webhook/stripe` in `backend/routes/payments_v2.py`
+- [x] Restored in-workspace pricing access after header simplification by adding top-shell `Pricing` button (`data-testid="hub-open-pricing-button"`) linking to `/pricing`
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

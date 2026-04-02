@@ -26,7 +26,9 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://emergentapp.interdependentway.org"
 Repository = "https://github.com/erinepshovel-code/aimmh"
+"Bug Tracker" = "https://github.com/erinepshovel-code/aimmh/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

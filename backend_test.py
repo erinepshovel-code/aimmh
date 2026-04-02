@@ -1,216 +1,202 @@
 #!/usr/bin/env python3
 """
-Backend Health/Readiness Endpoints Validation Test
-Tests the health and readiness endpoints on the preview URL.
+Backend API Testing Script for AIMMH Hub
+Tests the new /api/payments/stripe/mode endpoint
 """
 
 import requests
 import json
-import sys
-from typing import Dict, Any
+import random
+import string
+from datetime import datetime
 
-# Use the production URL from frontend/.env
+# Configuration
 BASE_URL = "https://aimmh-hub-1.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
 
-def test_endpoint(method: str, url: str, expected_status: int = 200) -> Dict[str, Any]:
-    """Test an endpoint and return structured results."""
+def generate_test_username():
+    """Generate a unique test username"""
+    timestamp = str(int(datetime.now().timestamp()))
+    random_suffix = ''.join(random.choices(string.digits, k=6))
+    return f"stripe_mode_test_{timestamp}_{random_suffix}"
+
+def register_and_login():
+    """Register a fresh user and get bearer token"""
+    print("=== STEP 1: User Registration & Authentication ===")
+    
+    username = generate_test_username()
+    password = "testpass123"
+    
+    # Register user
+    register_data = {
+        "username": username,
+        "password": password
+    }
+    
+    print(f"Registering user: {username}")
+    register_response = requests.post(f"{API_BASE}/auth/register", json=register_data)
+    print(f"Register response: {register_response.status_code}")
+    
+    if register_response.status_code != 200:
+        print(f"Registration failed: {register_response.text}")
+        return None, None
+    
+    # Login to get token
+    login_data = {
+        "username": username,
+        "password": password
+    }
+    
+    print(f"Logging in user: {username}")
+    login_response = requests.post(f"{API_BASE}/auth/login", json=login_data)
+    print(f"Login response: {login_response.status_code}")
+    
+    if login_response.status_code != 200:
+        print(f"Login failed: {login_response.text}")
+        return None, None
+    
+    login_data = login_response.json()
+    access_token = login_data.get("access_token")
+    
+    if not access_token:
+        print("No access token in login response")
+        return None, None
+    
+    print(f"✅ Successfully authenticated user: {username}")
+    print(f"✅ Bearer token obtained: {access_token[:20]}...")
+    
+    return username, access_token
+
+def test_stripe_mode_authenticated(token):
+    """Test GET /api/payments/stripe/mode with authentication"""
+    print("\n=== STEP 2: Test Authenticated Stripe Mode Endpoint ===")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    print(f"Calling GET {API_BASE}/payments/stripe/mode with Bearer token")
+    response = requests.get(f"{API_BASE}/payments/stripe/mode", headers=headers)
+    
+    print(f"Response status: {response.status_code}")
+    print(f"Response headers: {dict(response.headers)}")
+    
+    if response.status_code != 200:
+        print(f"❌ Expected 200, got {response.status_code}")
+        print(f"Response body: {response.text}")
+        return False
+    
+    # Check if response is JSON
     try:
-        if method.upper() == "GET":
-            response = requests.get(url, timeout=10)
-        else:
-            raise ValueError(f"Unsupported method: {method}")
-        
-        result = {
-            "url": url,
-            "method": method,
-            "status_code": response.status_code,
-            "expected_status": expected_status,
-            "success": response.status_code == expected_status,
-            "response_time_ms": round(response.elapsed.total_seconds() * 1000, 2)
-        }
-        
-        # Try to parse JSON response
-        try:
-            result["response_json"] = response.json()
-        except:
-            result["response_text"] = response.text[:500]  # Truncate long responses
-            
-        return result
-        
-    except Exception as e:
-        return {
-            "url": url,
-            "method": method,
-            "status_code": None,
-            "expected_status": expected_status,
-            "success": False,
-            "error": str(e),
-            "response_time_ms": None
-        }
+        response_data = response.json()
+        print(f"✅ Response is valid JSON")
+        print(f"Response data: {json.dumps(response_data, indent=2)}")
+    except json.JSONDecodeError:
+        print(f"❌ Response is not valid JSON: {response.text}")
+        return False
+    
+    # Check required keys
+    required_keys = ["stripe_mode", "key_present"]
+    missing_keys = []
+    
+    for key in required_keys:
+        if key not in response_data:
+            missing_keys.append(key)
+    
+    if missing_keys:
+        print(f"❌ Missing required keys: {missing_keys}")
+        return False
+    
+    print(f"✅ All required keys present: {required_keys}")
+    
+    # Check that actual key material is NOT leaked
+    response_str = json.dumps(response_data).lower()
+    suspicious_patterns = [
+        "sk_test_", "sk_live_", "pk_test_", "pk_live_",  # Stripe key prefixes
+        "rk_test_", "rk_live_",  # Restricted key prefixes
+        "whsec_",  # Webhook secret prefix
+    ]
+    
+    leaked_patterns = []
+    for pattern in suspicious_patterns:
+        if pattern in response_str:
+            leaked_patterns.append(pattern)
+    
+    if leaked_patterns:
+        print(f"❌ SECURITY ISSUE: Potential key material leaked - found patterns: {leaked_patterns}")
+        return False
+    
+    print(f"✅ No key material leaked - response does not contain sensitive patterns")
+    
+    # Validate response structure
+    stripe_mode = response_data.get("stripe_mode")
+    key_present = response_data.get("key_present")
+    
+    print(f"stripe_mode: {stripe_mode}")
+    print(f"key_present: {key_present}")
+    
+    # Basic validation
+    if stripe_mode not in ["test", "live", None]:
+        print(f"⚠️  Unexpected stripe_mode value: {stripe_mode}")
+    
+    if not isinstance(key_present, bool):
+        print(f"⚠️  key_present should be boolean, got: {type(key_present)}")
+    
+    print(f"✅ Authenticated endpoint test PASSED")
+    return True
 
-def validate_health_response(response_data: Dict[str, Any], endpoint_name: str) -> Dict[str, Any]:
-    """Validate health endpoint response structure."""
-    validation = {
-        "endpoint": endpoint_name,
-        "valid_structure": True,
-        "issues": []
-    }
+def test_stripe_mode_unauthenticated():
+    """Test GET /api/payments/stripe/mode without authentication"""
+    print("\n=== STEP 3: Test Unauthenticated Access ===")
     
-    # Check required fields
-    if "status" not in response_data:
-        validation["valid_structure"] = False
-        validation["issues"].append("Missing 'status' field")
-    elif response_data["status"] != "ok":
-        validation["valid_structure"] = False
-        validation["issues"].append(f"Status is '{response_data['status']}', expected 'ok'")
+    print(f"Calling GET {API_BASE}/payments/stripe/mode without Bearer token")
+    response = requests.get(f"{API_BASE}/payments/stripe/mode")
     
-    return validation
-
-def validate_ready_response(response_data: Dict[str, Any], endpoint_name: str) -> Dict[str, Any]:
-    """Validate readiness endpoint response structure."""
-    validation = {
-        "endpoint": endpoint_name,
-        "valid_structure": True,
-        "issues": []
-    }
+    print(f"Response status: {response.status_code}")
     
-    # Check required fields
-    required_fields = ["status", "checks"]
-    for field in required_fields:
-        if field not in response_data:
-            validation["valid_structure"] = False
-            validation["issues"].append(f"Missing '{field}' field")
+    if response.status_code != 401:
+        print(f"❌ Expected 401 Unauthorized, got {response.status_code}")
+        print(f"Response body: {response.text}")
+        return False
     
-    # Check status value
-    if "status" in response_data:
-        if response_data["status"] not in ["ready", "not_ready"]:
-            validation["valid_structure"] = False
-            validation["issues"].append(f"Invalid status '{response_data['status']}', expected 'ready' or 'not_ready'")
-    
-    # Check checks.mongo structure
-    if "checks" in response_data:
-        if "mongo" not in response_data["checks"]:
-            validation["valid_structure"] = False
-            validation["issues"].append("Missing 'checks.mongo' field")
-        else:
-            mongo_check = response_data["checks"]["mongo"]
-            if "ok" not in mongo_check:
-                validation["valid_structure"] = False
-                validation["issues"].append("Missing 'checks.mongo.ok' field")
-            if "message" not in mongo_check:
-                validation["valid_structure"] = False
-                validation["issues"].append("Missing 'checks.mongo.message' field")
-    
-    return validation
+    print(f"✅ Unauthenticated access correctly returns 401 Unauthorized")
+    return True
 
 def main():
-    """Run all health/readiness endpoint tests."""
-    print("🔍 BACKEND HEALTH/READINESS ENDPOINTS VALIDATION")
-    print(f"Testing against: {BASE_URL}")
-    print("=" * 60)
+    """Main test execution"""
+    print("🧪 STRIPE MODE ENDPOINT VALIDATION TEST")
+    print("=" * 50)
     
-    test_results = []
-    validations = []
+    # Step 1: Register and login
+    username, token = register_and_login()
+    if not token:
+        print("❌ Failed to obtain authentication token")
+        return False
     
-    # Test 1: GET /api/health should return 200 with JSON containing status=ok
-    print("\n1️⃣  Testing GET /api/health")
-    result = test_endpoint("GET", f"{BASE_URL}/api/health", 200)
-    test_results.append(result)
+    # Step 2: Test authenticated endpoint
+    auth_test_passed = test_stripe_mode_authenticated(token)
     
-    if result["success"] and "response_json" in result:
-        validation = validate_health_response(result["response_json"], "/api/health")
-        validations.append(validation)
-        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
-        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
-        if validation["valid_structure"]:
-            print(f"   ✅ Structure validation: PASSED")
-        else:
-            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
-    else:
-        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
-    
-    # Test 2: GET /api/ready should return 200/503 with proper structure
-    print("\n2️⃣  Testing GET /api/ready")
-    result = test_endpoint("GET", f"{BASE_URL}/api/ready")  # Don't specify expected status
-    test_results.append(result)
-    
-    if "response_json" in result:
-        validation = validate_ready_response(result["response_json"], "/api/ready")
-        validations.append(validation)
-        
-        response_data = result["response_json"]
-        mongo_status = response_data.get("checks", {}).get("mongo", {}).get("ok", False)
-        expected_status = 200 if mongo_status else 503
-        
-        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
-        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
-        
-        if result["status_code"] == expected_status:
-            print(f"   ✅ Status code validation: PASSED (expected {expected_status} based on mongo.ok={mongo_status})")
-        else:
-            print(f"   ❌ Status code validation: FAILED (got {result['status_code']}, expected {expected_status})")
-            
-        if validation["valid_structure"]:
-            print(f"   ✅ Structure validation: PASSED")
-        else:
-            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
-    else:
-        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
-    
-    # Test 3: GET /api/v1/health should return 200
-    print("\n3️⃣  Testing GET /api/v1/health")
-    result = test_endpoint("GET", f"{BASE_URL}/api/v1/health", 200)
-    test_results.append(result)
-    
-    if result["success"] and "response_json" in result:
-        validation = validate_health_response(result["response_json"], "/api/v1/health")
-        validations.append(validation)
-        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
-        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
-        if validation["valid_structure"]:
-            print(f"   ✅ Structure validation: PASSED")
-        else:
-            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
-    else:
-        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
+    # Step 3: Test unauthenticated endpoint
+    unauth_test_passed = test_stripe_mode_unauthenticated()
     
     # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST SUMMARY")
-    print("=" * 60)
+    print("\n" + "=" * 50)
+    print("🏁 TEST SUMMARY")
+    print("=" * 50)
     
-    total_tests = len(test_results)
-    passed_tests = sum(1 for r in test_results if r["success"])
-    failed_tests = total_tests - passed_tests
-    
-    print(f"Total tests: {total_tests}")
-    print(f"Passed: {passed_tests}")
-    print(f"Failed: {failed_tests}")
-    
-    if failed_tests == 0:
-        print("\n🎉 ALL TESTS PASSED!")
+    if auth_test_passed and unauth_test_passed:
+        print("✅ ALL TESTS PASSED")
+        print("✅ Endpoint returns correct JSON structure with stripe_mode and key_present")
+        print("✅ No key material leaked in response")
+        print("✅ Unauthenticated access properly blocked with 401")
+        return True
     else:
-        print(f"\n⚠️  {failed_tests} TEST(S) FAILED")
-        
-    # Detailed results
-    print("\n📋 DETAILED RESULTS:")
-    for i, result in enumerate(test_results, 1):
-        status_icon = "✅" if result["success"] else "❌"
-        print(f"{i}. {status_icon} {result['method']} {result['url']} - Status: {result.get('status_code', 'N/A')}")
-        if not result["success"] and "error" in result:
-            print(f"   Error: {result['error']}")
-    
-    # Structure validation summary
-    print("\n🔍 STRUCTURE VALIDATION SUMMARY:")
-    for validation in validations:
-        status_icon = "✅" if validation["valid_structure"] else "❌"
-        print(f"{status_icon} {validation['endpoint']}")
-        if not validation["valid_structure"]:
-            for issue in validation["issues"]:
-                print(f"   - {issue}")
-    
-    return failed_tests == 0
+        print("❌ SOME TESTS FAILED")
+        print(f"   Authenticated test: {'PASS' if auth_test_passed else 'FAIL'}")
+        print(f"   Unauthenticated test: {'PASS' if unauth_test_passed else 'FAIL'}")
+        return False
 
 if __name__ == "__main__":
     success = main()
-    sys.exit(0 if success else 1)
+    exit(0 if success else 1)

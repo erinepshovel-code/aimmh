@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 import os
 import logging
 from pathlib import Path
@@ -21,6 +21,7 @@ from routes.v1_analysis import router as analysis_router
 from routes.v1_lib import router as v1_lib_router
 from routes.v1_hub import router as v1_hub_router
 from routes.payments_v2 import router as payments_router
+from services.ai_instructions import get_ai_instruction_payload, get_ai_instruction_text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,6 +73,16 @@ app.add_middleware(
 @app.get("/api/")
 async def root():
     return {"message": "Multi-Model Hub API", "version": "v1.0.2-S9", "spec": "interdependentway.org/canon/spec.md"}
+
+
+@app.get("/api/ai-instructions")
+async def ai_instructions_json():
+    return get_ai_instruction_payload()
+
+
+@app.get("/ai-instructions.txt", response_class=PlainTextResponse)
+async def ai_instructions_txt():
+    return get_ai_instruction_text()
 
 
 @app.get("/health")

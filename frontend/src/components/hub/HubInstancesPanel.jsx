@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Archive, Clock3, Edit3, Plus, RotateCcw, ScrollText } from 'lucide-react';
+import { Archive, CheckCheck, Clock3, Edit3, Plus, RotateCcw, ScrollText, Trash2 } from 'lucide-react';
 import { ROLE_PRESET_OPTIONS } from './hubConfig';
 
 const emptyForm = {
@@ -36,14 +36,28 @@ export function HubInstancesPanel({
   onCreate,
   onUpdate,
   onToggleArchive,
+  onDeleteArchived,
+  onArchiveMany,
+  onRestoreMany,
+  onDeleteMany,
   onFetchHistory,
   busyKey,
 }) {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState('');
   const [historyMap, setHistoryMap] = useState({});
+  const [selectedInstanceIds, setSelectedInstanceIds] = useState([]);
 
   const activeInstances = useMemo(() => instances, [instances]);
+  const allVisibleSelected = activeInstances.length > 0 && selectedInstanceIds.length === activeInstances.length;
+  const selectedActiveIds = selectedInstanceIds.filter((instanceId) => {
+    const instance = activeInstances.find((item) => item.instance_id === instanceId);
+    return instance && !instance.archived;
+  });
+  const selectedArchivedIds = selectedInstanceIds.filter((instanceId) => {
+    const instance = activeInstances.find((item) => item.instance_id === instanceId);
+    return instance?.archived;
+  });
 
   const submit = async (event) => {
     event.preventDefault();
@@ -74,31 +88,88 @@ export function HubInstancesPanel({
     setHistoryMap((prev) => ({ ...prev, [instanceId]: history }));
   };
 
+  React.useEffect(() => {
+    setSelectedInstanceIds((prev) => prev.filter((instanceId) => activeInstances.some((item) => item.instance_id === instanceId)));
+  }, [activeInstances]);
+
+  const toggleInstanceSelected = (instanceId) => {
+    setSelectedInstanceIds((prev) => prev.includes(instanceId)
+      ? prev.filter((item) => item !== instanceId)
+      : [...prev, instanceId]);
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedInstanceIds(allVisibleSelected ? [] : activeInstances.map((instance) => instance.instance_id));
+  };
+
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-925/60 bg-zinc-900/60 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-925/60 bg-zinc-900/60 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]" data-testid="hub-instances-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-zinc-100">Instances</h2>
           <p className="text-xs text-zinc-500">Single model, many isolated personas. Each instance keeps its own thread, prompt, and archive state.</p>
         </div>
         <label className="flex items-center gap-2 text-xs text-zinc-400">
-          <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} /> Show archived
+          <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} data-testid="show-archived-instances-checkbox" /> Show archived
         </label>
+        <button
+          type="button"
+          onClick={toggleSelectAllVisible}
+          className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+          data-testid="instances-select-all-button"
+        >
+          <span className="flex items-center gap-2"><CheckCheck size={13} /> {allVisibleSelected ? 'Clear selected' : 'Select all instances'}</span>
+        </button>
       </div>
 
-      <form onSubmit={submit} className="mt-4 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+      {selectedInstanceIds.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 text-xs text-zinc-300" data-testid="instances-bulk-actions">
+          <span data-testid="instances-selected-count">{selectedInstanceIds.length} selected</span>
+          <button
+            type="button"
+            onClick={() => onArchiveMany(selectedActiveIds)}
+            disabled={selectedActiveIds.length === 0}
+            className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"
+            data-testid="instances-bulk-archive-button"
+          >
+            Archive selected
+          </button>
+          <button
+            type="button"
+            onClick={() => onRestoreMany(selectedArchivedIds)}
+            disabled={selectedArchivedIds.length === 0}
+            className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"
+            data-testid="instances-bulk-restore-button"
+          >
+            Undo archive selected
+          </button>
+          <button
+            type="button"
+            onClick={() => onDeleteMany(selectedArchivedIds)}
+            disabled={selectedArchivedIds.length === 0}
+            className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 disabled:opacity-40"
+            data-testid="instances-bulk-delete-button"
+          >
+            Delete archived selected
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={submit} className="mt-4 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4" data-testid="instance-form">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-medium text-zinc-200">{editingId ? 'Edit instance' : 'Create instance'}</h3>
           {editingId && (
-            <button type="button" onClick={() => { setEditingId(''); setForm(emptyForm); }} className="text-xs text-zinc-500 hover:text-zinc-300">
+            <button type="button" onClick={() => { setEditingId(''); setForm(emptyForm); }} className="text-xs text-zinc-500 hover:text-zinc-300" data-testid="cancel-instance-edit-button">
               Cancel edit
             </button>
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Instance name"
+            data-testid="instance-name-input"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
           <select value={form.model_id} onChange={(e) => setForm((prev) => ({ ...prev, model_id: e.target.value }))}
+            data-testid="instance-model-select"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
             <option value="">Choose model</option>
             {modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -122,6 +193,7 @@ export function HubInstancesPanel({
           {ROLE_PRESET_OPTIONS.map((preset) => <option key={preset} value={preset} />)}
         </datalist>
         <button type="submit" disabled={busyKey === 'create-instance' || busyKey.startsWith('update-instance-')}
+          data-testid="create-instance-button"
           className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60">
           <Plus size={14} /> {editingId ? 'Save instance' : 'Create instance'}
         </button>
@@ -133,10 +205,19 @@ export function HubInstancesPanel({
         ) : activeInstances.map((instance) => {
           const history = historyMap[instance.instance_id];
           return (
-            <article key={instance.instance_id} className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+            <article key={instance.instance_id} className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4" data-testid={`instance-card-${instance.instance_id}`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-300" data-testid={`instance-select-control-${instance.instance_id}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedInstanceIds.includes(instance.instance_id)}
+                        onChange={() => toggleInstanceSelected(instance.instance_id)}
+                        data-testid={`instance-select-checkbox-${instance.instance_id}`}
+                      />
+                      Select
+                    </label>
                     <h3 className="text-sm font-semibold text-zinc-100">{instance.name}</h3>
                     <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">{instance.model_id}</span>
                     {instance.archived && <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">Archived</span>}
@@ -155,15 +236,26 @@ export function HubInstancesPanel({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => startEdit(instance)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white">
+                  <button type="button" onClick={() => startEdit(instance)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white" data-testid={`edit-instance-button-${instance.instance_id}`}>
                     <span className="flex items-center gap-2"><Edit3 size={13} /> Edit</span>
                   </button>
-                  <button onClick={() => loadHistory(instance.instance_id)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white">
+                  <button type="button" onClick={() => loadHistory(instance.instance_id)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white" data-testid={`instance-history-button-${instance.instance_id}`}>
                     <span className="flex items-center gap-2"><ScrollText size={13} /> History</span>
                   </button>
-                  <button onClick={() => onToggleArchive(instance)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white">
-                    <span className="flex items-center gap-2">{instance.archived ? <RotateCcw size={13} /> : <Archive size={13} />} {instance.archived ? 'Restore' : 'Archive'}</span>
-                  </button>
+                  {instance.archived ? (
+                    <>
+                      <button type="button" onClick={() => onToggleArchive(instance)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white" data-testid={`toggle-instance-archive-button-${instance.instance_id}`}>
+                        <span className="flex items-center gap-2"><RotateCcw size={13} /> Undo archive</span>
+                      </button>
+                      <button type="button" onClick={() => onDeleteArchived(instance.instance_id)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 transition hover:bg-red-500/20" data-testid={`delete-instance-button-${instance.instance_id}`}>
+                        <span className="flex items-center gap-2"><Trash2 size={13} /> Delete</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => onToggleArchive(instance)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white" data-testid={`toggle-instance-archive-button-${instance.instance_id}`}>
+                      <span className="flex items-center gap-2"><Archive size={13} /> Archive</span>
+                    </button>
+                  )}
                 </div>
               </div>
               {history && (
@@ -171,11 +263,13 @@ export function HubInstancesPanel({
                   <div className="mb-2 flex items-center gap-2 text-xs text-zinc-400"><Clock3 size={12} /> Private thread history ({history.messages.length})</div>
                   <div className="space-y-2">
                     {history.messages.length === 0 ? <div className="text-xs text-zinc-500">No history yet.</div> : history.messages.slice(-6).map((message) => (
-                      <div key={message.message_id} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 text-xs text-zinc-300">
+                      <div key={message.message_id} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 text-xs text-zinc-300" data-testid={`instance-history-message-${message.message_id}`}>
                         <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
                           <span>{message.role}</span>
                           {message.hub_pattern && <span>{message.hub_pattern}</span>}
                           {message.hub_role && <span>{message.hub_role}</span>}
+                          {message.hub_prompt_id && <span>{message.hub_prompt_id}</span>}
+                          {message.hub_synthesis_batch_id && <span>{message.hub_synthesis_batch_id}</span>}
                         </div>
                         <div className="whitespace-pre-wrap">{message.content}</div>
                       </div>

@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 import os
 import logging
 from pathlib import Path
+from datetime import datetime, timezone
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -18,6 +20,7 @@ from routes.keys import router as keys_router
 from routes.v1_analysis import router as analysis_router
 from routes.v1_lib import router as v1_lib_router
 from routes.v1_hub import router as v1_hub_router
+from routes.payments_v2 import router as payments_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,6 +28,15 @@ logging.basicConfig(
 )
 
 app = FastAPI(title="Multi-Model Hub", version="1.0.2-S9")
+app.state.startup_time = datetime.now(timezone.utc).isoformat()
+
+
+async def _check_mongo_ready() -> tuple[bool, str]:
+    try:
+        await client.admin.command("ping")
+        return True, "ok"
+    except Exception as exc:
+        return False, str(exc)
 
 # Auth (kept from existing)
 app.include_router(auth_router)
@@ -38,6 +50,7 @@ app.include_router(keys_router)
 app.include_router(analysis_router)
 app.include_router(v1_lib_router)
 app.include_router(v1_hub_router)
+app.include_router(payments_router)
 
 cors_origins_raw = os.environ.get('CORS_ORIGINS')
 if not cors_origins_raw:
@@ -59,6 +72,36 @@ app.add_middleware(
 @app.get("/api/")
 async def root():
     return {"message": "Multi-Model Hub API", "version": "v1.0.2-S9", "spec": "interdependentway.org/canon/spec.md"}
+
+
+@app.get("/health")
+async def health_liveness():
+    return {"status": "ok", "build": "v1.0.2-S9"}
+
+
+@app.get("/api/health")
+async def api_health_liveness():
+    return {"status": "ok", "build": "v1.0.2-S9"}
+
+
+@app.get("/ready")
+@app.get("/api/ready")
+async def ready_check():
+    mongo_ok, mongo_message = await _check_mongo_ready()
+    payload = {
+        "status": "ready" if mongo_ok else "not_ready",
+        "build": "v1.0.2-S9",
+        "checks": {
+            "mongo": {
+                "ok": mongo_ok,
+                "message": mongo_message,
+            }
+        },
+        "startup_time": app.state.startup_time,
+    }
+    if mongo_ok:
+        return payload
+    return JSONResponse(status_code=503, content=payload)
 
 
 @app.on_event("shutdown")

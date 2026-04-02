@@ -128,17 +128,26 @@ function KeyManager() {
 function RegistryManager() {
   const [registry, setRegistry] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [addingDev, setAddingDev] = useState(false);
   const [newDev, setNewDev] = useState({ developer_id: '', name: '', base_url: '' });
   const [addingModel, setAddingModel] = useState(null);
   const [newModel, setNewModel] = useState('');
 
-  const fetchRegistry = async () => {
+  const fetchRegistry = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    setError('');
     try {
       const res = await axios.get(`${API}/v1/registry`);
       setRegistry(res.data.developers || []);
     } catch (err) {
       console.error('Failed to fetch registry:', err);
+      setRegistry([]);
+      if (err.response?.status === 401) {
+        setError('Your session expired while loading the registry. Please sign in again and retry.');
+      } else {
+        setError(err.response?.data?.detail || 'Could not load the model registry from the backend.');
+      }
     } finally {
       setLoading(false);
     }
@@ -158,9 +167,10 @@ function RegistryManager() {
       });
       setAddingDev(false);
       setNewDev({ developer_id: '', name: '', base_url: '' });
-      fetchRegistry();
+      await fetchRegistry(false);
     } catch (err) {
       console.error('Failed to add developer:', err);
+      setError(err.response?.data?.detail || 'Failed to add developer.');
     }
   };
 
@@ -172,25 +182,57 @@ function RegistryManager() {
       });
       setAddingModel(null);
       setNewModel('');
-      fetchRegistry();
+      await fetchRegistry(false);
     } catch (err) {
       console.error('Failed to add model:', err);
+      setError(err.response?.data?.detail || 'Failed to add model.');
     }
   };
 
   const handleRemoveModel = async (devId, modelId) => {
     try {
       await axios.delete(`${API}/v1/registry/developer/${devId}/model/${modelId}`);
-      fetchRegistry();
+      await fetchRegistry(false);
     } catch (err) {
       console.error('Failed to remove model:', err);
+      setError(err.response?.data?.detail || 'Failed to remove model.');
     }
   };
 
-  if (loading) return <div className="text-zinc-500 text-sm">Loading registry...</div>;
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-400" data-testid="registry-loading-state">
+        <div className="flex items-center gap-2"><Loader2 size={14} className="animate-spin text-emerald-400" /> Loading registry...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" data-testid="registry-manager">
+      {error && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200" data-testid="registry-error-state">
+          <div className="flex items-start gap-2">
+            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+            <div className="space-y-2">
+              <div className="font-medium">Registry load issue</div>
+              <div className="text-xs text-amber-100/90">{error}</div>
+              <button onClick={() => fetchRegistry()} className="rounded bg-amber-500/20 px-3 py-1.5 text-xs text-amber-100 hover:bg-amber-500/30" data-testid="retry-registry-btn">
+                Retry registry load
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {registry && registry.length === 0 && !error && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-400" data-testid="registry-empty-state">
+          <div className="font-medium text-zinc-200">No developers in this registry yet</div>
+          <div className="mt-1 text-xs text-zinc-500">The default registry should normally seed automatically. If this page was blank a moment ago, tap retry before adding developers manually.</div>
+          <button onClick={() => fetchRegistry()} className="mt-3 rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 hover:text-zinc-100" data-testid="retry-empty-registry-btn">
+            Retry
+          </button>
+        </div>
+      )}
       {registry && registry.map(dev => (
         <div key={dev.developer_id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">

@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from db import db
+from models.registry import VerificationResponse, VerifyModelRequest
 from models.v1 import AddDeveloperRequest, AddModelRequest, RegistryResponse, DeveloperDef, ModelDef
 from services.auth import get_current_user, get_user_id
-from services.llm import DEFAULT_REGISTRY
+from services.llm import DEFAULT_REGISTRY, UNIVERSAL_DEVELOPER_IDS, reconcile_registry_developers, universal_managed_model_ids
+from services.registry_verifier import verify_developer_models, verify_registry, verify_single_model
 
 router = APIRouter(prefix="/api/v1/registry", tags=["registry"])
 
@@ -15,11 +17,19 @@ async def _get_or_seed_registry(user_id: str) -> dict:
     """Get user's registry doc, seeding from defaults if missing."""
     doc = await db.model_registry.find_one({"user_id": user_id}, {"_id": 0})
     if doc:
+        developers, changed = reconcile_registry_developers(doc.get("developers", {}))
+        if changed:
+            doc["developers"] = developers
+            doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await db.model_registry.update_one(
+                {"user_id": user_id},
+                {"$set": {"developers": developers, "updated_at": doc["updated_at"]}},
+            )
         return doc
     # Seed from defaults
     seed = {
         "user_id": user_id,
-        "developers": DEFAULT_REGISTRY,
+        "developers": reconcile_registry_developers(DEFAULT_REGISTRY)[0],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -48,6 +58,7 @@ async def get_registry(current_user: dict = Depends(get_current_user)):
             name=dev.get("name", dev_id),
             auth_type=dev.get("auth_type", "emergent"),
             base_url=dev.get("base_url"),
+            website=dev.get("website"),
             models=models,
         ))
 
@@ -70,6 +81,7 @@ async def add_developer(
         "name": request.name,
         "auth_type": request.auth_type,
         "base_url": request.base_url,
+        "website": request.website,
         "models": [m.model_dump() for m in request.models],
     }
 
@@ -98,6 +110,14 @@ async def add_model(
     if developer_id not in doc.get("developers", {}):
         raise HTTPException(status_code=404, detail="Developer not found")
 
+    developer = doc["developers"].get(developer_id, {})
+    if developer.get("auth_type") == "emergent":
+        allowed_model_ids = universal_managed_model_ids(developer_id)
+        if request.model_id not in allowed_model_ids:
+            raise HTTPException(status_code=400, detail="This universal-key registry is curated. Only supported universal-key models are allowed for this developer.")
+        if any(model.get("model_id") == request.model_id for model in developer.get("models", []) if isinstance(model, dict)):
+            raise HTTPException(status_code=400, detail="Model already exists")
+
     model_entry = {"model_id": request.model_id, "display_name": request.display_name, "enabled": True}
 
     await db.model_registry.update_one(
@@ -118,6 +138,10 @@ async def remove_model(
 ):
     """Remove a model from a developer."""
     uid = get_user_id(current_user)
+    doc = await _get_or_seed_registry(uid)
+    developer = doc.get("developers", {}).get(developer_id, {})
+    if developer_id in UNIVERSAL_DEVELOPER_IDS or developer.get("auth_type") == "emergent":
+        raise HTTPException(status_code=400, detail="Universal-key-compatible registry models are managed automatically and cannot be removed.")
     await db.model_registry.update_one(
         {"user_id": uid},
         {
@@ -135,6 +159,8 @@ async def remove_developer(
 ):
     """Remove a developer from the registry."""
     uid = get_user_id(current_user)
+    if developer_id in UNIVERSAL_DEVELOPER_IDS:
+        raise HTTPException(status_code=400, detail="Universal-key-compatible developers are managed automatically and cannot be removed.")
     await db.model_registry.update_one(
         {"user_id": uid},
         {
@@ -143,3 +169,40 @@ async def remove_developer(
         },
     )
     return {"message": f"Developer {developer_id} removed"}
+
+
+@router.post("/verify/model", response_model=VerificationResponse)
+async def verify_registry_model(
+    request: VerifyModelRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    uid = get_user_id(current_user)
+    doc = await _get_or_seed_registry(uid)
+    registry = doc.get("developers", {})
+    result = await verify_single_model(current_user, registry, request.developer_id, request.model_id, mode=request.mode)
+    return VerificationResponse(
+        scope="model",
+        verification_mode=request.mode,
+        verified_count=1 if result.status in {"verified", "verified_via_provider"} else 0,
+        total_count=1,
+        results=[result],
+    )
+
+
+@router.post("/verify/developer/{developer_id}", response_model=VerificationResponse)
+async def verify_registry_developer(
+    developer_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    uid = get_user_id(current_user)
+    doc = await _get_or_seed_registry(uid)
+    registry = doc.get("developers", {})
+    return await verify_developer_models(current_user, registry, developer_id, mode="light")
+
+
+@router.post("/verify/all", response_model=VerificationResponse)
+async def verify_registry_all(current_user: dict = Depends(get_current_user)):
+    uid = get_user_id(current_user)
+    doc = await _get_or_seed_registry(uid)
+    registry = doc.get("developers", {})
+    return await verify_registry(current_user, registry, mode="light")

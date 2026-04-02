@@ -59,9 +59,14 @@ code {
     }
 
     /* Emergent platform badge can sometimes overlay the viewport and intercept clicks */
-    #emergent-badge {
-        pointer-events: none !important;
-    }
+body[data-tier="supporter"] #emergent-badge,
+body[data-tier="pro"] #emergent-badge,
+body[data-tier="team"] #emergent-badge,
+body[data-tier="supporter"] a[href*="emergent" i][style*="bottom"],
+body[data-tier="pro"] a[href*="emergent" i][style*="bottom"],
+body[data-tier="team"] a[href*="emergent" i][style*="bottom"] {
+    display: none !important;
+}
 }
 
 @layer components {

@@ -43,7 +43,7 @@ from models.v1 import (
 )
 from services.auth import get_current_user, get_user_id
 from services.events import build_provenance, build_sentinel_context, emit_event
-from services.llm import DEFAULT_REGISTRY, generate_response
+from services.llm import DEFAULT_REGISTRY, generate_response, reconcile_registry_developers
 
 router = APIRouter(prefix="/api/v1/a0", tags=["a0"])
 
@@ -64,8 +64,8 @@ async def _get_user_registry(user: dict) -> dict:
     uid = get_user_id(user)
     custom = await db.model_registry.find_one({"user_id": uid}, {"_id": 0})
     if custom and custom.get("developers"):
-        return custom["developers"]
-    return DEFAULT_REGISTRY
+        return reconcile_registry_developers(custom["developers"])[0]
+    return reconcile_registry_developers(DEFAULT_REGISTRY)[0]
 
 
 async def _ensure_thread(thread_id: str, user_id: str, title: str):

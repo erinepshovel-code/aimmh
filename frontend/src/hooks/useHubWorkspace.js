@@ -12,6 +12,7 @@ export function useHubWorkspace() {
   const [selectedRun, setSelectedRun] = useState(null);
   const [includeArchivedInstances, setIncludeArchivedInstances] = useState(false);
   const [includeArchivedGroups, setIncludeArchivedGroups] = useState(false);
+  const [includeArchivedRuns, setIncludeArchivedRuns] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState('');
 
@@ -96,12 +97,24 @@ export function useHubWorkspace() {
     setGroups(res?.groups || []);
   }, [includeArchivedGroups]);
 
-  const reloadRuns = useCallback(async () => {
-    const res = await hubApi.getRuns();
+  const reloadRuns = useCallback(async (flag = includeArchivedRuns) => {
+    const res = await hubApi.getRuns(flag);
     const nextRuns = res?.runs || [];
     setRuns(nextRuns);
     return nextRuns;
-  }, []);
+  }, [includeArchivedRuns]);
+
+  useEffect(() => {
+    reloadInstances(includeArchivedInstances).catch(() => {});
+  }, [includeArchivedInstances, reloadInstances]);
+
+  useEffect(() => {
+    reloadGroups(includeArchivedGroups).catch(() => {});
+  }, [includeArchivedGroups, reloadGroups]);
+
+  useEffect(() => {
+    reloadRuns(includeArchivedRuns).catch(() => {});
+  }, [includeArchivedRuns, reloadRuns]);
 
   const createInstance = useCallback(async (payload) => runTask('create-instance', async () => {
     await hubApi.createInstance(payload);
@@ -118,6 +131,32 @@ export function useHubWorkspace() {
     else await hubApi.archiveInstance(instance.instance_id);
     await reloadInstances();
   }, instance.archived ? 'Instance restored' : 'Instance archived'), [reloadInstances, runTask]);
+
+  const deleteArchivedInstance = useCallback(async (instanceId) => runTask(`delete-instance-${instanceId}`, async () => {
+    await hubApi.deleteInstance(instanceId);
+    await reloadInstances();
+  }, 'Archived instance deleted'), [reloadInstances, runTask]);
+
+  const archiveManyInstances = useCallback(async (instanceIds) => runTask('archive-many-instances', async () => {
+    const targets = instances.filter((item) => instanceIds.includes(item.instance_id) && !item.archived);
+    if (targets.length === 0) return;
+    await Promise.all(targets.map((instance) => hubApi.archiveInstance(instance.instance_id)));
+    await reloadInstances();
+  }, 'Selected instances archived'), [instances, reloadInstances, runTask]);
+
+  const restoreManyInstances = useCallback(async (instanceIds) => runTask('restore-many-instances', async () => {
+    const targets = instances.filter((item) => instanceIds.includes(item.instance_id) && item.archived);
+    if (targets.length === 0) return;
+    await Promise.all(targets.map((instance) => hubApi.unarchiveInstance(instance.instance_id)));
+    await reloadInstances();
+  }, 'Selected instances restored'), [instances, reloadInstances, runTask]);
+
+  const deleteManyArchivedInstances = useCallback(async (instanceIds) => runTask('delete-many-instances', async () => {
+    const targets = instances.filter((item) => instanceIds.includes(item.instance_id) && item.archived);
+    if (targets.length === 0) return;
+    await Promise.all(targets.map((instance) => hubApi.deleteInstance(instance.instance_id)));
+    await reloadInstances();
+  }, 'Selected archived instances deleted'), [instances, reloadInstances, runTask]);
 
   const fetchInstanceHistory = useCallback((instanceId) => hubApi.getInstanceHistory(instanceId), []);
 
@@ -148,6 +187,23 @@ export function useHubWorkspace() {
     return detail;
   }, 'Pipeline executed'), [reloadRuns, runTask]);
 
+  const toggleRunArchive = useCallback(async (run) => runTask(`toggle-run-${run.run_id}`, async () => {
+    if (run.archived) await hubApi.unarchiveRun(run.run_id);
+    else await hubApi.archiveRun(run.run_id);
+    const nextRuns = await reloadRuns();
+    if (!nextRuns.find((item) => item.run_id === selectedRunId)) {
+      setSelectedRunId(nextRuns[0]?.run_id || '');
+    }
+  }, run.archived ? 'Run restored' : 'Run archived'), [reloadRuns, runTask, selectedRunId]);
+
+  const deleteArchivedRun = useCallback(async (runId) => runTask(`delete-run-${runId}`, async () => {
+    await hubApi.deleteRun(runId);
+    const nextRuns = await reloadRuns();
+    if (selectedRunId === runId) {
+      setSelectedRunId(nextRuns[0]?.run_id || '');
+    }
+  }, 'Archived run deleted'), [reloadRuns, runTask, selectedRunId]);
+
   const modelOptions = useMemo(() => models.flatMap((developer) =>
     (developer.models || []).map((model) => ({
       value: model.model_id,
@@ -168,6 +224,23 @@ export function useHubWorkspace() {
     })),
   ]), [groups, instances]);
 
+  const exportInventory = useCallback(() => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      developers: models,
+      instances,
+      groups,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `aimmh-inventory-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Inventory exported');
+  }, [groups, instances, models]);
+
   return {
     models,
     options,
@@ -181,6 +254,8 @@ export function useHubWorkspace() {
     setIncludeArchivedInstances,
     includeArchivedGroups,
     setIncludeArchivedGroups,
+    includeArchivedRuns,
+    setIncludeArchivedRuns,
     loading,
     busyKey,
     modelOptions,
@@ -192,10 +267,17 @@ export function useHubWorkspace() {
     createInstance,
     updateInstance,
     toggleInstanceArchive,
+    deleteArchivedInstance,
+    archiveManyInstances,
+    restoreManyInstances,
+    deleteManyArchivedInstances,
     fetchInstanceHistory,
     createGroup,
     updateGroup,
     toggleGroupArchive,
     createRun,
+    toggleRunArchive,
+    deleteArchivedRun,
+    exportInventory,
   };
 }

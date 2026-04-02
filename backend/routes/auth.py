@@ -28,6 +28,7 @@ from services.auth import (
     hash_password, verify_password, create_access_token,
     get_current_user, get_user_id, generate_service_token, hash_service_token
 )
+from services.billing_tiers import derive_billing_profile, normalize_tier
 from services.audit import append_audit_event
 
 logger = logging.getLogger(__name__)
@@ -49,14 +50,28 @@ async def register(user_data: UserCreate):
         "username": user_data.username,
         "password": hashed_pw,
         "created_at": now.isoformat(),
-        "api_keys": {}
+        "api_keys": {},
+        "billing": {
+            "subscription_tier": "free",
+            "hide_emergent_badge": False,
+            "team_seats": 1,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        },
     }
     await db.users.insert_one(user)
 
     token = create_access_token(user_id)
+    billing_profile = derive_billing_profile(user)
     return TokenResponse(
         access_token=token,
-        user=UserResponse(id=user_id, username=user_data.username, created_at=now)
+        user=UserResponse(
+            id=user_id,
+            username=user_data.username,
+            created_at=now,
+            subscription_tier=billing_profile["subscription_tier"],
+            hide_emergent_badge=billing_profile["hide_emergent_badge"],
+        )
     )
 
 
@@ -67,12 +82,15 @@ async def login(user_data: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token(user["id"])
+    billing_profile = derive_billing_profile(user)
     return TokenResponse(
         access_token=token,
         user=UserResponse(
             id=user["id"],
             username=user["username"],
-            created_at=datetime.fromisoformat(user["created_at"])
+            created_at=datetime.fromisoformat(user["created_at"]),
+            subscription_tier=billing_profile["subscription_tier"],
+            hide_emergent_badge=billing_profile["hide_emergent_badge"],
         )
     )
 
@@ -494,11 +512,15 @@ async def process_google_session(request: Request, response: FastAPIResponse):
 @router.get("/me")
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """Get current authenticated user info"""
+    billing_profile = derive_billing_profile(current_user)
     return {
         "user_id": current_user.get("user_id") or current_user.get("id"),
         "email": current_user.get("email") or current_user.get("username"),
         "name": current_user.get("name", current_user.get("username", "")),
-        "picture": current_user.get("picture")
+        "picture": current_user.get("picture"),
+        "subscription_tier": normalize_tier((current_user.get("billing") or {}).get("subscription_tier")),
+        "hide_emergent_badge": billing_profile["hide_emergent_badge"],
+        "team_seats": billing_profile["team_seats"],
     }
 
 

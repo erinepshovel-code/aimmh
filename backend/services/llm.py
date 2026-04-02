@@ -10,6 +10,7 @@ import uuid
 import asyncio
 import logging
 import httpx
+from copy import deepcopy
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -19,19 +20,18 @@ logger = logging.getLogger(__name__)
 # ---- Default Model Registry ----
 # Seeded on first load; users can extend via API
 
+UNIVERSAL_DEVELOPER_IDS = ("openai", "anthropic", "google")
+
+
 DEFAULT_REGISTRY = {
     "openai": {
         "name": "OpenAI",
         "auth_type": "emergent",
         "base_url": None,
+        "website": "https://openai.com",
         "models": [
             {"model_id": "gpt-4o", "display_name": "GPT-4o"},
             {"model_id": "gpt-4o-mini", "display_name": "GPT-4o Mini"},
-            {"model_id": "gpt-4.1", "display_name": "GPT-4.1"},
-            {"model_id": "gpt-4.1-mini", "display_name": "GPT-4.1 Mini"},
-            {"model_id": "o3", "display_name": "o3"},
-            {"model_id": "o3-pro", "display_name": "o3 Pro"},
-            {"model_id": "o4-mini", "display_name": "o4 Mini"},
             {"model_id": "o1", "display_name": "o1"},
         ],
     },
@@ -39,28 +39,30 @@ DEFAULT_REGISTRY = {
         "name": "Anthropic",
         "auth_type": "emergent",
         "base_url": None,
+        "website": "https://anthropic.com",
         "models": [
-            {"model_id": "claude-4-sonnet-20250514", "display_name": "Claude 4 Sonnet"},
-            {"model_id": "claude-4-opus-20250514", "display_name": "Claude 4 Opus"},
             {"model_id": "claude-sonnet-4-5-20250929", "display_name": "Claude Sonnet 4.5"},
             {"model_id": "claude-haiku-4-5-20251001", "display_name": "Claude Haiku 4.5"},
-            {"model_id": "claude-3-5-haiku-20241022", "display_name": "Claude 3.5 Haiku"},
+            {"model_id": "claude-opus-4-5-20251101", "display_name": "Claude Opus 4.5"},
         ],
     },
     "google": {
         "name": "Google",
         "auth_type": "emergent",
         "base_url": None,
+        "website": "https://ai.google.dev",
         "models": [
+            {"model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash"},
             {"model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro"},
             {"model_id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash"},
-            {"model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash"},
+            {"model_id": "gemini-2.5-flash-lite", "display_name": "Gemini 2.5 Flash Lite"},
         ],
     },
     "xai": {
         "name": "xAI",
         "auth_type": "openai_compatible",
         "base_url": "https://api.x.ai/v1",
+        "website": "https://x.ai",
         "models": [
             {"model_id": "grok-4", "display_name": "Grok 4"},
             {"model_id": "grok-3", "display_name": "Grok 3"},
@@ -71,6 +73,7 @@ DEFAULT_REGISTRY = {
         "name": "DeepSeek",
         "auth_type": "openai_compatible",
         "base_url": "https://api.deepseek.com",
+        "website": "https://www.deepseek.com",
         "models": [
             {"model_id": "deepseek-chat", "display_name": "DeepSeek V3"},
             {"model_id": "deepseek-reasoner", "display_name": "DeepSeek R1"},
@@ -80,12 +83,33 @@ DEFAULT_REGISTRY = {
         "name": "Perplexity",
         "auth_type": "openai_compatible",
         "base_url": "https://api.perplexity.ai",
+        "website": "https://www.perplexity.ai",
         "models": [
             {"model_id": "sonar-pro", "display_name": "Sonar Pro"},
             {"model_id": "sonar", "display_name": "Sonar"},
         ],
     },
 }
+
+
+def universal_managed_model_ids(developer_id: str) -> set[str]:
+    developer = DEFAULT_REGISTRY.get(developer_id, {})
+    return {
+        model.get("model_id")
+        for model in developer.get("models", [])
+        if isinstance(model, dict) and model.get("model_id")
+    }
+
+
+def reconcile_registry_developers(registry: Optional[Dict[str, Any]]) -> tuple[Dict[str, Any], bool]:
+    current = deepcopy(registry or {})
+    next_registry = deepcopy(current)
+
+    for developer_id in UNIVERSAL_DEVELOPER_IDS:
+        next_registry[developer_id] = deepcopy(DEFAULT_REGISTRY[developer_id])
+
+    changed = next_registry != current
+    return next_registry, changed
 
 # Map model_id → (developer_id, provider_for_emergent)
 EMERGENT_PROVIDER_MAP = {

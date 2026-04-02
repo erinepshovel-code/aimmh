@@ -17,7 +17,7 @@ from services.edcm import (
     compute_int, compute_tbf, ALERT_HIGH
 )
 from services.events import build_provenance, emit_event
-from services.llm import DEFAULT_REGISTRY, generate_response
+from services.llm import DEFAULT_REGISTRY, generate_response, reconcile_registry_developers
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/analysis", tags=["analysis"])
@@ -103,7 +103,7 @@ async def _parse_transcript_with_llm(
         return turns
     except (json_mod.JSONDecodeError, ValueError):
         # Fallback: split by newlines and treat each as a turn
-        lines = [l.strip() for l in transcript.split("\n") if l.strip()]
+        lines = [line_text.strip() for line_text in transcript.split("\n") if line_text.strip()]
         turns = []
         for i, line in enumerate(lines):
             # Try to detect "Speaker: content" pattern
@@ -222,7 +222,7 @@ async def analyze_transcript(
 
     # Get user's registry
     custom = await db.model_registry.find_one({"user_id": user_id}, {"_id": 0})
-    registry = custom["developers"] if custom and custom.get("developers") else DEFAULT_REGISTRY
+    registry = reconcile_registry_developers(custom["developers"] if custom and custom.get("developers") else DEFAULT_REGISTRY)[0]
 
     # Step 1: Parse transcript into turns using LLM
     raw_turns = await _parse_transcript_with_llm(

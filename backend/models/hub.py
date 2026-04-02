@@ -136,10 +136,12 @@ class HubRunResult(BaseModel):
     instance_id: Optional[str] = None
     instance_name: Optional[str] = None
     thread_id: Optional[str] = None
+    message_id: Optional[str] = None
     model: str
     content: str
     response_time_ms: int = 0
     error: Optional[str] = None
+    feedback: Optional[str] = None
     round_num: int = 0
     step_num: int = 0
     initiative: int = 0
@@ -162,6 +164,8 @@ class HubRunOut(BaseModel):
     label: Optional[str] = None
     prompt: str
     status: str
+    archived: bool = False
+    archived_at: Optional[str] = None
     stage_summaries: List[HubStageSummary] = Field(default_factory=list)
     created_at: str
     updated_at: str
@@ -187,6 +191,8 @@ class HubHistoryMessage(BaseModel):
     hub_stage_index: Optional[int] = None
     hub_pattern: Optional[str] = None
     hub_instance_id: Optional[str] = None
+    hub_prompt_id: Optional[str] = None
+    hub_synthesis_batch_id: Optional[str] = None
     hub_role: Optional[str] = None
 
 

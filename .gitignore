@@ -70,3 +70,7 @@ agenthub/agents/youtube/db
 
 # NOTE:
 # Do not ignore frontend/.env or backend/.env in this repository.
+-e 
+# Environment files
+*.env
+*.env.*

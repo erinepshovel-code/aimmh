@@ -12,6 +12,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 from db import client
 from routes.auth import router as auth_router
+from routes.agent_zero import router as agent_zero_router
 from routes.v1_a0 import router as v1_a0_router
 from routes.v1_edcm import router as v1_edcm_router
 from routes.v1_system import router as v1_system_router
@@ -41,6 +42,9 @@ async def _check_mongo_ready() -> tuple[bool, str]:
 
 # Auth (kept from existing)
 app.include_router(auth_router)
+
+# Agent Zero endpoints
+app.include_router(agent_zero_router)
 
 # V1 API surface
 app.include_router(v1_a0_router)

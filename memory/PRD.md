@@ -89,6 +89,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Restored in-workspace pricing access after header simplification by adding top-shell `Pricing` button (`data-testid="hub-open-pricing-button"`) linking to `/pricing`
 - [x] Added safe Stripe diagnostics endpoint `GET /api/payments/stripe/mode` (auth required) returning only `{ stripe_mode, key_present }` without exposing secret key material
 - [x] Hardened Google OAuth callback handling: switched redirect target to `/auth/google`, added callback support for both query/hash `session_id`, and graceful handling for OAuth `error` / invalid-state responses (no raw callback dead-end)
+- [x] Tightened workspace tabs to single-row layout (`hub-tabs-row-single-line`) with compact labels for consistent one-line rendering
+- [x] Fixed Runs/Rooms numeric inputs so users can clear/delete values while editing; defaults now normalize on blur and payload coercion remains valid on execute
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

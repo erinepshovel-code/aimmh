@@ -105,6 +105,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Test secret hardening batch: replaced hardcoded test passwords/API-key literals across backend test suites with env-driven shared constants in `backend/tests/test_credentials.py`
 - [x] Undefined-variable audit across backend routes/services completed via lint sweep; cleaned remaining route lint blocker in `routes/v1_edcm.py`
 - [x] Frontend modularization pass: split `HubResponsesPanel.jsx` into focused components `ResponsesToolbar.jsx` and `ResponsesComparePopout.jsx` while preserving all existing test IDs and behavior
+- [x] Frontend modularization pass: split `ConsolePage.js` context tab into `ConsoleLogViewer.jsx` and `ConsoleContextEditor.jsx` components while preserving existing selectors/actions
+- [x] Route wiring hardening from regression test: ensured `/console` route is registered in frontend router and backend console router is mounted in `server.py`
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

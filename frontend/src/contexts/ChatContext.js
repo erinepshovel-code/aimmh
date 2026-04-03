@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
+import { useAuth } from './AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -12,6 +13,7 @@ export const useChat = () => {
 };
 
 export const ChatProvider = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const [threads, setThreads] = useState([]);
   const [currentThread, setCurrentThread] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -30,6 +32,9 @@ export const ChatProvider = ({ children }) => {
       setThreads(res.data.threads || []);
       return res.data.threads || [];
     } catch (err) {
+      if (err?.response?.status === 401) {
+        return [];
+      }
       console.error('Failed to fetch threads:', err);
       return [];
     }
@@ -41,6 +46,9 @@ export const ChatProvider = ({ children }) => {
       selectThread(threadId);
       setMessages(res.data || []);
     } catch (err) {
+      if (err?.response?.status === 401) {
+        return;
+      }
       console.error('Failed to load thread:', err);
     }
   }, [selectThread]);
@@ -230,6 +238,15 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   React.useEffect(() => {
+    if (!isAuthenticated) {
+      setInitialized(false);
+      setThreads([]);
+      setCurrentThread(null);
+      setMessages([]);
+      setStreaming({});
+      return undefined;
+    }
+
     if (!initialized) {
       setInitialized(true);
       fetchThreads();
@@ -248,7 +265,7 @@ export const ChatProvider = ({ children }) => {
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [initialized, fetchThreads, currentThread]);
+  }, [initialized, fetchThreads, currentThread, isAuthenticated]);
 
   return (
     <ChatContext.Provider value={{

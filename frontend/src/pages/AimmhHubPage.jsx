@@ -13,6 +13,7 @@ import { useHubWorkspace } from '../hooks/useHubWorkspace';
 import { hubApi } from '../lib/hubApi';
 import { KeyManager } from '../components/settings/KeyManager';
 import { RegistryManager } from '../components/settings/RegistryManager';
+import { useAuth } from '../contexts/AuthContext';
 
 const TABS = [
   { id: 'registry', label: 'Registry' },
@@ -26,6 +27,7 @@ const AI_GUIDE_SEEN_KEY = 'aimmh-ai-guide-seen-v1';
 
 export default function AimmhHubPage() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
@@ -287,6 +289,17 @@ export default function AimmhHubPage() {
                 data-testid="hub-open-pricing-button"
               >
                 Pricing
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await logout();
+                  navigate('/auth', { replace: true });
+                }}
+                className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                data-testid="hub-logout-button"
+              >
+                Logout
               </button>
               <button
                 type="button"

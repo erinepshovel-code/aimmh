@@ -104,6 +104,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Ensured Agent Zero route wiring is active in server bootstrap (`server.py` includes `agent_zero_router`)
 - [x] Test secret hardening batch: replaced hardcoded test passwords/API-key literals across backend test suites with env-driven shared constants in `backend/tests/test_credentials.py`
 - [x] Undefined-variable audit across backend routes/services completed via lint sweep; cleaned remaining route lint blocker in `routes/v1_edcm.py`
+- [x] Frontend modularization pass: split `HubResponsesPanel.jsx` into focused components `ResponsesToolbar.jsx` and `ResponsesComparePopout.jsx` while preserving all existing test IDs and behavior
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

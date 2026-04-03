@@ -16,10 +16,10 @@ import { RegistryManager } from '../components/settings/RegistryManager';
 
 const TABS = [
   { id: 'registry', label: 'Registry' },
-  { id: 'instantiation', label: 'Model & Group Instantiation' },
-  { id: 'runs', label: 'Rooms, Runs, Orders & Prompts' },
+  { id: 'instantiation', label: 'Instances' },
+  { id: 'runs', label: 'Rooms & Runs' },
   { id: 'responses', label: 'Responses' },
-  { id: 'chat', label: 'Chat & Synthesis' },
+  { id: 'chat', label: 'Chat+Synth' },
 ];
 
 const AI_GUIDE_SEEN_KEY = 'aimmh-ai-guide-seen-v1';

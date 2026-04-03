@@ -32,6 +32,26 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
   const isSynthRoom = stage.pattern === 'room_synthesized';
   const stageId = `run-stage-${index + 1}`;
 
+  const updateNumericField = (field, min, max) => (event) => {
+    const raw = event.target.value;
+    if (raw === '') {
+      onChange({ ...stage, [field]: '' });
+      return;
+    }
+    const parsed = Number(raw);
+    if (Number.isNaN(parsed)) return;
+    const bounded = Math.min(max, Math.max(min, parsed));
+    onChange({ ...stage, [field]: bounded });
+  };
+
+  const normalizeNumericField = (field, fallback, min, max) => () => {
+    const parsed = Number(stage[field]);
+    const safeValue = Number.isNaN(parsed) || stage[field] === ''
+      ? fallback
+      : Math.min(max, Math.max(min, parsed));
+    onChange({ ...stage, [field]: safeValue });
+  };
+
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4" data-testid={`${stageId}-card`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -57,15 +77,15 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
           {INPUT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <input type="number" min={1} max={10} value={stage.rounds} onChange={(e) => onChange({ ...stage, rounds: Number(e.target.value) || 1 })}
+        <input type="number" min={1} max={10} value={stage.rounds ?? ''} onChange={updateNumericField('rounds', 1, 10)} onBlur={normalizeNumericField('rounds', 1, 1, 10)}
           placeholder="Rounds"
           data-testid={`${stageId}-rounds-input`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
-        <input type="number" min={1} max={10} value={stage.verbosity} onChange={(e) => onChange({ ...stage, verbosity: Number(e.target.value) || 5 })}
+        <input type="number" min={1} max={10} value={stage.verbosity ?? ''} onChange={updateNumericField('verbosity', 1, 10)} onBlur={normalizeNumericField('verbosity', 5, 1, 10)}
           placeholder="Verbosity"
           data-testid={`${stageId}-verbosity-input`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
-        <input type="number" min={1} max={200} value={stage.max_history} onChange={(e) => onChange({ ...stage, max_history: Number(e.target.value) || 30 })}
+        <input type="number" min={1} max={200} value={stage.max_history ?? ''} onChange={updateNumericField('max_history', 1, 200)} onBlur={normalizeNumericField('max_history', 30, 1, 200)}
           placeholder="Max history"
           data-testid={`${stageId}-max-history-input`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
@@ -96,7 +116,7 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
               <option value="">DM rotation group (optional)</option>
               {sourceOptions.filter((option) => option.source_type === 'group').map((option) => <option key={option.source_id} value={option.source_id}>{option.label}</option>)}
             </select>
-            <input type="number" min={10} max={2000} value={stage.action_word_limit} onChange={(e) => onChange({ ...stage, action_word_limit: Number(e.target.value) || 120 })}
+            <input type="number" min={10} max={2000} value={stage.action_word_limit ?? ''} onChange={updateNumericField('action_word_limit', 10, 2000)} onBlur={normalizeNumericField('action_word_limit', 120, 10, 2000)}
               placeholder="Action word limit"
               data-testid={`${stageId}-action-word-limit-input`}
               className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
@@ -156,6 +176,10 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
       persist_instance_threads: true,
       stages: stages.map((stage) => ({
         ...stage,
+        rounds: Number(stage.rounds) || 1,
+        verbosity: Number(stage.verbosity) || 5,
+        max_history: Number(stage.max_history) || 30,
+        action_word_limit: Number(stage.action_word_limit) || 120,
         prompt: stage.prompt || null,
         synthesis_instance_id: stage.synthesis_instance_id || null,
         synthesis_group_id: stage.synthesis_group_id || null,

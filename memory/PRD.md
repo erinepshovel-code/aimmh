@@ -102,6 +102,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Backend complexity reduction started in `routes/chat.py`: decomposed streaming flow into helpers (`_validate_chat_request`, `_ensure_conversation_record`, `_create_context_log`, `_persist_base_user_message`, `_build_messages_context`, `_resolve_stream_iterator`, `_stream_chat_response`, `_handle_chat_error`)
 - [x] Continued backend decomposition in `routes/agent_zero.py`: extracted ingestion pipeline helpers (`_load_ingest_conversation_and_messages`, `_resolve_ingest_constraints`, `_resolve_ingest_metadata`, `_build_ingest_payload`, `_post_to_a0`) and synthesis helpers (`_normalize_selected_message_ids`, `_normalize_target_models`, `_fetch_synthesis_source_messages`, `_build_synthesis_prompt_message`)
 - [x] Ensured Agent Zero route wiring is active in server bootstrap (`server.py` includes `agent_zero_router`)
+- [x] Test secret hardening batch: replaced hardcoded test passwords/API-key literals across backend test suites with env-driven shared constants in `backend/tests/test_credentials.py`
+- [x] Undefined-variable audit across backend routes/services completed via lint sweep; cleaned remaining route lint blocker in `routes/v1_edcm.py`
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

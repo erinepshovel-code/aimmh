@@ -35,8 +35,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+def _set_access_token_cookie(response: FastAPIResponse, token: str) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=30 * 24 * 60 * 60,
+    )
+
+
 @router.post("/register", response_model=TokenResponse)
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, response: FastAPIResponse):
     existing_user = await db.users.find_one({"username": user_data.username})
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -62,6 +74,7 @@ async def register(user_data: UserCreate):
     await db.users.insert_one(user)
 
     token = create_access_token(user_id)
+    _set_access_token_cookie(response, token)
     billing_profile = derive_billing_profile(user)
     return TokenResponse(
         access_token=token,
@@ -76,12 +89,13 @@ async def register(user_data: UserCreate):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin):
+async def login(user_data: UserLogin, response: FastAPIResponse):
     user = await db.users.find_one({"username": user_data.username})
     if not user or not verify_password(user_data.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token(user["id"])
+    _set_access_token_cookie(response, token)
     billing_profile = derive_billing_profile(user)
     return TokenResponse(
         access_token=token,
@@ -499,6 +513,7 @@ async def process_google_session(request: Request, response: FastAPIResponse):
 
     # Also issue JWT so auth works in browsers/environments blocking third-party cookies (e.g., incognito)
     access_token = create_access_token(user_id)
+    _set_access_token_cookie(response, access_token)
 
     return GoogleAuthUser(
         user_id=user_id,
@@ -535,4 +550,5 @@ async def logout(
     if session_token:
         await db.user_sessions.delete_one({"session_token": session_token})
         response.delete_cookie(key="session_token", path="/")
+    response.delete_cookie(key="access_token", path="/")
     return {"message": "Logged out successfully"}

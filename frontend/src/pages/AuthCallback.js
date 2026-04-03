@@ -53,7 +53,6 @@ export default function AuthCallback() {
         const accessToken = response.data?.access_token;
 
         if (accessToken) {
-          localStorage.setItem('token', accessToken);
           axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         }
         

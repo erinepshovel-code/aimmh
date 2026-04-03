@@ -1,11 +1,9 @@
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('token');
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   const response = await fetch(`${API}${path}`, {

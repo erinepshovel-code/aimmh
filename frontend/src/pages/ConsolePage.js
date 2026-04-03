@@ -16,10 +16,7 @@ import { Badge } from '../components/ui/badge';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 axios.defaults.withCredentials = true;
 
-const getAuthConfig = () => {
-  const token = localStorage.getItem('token');
-  return token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
-};
+const getAuthConfig = () => undefined;
 
 const parseJsonField = (label, rawValue) => {
   const trimmed = String(rawValue || '').trim();
@@ -65,7 +62,7 @@ export default function ConsolePage() {
     [contextLogs, selectedContextId],
   );
 
-  const populateContextEditor = (log) => {
+  const populateContextEditor = React.useCallback((log) => {
     if (!log) {
       setContextEditor({
         message: '',
@@ -88,9 +85,9 @@ export default function ConsolePage() {
       per_model_messages: JSON.stringify(log.per_model_messages || {}, null, 2),
       shared_pairs: JSON.stringify(log.shared_pairs || {}, null, 2),
     });
-  };
+  }, []);
 
-  const loadConsoleData = async () => {
+  const loadConsoleData = React.useCallback(async () => {
     setLoading(true);
     try {
       const authConfig = getAuthConfig();
@@ -116,15 +113,15 @@ export default function ConsolePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [populateContextEditor]);
 
   useEffect(() => {
     loadConsoleData();
-  }, []);
+  }, [loadConsoleData]);
 
   useEffect(() => {
     populateContextEditor(selectedContext);
-  }, [selectedContextId]);
+  }, [populateContextEditor, selectedContext]);
 
   const savePreferences = async () => {
     setSavingPrefs(true);

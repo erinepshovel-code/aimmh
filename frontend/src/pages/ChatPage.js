@@ -222,7 +222,7 @@ function CarouselLayout({ responses, onFeedback, streamEntries }) {
   ];
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: 'center' });
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const onSelect = useCallback(() => { if (emblaApi) setSelectedIdx(emblaApi.selectedScrollSnap()); }, [emblaApi]);
+  const onSelect = useCallback(() => { if (emblaApi) setSelectedIdx(emblaApi.selectedScrollSnap()); }, [emblaApi, setSelectedIdx]);
   useEffect(() => { if (!emblaApi) return; emblaApi.on('select', onSelect); onSelect(); return () => emblaApi.off('select', onSelect); }, [emblaApi, onSelect]);
 
   if (all.length === 0) return null;
@@ -233,7 +233,7 @@ function CarouselLayout({ responses, onFeedback, streamEntries }) {
         <button onClick={() => emblaApi?.scrollPrev()} className="p-1 rounded hover:bg-zinc-800 text-zinc-400" data-testid="carousel-prev"><ChevronLeft size={16} /></button>
         <div className="flex gap-1.5">
           {all.map((r, i) => (
-            <button key={i} onClick={() => emblaApi?.scrollTo(i)}
+            <button key={r.message_id || `carousel-tab-${r.model}-${i}`} onClick={() => emblaApi?.scrollTo(i)}
               className={`px-2 py-0.5 rounded text-xs transition-colors ${i === selectedIdx ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-600/40' : 'text-zinc-500 border border-zinc-800'}`}>
               {r.model}
             </button>
@@ -355,7 +355,9 @@ export default function ChatPage() {
   useEffect(() => { localStorage.setItem('hub_layout', layout); }, [layout]);
   useEffect(() => {
     fetchThreads();
-    axios.get(`${API}/v1/models`).then(res => setRegistry(res.data.developers || [])).catch(() => {});
+    axios.get(`${API}/v1/models`).then(res => setRegistry(res.data.developers || [])).catch((modelError) => {
+      console.error('Failed to load model registry:', modelError);
+    });
   }, [fetchThreads]);
   useEffect(() => { if (responseEndRef.current) responseEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages, streaming]);
 
@@ -376,8 +378,7 @@ export default function ChatPage() {
       sendPrompt(trimmed, selectedModels, { globalContext, perModelContext: Object.keys(pmc).length ? pmc : undefined });
     } else {
       // Advanced modes: shared room, synth room, daisy chain
-      const token = localStorage.getItem('token');
-      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      const headers = { 'Content-Type': 'application/json' };
 
       let endpoint, body;
       if (mode === MODES.SHARED_ALL) {
@@ -430,8 +431,7 @@ export default function ChatPage() {
     if (selectedResponseIds.size === 0 || !targetModel) return;
     setSynthesizing(true);
     try {
-      const token = localStorage.getItem('token');
-      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      const headers = { 'Content-Type': 'application/json' };
       const res = await fetch(`${API}/v1/a0/synthesize`, {
         method: 'POST', headers, credentials: 'include',
         body: JSON.stringify({

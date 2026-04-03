@@ -99,6 +99,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Chat context hardened for unauthenticated state (no background 401 thread fetch spam on `/auth`)
 - [x] Restored explicit logout UX button in hub top shell (`hub-logout-button`) and verified end-to-end logout routing
 - [x] Hook dependency quality pass for reported legacy pages (`SettingsPage.js`, `ConsolePage.js`, `ChatPage.js`) with stable callbacks/effects
+- [x] Backend complexity reduction started in `routes/chat.py`: decomposed streaming flow into helpers (`_validate_chat_request`, `_ensure_conversation_record`, `_create_context_log`, `_persist_base_user_message`, `_build_messages_context`, `_resolve_stream_iterator`, `_stream_chat_response`, `_handle_chat_error`)
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

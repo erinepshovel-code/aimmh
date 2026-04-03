@@ -91,6 +91,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Hardened Google OAuth callback handling: switched redirect target to `/auth/google`, added callback support for both query/hash `session_id`, and graceful handling for OAuth `error` / invalid-state responses (no raw callback dead-end)
 - [x] Tightened workspace tabs to single-row layout (`hub-tabs-row-single-line`) with compact labels for consistent one-line rendering
 - [x] Fixed Runs/Rooms numeric inputs so users can clear/delete values while editing; defaults now normalize on blur and payload coercion remains valid on execute
+- [x] Added stronger editable ghost-label behavior for run-stage numeric fields using explicit placeholder hints (e.g., default values visible when empty)
+- [x] Improved two-finger response-pane gestures: clearer pinch/spread zoom detection, gesture-type locking, larger safe font-scale range (0.85–1.9), and reduced accidental pane switching during zoom
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

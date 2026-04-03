@@ -107,6 +107,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Frontend modularization pass: split `HubResponsesPanel.jsx` into focused components `ResponsesToolbar.jsx` and `ResponsesComparePopout.jsx` while preserving all existing test IDs and behavior
 - [x] Frontend modularization pass: split `ConsolePage.js` context tab into `ConsoleLogViewer.jsx` and `ConsoleContextEditor.jsx` components while preserving existing selectors/actions
 - [x] Route wiring hardening from regression test: ensured `/console` route is registered in frontend router and backend console router is mounted in `server.py`
+- [x] Frontend modularization pass: split `ServiceAccountManager.js` into focused components `ServiceAccountCreateForm.js`, `ServiceAccountList.js`, and `ServiceAccountDetails.js`
+- [x] Settings integration hardened: `SettingsPageV2.jsx` now exposes Service Accounts tab with full create/issue/revoke flow verified
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

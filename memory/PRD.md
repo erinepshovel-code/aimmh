@@ -88,6 +88,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Stripe hardening: corrected checkout webhook URL target to `/api/payments/webhook/stripe` in `backend/routes/payments_v2.py`
 - [x] Restored in-workspace pricing access after header simplification by adding top-shell `Pricing` button (`data-testid="hub-open-pricing-button"`) linking to `/pricing`
 - [x] Added safe Stripe diagnostics endpoint `GET /api/payments/stripe/mode` (auth required) returning only `{ stripe_mode, key_present }` without exposing secret key material
+- [x] Hardened Google OAuth callback handling: switched redirect target to `/auth/google`, added callback support for both query/hash `session_id`, and graceful handling for OAuth `error` / invalid-state responses (no raw callback dead-end)
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

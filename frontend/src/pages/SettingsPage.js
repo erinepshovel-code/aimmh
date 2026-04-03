@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Key, Plus, Trash2, Shield, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -11,7 +11,7 @@ function KeyManager() {
   const [editDev, setEditDev] = useState(null);
   const [editKey, setEditKey] = useState('');
 
-  const fetchKeys = async () => {
+  const fetchKeys = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/v1/keys`);
       setKeys(res.data || []);
@@ -20,9 +20,9 @@ function KeyManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchKeys(); }, []);
+  useEffect(() => { fetchKeys(); }, [fetchKeys]);
 
   const handleSave = async (developerId) => {
     try {
@@ -134,7 +134,7 @@ function RegistryManager() {
   const [addingModel, setAddingModel] = useState(null);
   const [newModel, setNewModel] = useState('');
 
-  const fetchRegistry = async (showLoader = true) => {
+  const fetchRegistry = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
     setError('');
     try {
@@ -151,9 +151,9 @@ function RegistryManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchRegistry(); }, []);
+  useEffect(() => { fetchRegistry(); }, [fetchRegistry]);
 
   const handleAddDev = async () => {
     if (!newDev.developer_id || !newDev.name || !newDev.base_url) return;

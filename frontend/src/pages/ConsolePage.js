@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Slider } from '../components/ui/slider';
 import { Switch } from '../components/ui/switch';
 import { Label } from '../components/ui/label';
-import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
+import { ConsoleLogViewer } from '../components/console/ConsoleLogViewer';
+import { ConsoleContextEditor } from '../components/console/ConsoleContextEditor';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 axios.defaults.withCredentials = true;
@@ -178,6 +178,10 @@ export default function ConsolePage() {
     toast.success('Context payload copied');
   };
 
+  const updateContextEditor = React.useCallback((field, value) => {
+    setContextEditor((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
   const usagePct = summary && summary.total_paid_usd > 0
     ? Math.min(100, (summary.estimated_usage_cost_usd / summary.total_paid_usd) * 100)
     : 0;
@@ -284,71 +288,20 @@ export default function ConsolePage() {
 
           <TabsContent value="context" className="space-y-4" data-testid="console-context-tab-content">
             <div className="grid lg:grid-cols-[300px_minmax(0,1fr)] gap-3">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm">Captured Context Logs</CardTitle></CardHeader>
-                <CardContent className="space-y-2 max-h-[65vh] overflow-y-auto" data-testid="context-log-list">
-                  {contextLogs.map((log) => (
-                    <button
-                      key={log.id}
-                      onClick={() => setSelectedContextId(log.id)}
-                      className={`w-full text-left rounded border p-2 text-xs ${selectedContextId === log.id ? 'border-primary bg-primary/10' : 'border-border bg-muted/20'}`}
-                      data-testid={`context-log-item-${log.id}`}
-                    >
-                      <div className="font-medium truncate">{log.message || 'Untitled context event'}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">{log.created_at}</div>
-                    </button>
-                  ))}
-                </CardContent>
-              </Card>
+              <ConsoleLogViewer
+                contextLogs={contextLogs}
+                selectedContextId={selectedContextId}
+                onSelectContext={setSelectedContextId}
+              />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Editable Prompt Context Payload</CardTitle>
-                  <CardDescription>Inspect and edit the exact context packet sent with prompts.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3" data-testid="context-editor-card">
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label>Context mode</Label>
-                      <Input value={contextEditor.context_mode} onChange={(e) => setContextEditor((prev) => ({ ...prev, context_mode: e.target.value }))} data-testid="context-editor-mode-input" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Shared room mode</Label>
-                      <Input value={contextEditor.shared_room_mode} onChange={(e) => setContextEditor((prev) => ({ ...prev, shared_room_mode: e.target.value }))} data-testid="context-editor-shared-mode-input" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>Message</Label>
-                    <Textarea rows={3} value={contextEditor.message} onChange={(e) => setContextEditor((prev) => ({ ...prev, message: e.target.value }))} data-testid="context-editor-message-input" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Global context</Label>
-                    <Textarea rows={3} value={contextEditor.global_context} onChange={(e) => setContextEditor((prev) => ({ ...prev, global_context: e.target.value }))} data-testid="context-editor-global-input" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Model roles (JSON)</Label>
-                    <Textarea rows={4} value={contextEditor.model_roles} onChange={(e) => setContextEditor((prev) => ({ ...prev, model_roles: e.target.value }))} data-testid="context-editor-roles-input" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Per model messages (JSON)</Label>
-                    <Textarea rows={4} value={contextEditor.per_model_messages} onChange={(e) => setContextEditor((prev) => ({ ...prev, per_model_messages: e.target.value }))} data-testid="context-editor-per-model-input" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Shared pairs (JSON)</Label>
-                    <Textarea rows={3} value={contextEditor.shared_pairs} onChange={(e) => setContextEditor((prev) => ({ ...prev, shared_pairs: e.target.value }))} data-testid="context-editor-shared-pairs-input" />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={saveContextLog} disabled={savingContext || !selectedContextId} data-testid="context-editor-save-btn">
-                      <Save className="h-4 w-4 mr-1" />{savingContext ? 'Saving…' : 'Save context edits'}
-                    </Button>
-                    <Button variant="outline" onClick={copyContextPayload} data-testid="context-editor-copy-btn">
-                      <Copy className="h-4 w-4 mr-1" />Copy payload
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ConsoleContextEditor
+                contextEditor={contextEditor}
+                onChange={updateContextEditor}
+                onSave={saveContextLog}
+                onCopy={copyContextPayload}
+                savingContext={savingContext}
+                selectedContextId={selectedContextId}
+              />
             </div>
           </TabsContent>
 

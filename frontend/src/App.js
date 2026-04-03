@@ -51,7 +51,13 @@ const PublicRoute = ({ children }) => {
 
 function AppRoutes() {
   const location = useLocation();
-  if (location.pathname === '/auth/callback' || location.hash?.includes('session_id=')) {
+  if (
+    location.pathname === '/auth/callback'
+    || location.pathname === '/auth/google'
+    || location.hash?.includes('session_id=')
+    || location.search?.includes('session_id=')
+    || location.search?.includes('error=')
+  ) {
     return <AuthCallback />;
   }
   return (

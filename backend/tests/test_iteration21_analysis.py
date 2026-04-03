@@ -11,13 +11,15 @@ import requests
 import os
 import time
 
+from tests.test_credentials import TEST_USER_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
     raise ValueError("REACT_APP_BACKEND_URL environment variable is required")
 
 # Test credentials
 TEST_USERNAME = "testbot01"
-TEST_PASSWORD = "test123456"
+TEST_PASSWORD = TEST_USER_PASSWORD
 
 # Sample transcript for testing
 SAMPLE_TRANSCRIPT = """Speaker A: I agree the contract is fair.

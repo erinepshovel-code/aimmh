@@ -7,11 +7,13 @@ import requests
 import os
 import uuid
 
+from test_credentials import TEST_FAKE_API_KEY, TEST_USER_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 # Test credentials - reuse from previous iteration
 TEST_USERNAME = "testuser_refactor"
-TEST_PASSWORD = "test123456"
+TEST_PASSWORD = TEST_USER_PASSWORD
 
 
 @pytest.fixture(scope="module")
@@ -118,7 +120,7 @@ class TestA0ConfigEndpoints:
             "local_url": "http://192.168.1.1",
             "local_port": 8787,
             "cloud_url": "https://my-a0-instance.run.app",
-            "api_key": "test-api-key-xyz",
+            "api_key": TEST_FAKE_API_KEY,
             "route_via_a0": True,
             "auto_ingest": False
         }

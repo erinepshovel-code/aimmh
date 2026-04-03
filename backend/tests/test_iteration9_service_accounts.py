@@ -11,6 +11,15 @@ import os
 import uuid
 from datetime import datetime
 
+from tests.test_credentials import (
+    TEST_SERVICE_ACCOUNT_ALT_PASSWORD,
+    TEST_SERVICE_ACCOUNT_PASSWORD,
+    TEST_SHORT_ALT_PASSWORD,
+    TEST_SHORT_PASSWORD,
+    TEST_USER_PASSWORD,
+    TEST_USER_WRONG_PASSWORD,
+)
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 if not BASE_URL:
@@ -25,7 +34,7 @@ class TestBasicAuthRegression:
         username = f"test_sa_reg_{uuid.uuid4().hex[:8]}"
         response = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert response.status_code == 200, f"Registration failed: {response.text}"
         data = response.json()
@@ -39,14 +48,14 @@ class TestBasicAuthRegression:
         username = f"test_sa_login_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         
         # Now login
         login_resp = requests.post(f"{BASE_URL}/api/auth/login", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert login_resp.status_code == 200
         data = login_resp.json()
@@ -57,7 +66,7 @@ class TestBasicAuthRegression:
         """Test login with wrong password"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
             "username": "nonexistent_user_xyz",
-            "password": "wrongpassword"
+            "password": TEST_USER_WRONG_PASSWORD
         })
         assert response.status_code == 401
         
@@ -67,7 +76,7 @@ class TestBasicAuthRegression:
         username = f"test_sa_me_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         token = reg_resp.json()["access_token"]
@@ -95,7 +104,7 @@ class TestServiceAccountCreation:
         username = f"test_sa_owner_{uuid.uuid4().hex[:8]}"
         response = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert response.status_code == 200
         return response.json()["access_token"]
@@ -107,7 +116,7 @@ class TestServiceAccountCreation:
             f"{BASE_URL}/api/auth/service-account/create",
             json={
                 "username": sa_username,
-                "password": "bot_password_123",
+                "password": TEST_SERVICE_ACCOUNT_ALT_PASSWORD,
                 "label": "Test Bot"
             },
             headers={"Authorization": f"Bearer {auth_token}"}
@@ -127,7 +136,7 @@ class TestServiceAccountCreation:
             f"{BASE_URL}/api/auth/service-account/create",
             json={
                 "username": sa_username,
-                "password": "bot_password_123"
+                "password": TEST_SERVICE_ACCOUNT_ALT_PASSWORD
             },
             headers={"Authorization": f"Bearer {auth_token}"}
         )
@@ -142,7 +151,7 @@ class TestServiceAccountCreation:
         # Create first
         response1 = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
-            json={"username": sa_username, "password": "pass123"},
+            json={"username": sa_username, "password": TEST_SHORT_PASSWORD},
             headers={"Authorization": f"Bearer {auth_token}"}
         )
         assert response1.status_code == 200
@@ -150,7 +159,7 @@ class TestServiceAccountCreation:
         # Try to create duplicate
         response2 = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
-            json={"username": sa_username, "password": "pass456"},
+            json={"username": sa_username, "password": TEST_SHORT_ALT_PASSWORD},
             headers={"Authorization": f"Bearer {auth_token}"}
         )
         assert response2.status_code == 400
@@ -160,7 +169,7 @@ class TestServiceAccountCreation:
         """Test that creating service account requires authentication"""
         response = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
-            json={"username": "bot_test", "password": "pass123"}
+            json={"username": "bot_test", "password": TEST_SHORT_PASSWORD}
         )
         assert response.status_code == 401
 
@@ -174,7 +183,7 @@ class TestServiceAccountListing:
         username = f"test_sa_list_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         token = reg_resp.json()["access_token"]
@@ -186,7 +195,7 @@ class TestServiceAccountListing:
                 f"{BASE_URL}/api/auth/service-account/create",
                 json={
                     "username": f"bot_{uuid.uuid4().hex[:8]}",
-                    "password": "botpass123",
+                    "password": TEST_SERVICE_ACCOUNT_PASSWORD,
                     "label": f"Bot {i+1}"
                 },
                 headers={"Authorization": f"Bearer {token}"}
@@ -230,7 +239,7 @@ class TestServiceAccountUpdate:
         username = f"test_sa_update_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         token = reg_resp.json()["access_token"]
@@ -240,7 +249,7 @@ class TestServiceAccountUpdate:
             f"{BASE_URL}/api/auth/service-account/create",
             json={
                 "username": sa_username,
-                "password": "botpass123",
+                "password": TEST_SERVICE_ACCOUNT_PASSWORD,
                 "label": "Original Label"
             },
             headers={"Authorization": f"Bearer {token}"}
@@ -318,13 +327,13 @@ class TestServiceAccountTokenIssuance:
         username = f"test_sa_token_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         token = reg_resp.json()["access_token"]
         
         sa_username = f"bot_{uuid.uuid4().hex[:8]}"
-        sa_password = "botpass123"
+        sa_password = TEST_SERVICE_ACCOUNT_PASSWORD
         sa_resp = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
             json={
@@ -366,7 +375,7 @@ class TestServiceAccountTokenIssuance:
             f"{BASE_URL}/api/auth/service-account/token",
             json={
                 "username": service_account_setup["sa_username"],
-                "password": "wrong_password",
+                "password": TEST_USER_WRONG_PASSWORD,
                 "expires_in_days": 30
             }
         )
@@ -378,7 +387,7 @@ class TestServiceAccountTokenIssuance:
             f"{BASE_URL}/api/auth/service-account/token",
             json={
                 "username": "nonexistent_bot_xyz",
-                "password": "somepass",
+                "password": TEST_SHORT_ALT_PASSWORD,
                 "expires_in_days": 30
             }
         )
@@ -415,13 +424,13 @@ class TestServiceAccountTokenListing:
         username = f"test_sa_tlist_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         user_token = reg_resp.json()["access_token"]
         
         sa_username = f"bot_{uuid.uuid4().hex[:8]}"
-        sa_password = "botpass123"
+        sa_password = TEST_SERVICE_ACCOUNT_PASSWORD
         sa_resp = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
             json={"username": sa_username, "password": sa_password},
@@ -494,13 +503,13 @@ class TestServiceAccountTokenRevocation:
         username = f"test_sa_revoke_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         user_token = reg_resp.json()["access_token"]
         
         sa_username = f"bot_{uuid.uuid4().hex[:8]}"
-        sa_password = "botpass123"
+        sa_password = TEST_SERVICE_ACCOUNT_PASSWORD
         sa_resp = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
             json={"username": sa_username, "password": sa_password},
@@ -588,13 +597,13 @@ class TestProtectedEndpointsWithServiceToken:
         username = f"test_sa_protect_{uuid.uuid4().hex[:8]}"
         reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": username,
-            "password": "test123456"
+            "password": TEST_USER_PASSWORD
         })
         assert reg_resp.status_code == 200
         user_token = reg_resp.json()["access_token"]
         
         sa_username = f"bot_{uuid.uuid4().hex[:8]}"
-        sa_password = "botpass123"
+        sa_password = TEST_SERVICE_ACCOUNT_PASSWORD
         sa_resp = requests.post(
             f"{BASE_URL}/api/auth/service-account/create",
             json={"username": sa_username, "password": sa_password},

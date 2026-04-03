@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { KeyManager } from '../components/settings/KeyManager';
 import { RegistryManager } from '../components/settings/RegistryManager';
+import { ServiceAccountManager } from '../components/settings/ServiceAccountManager';
 
 export default function SettingsPageV2() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function SettingsPageV2() {
           {[
             ['keys', 'API Keys'],
             ['registry', 'Model Registry'],
+            ['service-accounts', 'Service Accounts'],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -39,6 +41,7 @@ export default function SettingsPageV2() {
         <div className="space-y-4">
           {tab === 'keys' && <KeyManager />}
           {tab === 'registry' && <RegistryManager />}
+          {tab === 'service-accounts' && <ServiceAccountManager />}
         </div>
       </main>
     </div>

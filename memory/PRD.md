@@ -93,6 +93,12 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Fixed Runs/Rooms numeric inputs so users can clear/delete values while editing; defaults now normalize on blur and payload coercion remains valid on execute
 - [x] Added stronger editable ghost-label behavior for run-stage numeric fields using explicit placeholder hints (e.g., default values visible when empty)
 - [x] Improved two-finger response-pane gestures: clearer pinch/spread zoom detection, gesture-type locking, larger safe font-scale range (0.85–1.9), and reduced accidental pane switching during zoom
+- [x] Security hardening: moved frontend auth from `localStorage` token persistence to secure cookie-first flow (`access_token` HttpOnly cookie set on login/register/google session)
+- [x] Backend auth updated to accept JWT from `access_token` cookie in addition to header/session cookie paths
+- [x] Removed localStorage token reads from API clients (`hubApi`, `paymentsApi`, `registryApi`) and chat advanced/synthesis fetch calls
+- [x] Chat context hardened for unauthenticated state (no background 401 thread fetch spam on `/auth`)
+- [x] Restored explicit logout UX button in hub top shell (`hub-logout-button`) and verified end-to-end logout routing
+- [x] Hook dependency quality pass for reported legacy pages (`SettingsPage.js`, `ConsolePage.js`, `ChatPage.js`) with stable callbacks/effects
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

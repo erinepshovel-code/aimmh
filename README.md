@@ -15,10 +15,14 @@
 
 | Tier | Price | What you get |
 |------|-------|--------------|
-| Free | $0 | Explore the interface |
-| Core | $15/month | Full EDCM analytics, API key management, cost tracking |
-| Founder | $153 one-time | Locked $15 rate forever, founder badge, early access — 53 slots only |
-| Compute credits | $10–$50 | Pay-per-use compute blocks |
+| **Free** | $0 | 5 instances, 10 runs/month, basic responses and chat |
+| **Supporter** | $5/month | 15 instances, 30 runs/month, removes "Made with Emergent" badge, Hall of Makers eligibility, early feature voting, private thank-you channel |
+| **Coffee** | $5 one-time | Supporter perks + Hall of Makers eligibility |
+| **Builder** | $25 one-time | Supporter perks + Hall of Makers eligibility (Builder tier) |
+| **Patron** | $50 one-time | Supporter perks + Hall of Makers eligibility (Patron tier) |
+| **Pro** | $19/month or $149/year | Unlimited instances & runs, advanced synthesis, priority support, all supporter perks |
+| **Team** | $49/month (3 seats) | Unlimited instances & runs, shared workspace, admin controls, all supporter perks |
+| **Team extra seat** | $15/month | Adds 1 extra seat to an existing Team plan |
 
 ---
 

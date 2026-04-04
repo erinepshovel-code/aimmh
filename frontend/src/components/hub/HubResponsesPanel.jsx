@@ -5,6 +5,7 @@ import { ResponseCarousel } from './ResponseCarousel';
 import { ResponsePane } from './ResponsePane';
 import { ResponsesToolbar } from './ResponsesToolbar';
 import { ResponsesComparePopout } from './ResponsesComparePopout';
+import { SynthesisQueuePanel } from './SynthesisQueuePanel';
 
 export function HubResponsesPanel({
   runs,
@@ -167,6 +168,11 @@ export function HubResponsesPanel({
         visibleResponsesCount={visibleResponses.length}
         selectedResponsesCount={selectedResponses.length}
         allVisibleSelected={allVisibleSelected}
+      />
+
+      <SynthesisQueuePanel
+        synthesisBasket={synthesisBasket}
+        onToggleSynthesisBlock={onToggleSynthesisBlock}
       />
 
       {(sourceType === 'runs' && !selectedRun) || (sourceType === 'prompts' && !selectedPrompt) ? (

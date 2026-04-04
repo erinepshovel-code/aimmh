@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { hubApi } from '../../lib/hubApi';
 import { generateInstanceName } from '../../lib/nameFactory';
 import { registryApi } from '../../lib/registryApi';
-import { RegistryDeveloperCard } from './RegistryDeveloperCard';
+import { RegistryTreeNode } from './RegistryTreeNode';
 
 function mergeVerificationResults(results) {
   return (results || []).reduce((acc, item) => {
@@ -15,23 +15,36 @@ function mergeVerificationResults(results) {
 
 export function RegistryManager({ onInventoryChanged = async () => {} }) {
   const [registry, setRegistry] = useState([]);
+  const [keyMap, setKeyMap] = useState({});
+  const [defaultsMap, setDefaultsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
   const [addingDev, setAddingDev] = useState(false);
   const [newDev, setNewDev] = useState({ developer_id: '', name: '', base_url: '', website: '' });
-  const [addingModel, setAddingModel] = useState('');
-  const [newModel, setNewModel] = useState('');
   const [verificationMap, setVerificationMap] = useState({});
+
+  const mapKeysByDeveloper = (items) => (items || []).reduce((acc, item) => {
+    acc[item.developer_id] = item;
+    return acc;
+  }, {});
 
   const fetchRegistry = async (showLoader = true) => {
     if (showLoader) setLoading(true);
     setError('');
     try {
-      const response = await registryApi.getRegistry();
-      setRegistry(response?.developers || []);
+      const [registryResponse, keysResponse] = await Promise.all([
+        registryApi.getRegistry(),
+        registryApi.getKeys(),
+      ]);
+      setRegistry(registryResponse?.developers || []);
+      setKeyMap(mapKeysByDeveloper(keysResponse || []));
+      const defaultsResponse = await registryApi.getDefaults();
+      setDefaultsMap(defaultsResponse?.defaults || {});
     } catch (err) {
       setRegistry([]);
+      setKeyMap({});
+      setDefaultsMap({});
       setError(err.message || 'Could not load the model registry from the backend.');
     } finally {
       setLoading(false);
@@ -76,22 +89,6 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
     }
   };
 
-  const addModel = async (developerId) => {
-    if (!newModel.trim()) return;
-    try {
-      setBusyKey(`add-model-${developerId}`);
-      await registryApi.addModel(developerId, { model_id: newModel.trim() });
-      toast.success(`Added model ${newModel.trim()}`);
-      setAddingModel('');
-      setNewModel('');
-      await refreshAll();
-    } catch (err) {
-      toast.error(err.message || 'Failed to add model');
-    } finally {
-      setBusyKey('');
-    }
-  };
-
   const removeModel = async (developerId, modelId) => {
     try {
       setBusyKey(`remove-model-${developerId}-${modelId}`);
@@ -100,6 +97,21 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
       await refreshAll();
     } catch (err) {
       toast.error(err.message || 'Failed to remove model');
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const addModelPrompt = async (developerId) => {
+    const modelId = window.prompt('Enter model ID');
+    if (!modelId || !modelId.trim()) return;
+    try {
+      setBusyKey(`add-model-${developerId}`);
+      await registryApi.addModel(developerId, { model_id: modelId.trim() });
+      toast.success(`Added model ${modelId.trim()}`);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || 'Failed to add model');
     } finally {
       setBusyKey('');
     }
@@ -197,8 +209,8 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-zinc-100">Registry</h2>
-            <p className="mt-1 text-xs text-zinc-500">Developer metadata, websites, lightweight verification, and one-click model instantiation.</p>
+            <h2 className="text-base font-semibold text-zinc-100">Registry tree</h2>
+            <p className="mt-1 text-xs text-zinc-500">Provider key nodes with collapsible model branches, validation, instantiation, and default request JSON.</p>
           </div>
           <button onClick={verifyAll} disabled={busyKey === 'verify-all'} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-700 hover:text-white disabled:opacity-60">
             <span className="flex items-center gap-2">{busyKey === 'verify-all' ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />} Verify entire registry</span>
@@ -219,16 +231,14 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
 
       <div className="space-y-4">
         {registry.map((developer) => (
-          <RegistryDeveloperCard
+          <RegistryTreeNode
             key={developer.developer_id}
             developer={developer}
+            keyStatus={keyMap[developer.developer_id]}
+            defaultsNode={defaultsMap[developer.developer_id]}
             verificationMap={verificationMap}
             busyKey={busyKey}
-            addingModel={addingModel}
-            newModel={newModel}
-            setNewModel={setNewModel}
-            setAddingModel={setAddingModel}
-            onAddModel={addModel}
+            onAddModel={addModelPrompt}
             onRemoveModel={removeModel}
             onInstantiateModel={instantiateModel}
             onVerifyModel={verifyModel}

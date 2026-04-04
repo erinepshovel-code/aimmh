@@ -92,6 +92,34 @@ DEFAULT_REGISTRY = {
 }
 
 
+def model_default_payload(developer_id: str, model_id: str) -> Dict[str, Any]:
+    if developer_id == "anthropic":
+        return {
+            "model": model_id,
+            "system": "You are a helpful assistant.",
+            "max_tokens": 1024,
+            "temperature": 0.7,
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+    if developer_id == "google":
+        return {
+            "model": model_id,
+            "contents": [{"role": "user", "parts": [{"text": "Hello"}]}],
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024},
+        }
+    return {
+        "model": model_id,
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello"},
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1024,
+        "stream": True,
+    }
+
+
 def universal_managed_model_ids(developer_id: str) -> set[str]:
     developer = DEFAULT_REGISTRY.get(developer_id, {})
     return {

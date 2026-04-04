@@ -29,8 +29,8 @@ export function ResponsesToolbar({
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="responses-toolbar">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-zinc-100">Responses</h2>
-          <p className="mt-1 text-xs text-zinc-500">Native formatting preserved. Compare vertically in stack mode or pane mode.</p>
+          <h2 className="text-base font-semibold text-zinc-100">Response synthesis</h2>
+          <p className="mt-1 text-xs text-zinc-500">Queue model responses, compare variants, and keep a running token/cost estimate for synthesis planning.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300" data-testid="responses-show-archived-toggle-wrap">

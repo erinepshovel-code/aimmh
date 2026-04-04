@@ -19,7 +19,7 @@ const TABS = [
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
   { id: 'runs', label: 'Rooms & Runs' },
-  { id: 'responses', label: 'Responses' },
+  { id: 'responses', label: 'Response Synthesis' },
   { id: 'chat', label: 'Chat+Synth' },
 ];
 

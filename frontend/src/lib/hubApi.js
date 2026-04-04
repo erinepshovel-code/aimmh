@@ -55,5 +55,8 @@ export const hubApi = {
   getSyntheses: () => request('/v1/hub/chat/syntheses'),
   getSynthesis: (batchId) => request(`/v1/hub/chat/syntheses/${batchId}`),
   createSynthesis: (payload) => request('/v1/hub/chat/synthesize', { method: 'POST', body: JSON.stringify(payload) }),
+  getState: (stateKey) => request(`/v1/hub/state/${stateKey}`),
+  setState: (stateKey, payload) => request(`/v1/hub/state/${stateKey}`, { method: 'PUT', body: JSON.stringify({ payload }) }),
+  deleteState: (stateKey) => request(`/v1/hub/state/${stateKey}`, { method: 'DELETE' }),
   submitFeedback: (messageId, feedback) => request('/v1/a0/feedback', { method: 'POST', body: JSON.stringify({ message_id: messageId, feedback }) }),
 };

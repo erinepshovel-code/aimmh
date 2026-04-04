@@ -7,7 +7,13 @@ from db import db
 from models.registry import VerificationResponse, VerifyModelRequest
 from models.v1 import AddDeveloperRequest, AddModelRequest, RegistryResponse, DeveloperDef, ModelDef
 from services.auth import get_current_user, get_user_id
-from services.llm import DEFAULT_REGISTRY, UNIVERSAL_DEVELOPER_IDS, reconcile_registry_developers, universal_managed_model_ids
+from services.llm import (
+    DEFAULT_REGISTRY,
+    UNIVERSAL_DEVELOPER_IDS,
+    model_default_payload,
+    reconcile_registry_developers,
+    universal_managed_model_ids,
+)
 from services.registry_verifier import verify_developer_models, verify_registry, verify_single_model
 
 router = APIRouter(prefix="/api/v1/registry", tags=["registry"])
@@ -63,6 +69,24 @@ async def get_registry(current_user: dict = Depends(get_current_user)):
         ))
 
     return RegistryResponse(developers=result)
+
+
+@router.get("/defaults")
+async def get_registry_model_defaults(current_user: dict = Depends(get_current_user)):
+    uid = get_user_id(current_user)
+    doc = await _get_or_seed_registry(uid)
+    developers = doc.get("developers", {})
+    result = {}
+    for developer_id, developer in developers.items():
+        models = developer.get("models", [])
+        result[developer_id] = {
+            "models": {
+                model.get("model_id"): model_default_payload(developer_id, model.get("model_id"))
+                for model in models
+                if isinstance(model, dict) and model.get("model_id")
+            }
+        }
+    return {"defaults": result}
 
 
 @router.post("/developer")

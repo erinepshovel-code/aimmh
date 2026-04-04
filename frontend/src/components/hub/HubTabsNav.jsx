@@ -7,7 +7,7 @@ export function HubTabsNav({ tabs, activeTab, onChange }) {
       data-testid="hub-tabs-nav"
       aria-label="AIMMH workspace tabs"
     >
-      <div className="grid grid-cols-5 gap-1" data-testid="hub-tabs-row-single-line">
+      <div className="flex flex-nowrap gap-1" data-testid="hub-tabs-row-single-line">
         {tabs.map((tab) => {
           const active = tab.id === activeTab;
           return (
@@ -15,7 +15,7 @@ export function HubTabsNav({ tabs, activeTab, onChange }) {
               key={tab.id}
               type="button"
               onClick={() => onChange(tab.id)}
-              className={`min-h-[2.5rem] rounded-xl px-2 py-2 text-center text-[11px] leading-tight transition sm:text-xs ${active ? 'bg-emerald-600 text-white shadow-[0_8px_30px_rgba(16,185,129,0.25)]' : 'bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'}`}
+              className={`min-h-[2.5rem] min-w-0 flex-1 rounded-xl px-2 py-2 text-center text-[11px] leading-tight transition sm:text-xs ${active ? 'bg-emerald-600 text-white shadow-[0_8px_30px_rgba(16,185,129,0.25)]' : 'bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'}`}
               data-testid={`hub-tab-${tab.id}`}
               aria-pressed={active}
             >

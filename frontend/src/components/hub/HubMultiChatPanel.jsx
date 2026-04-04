@@ -1,6 +1,8 @@
 import React from 'react';
 import { CheckCheck, Loader2, MessageSquareShare, Send, Sparkles } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
+import { ChatResponseComparator } from './ChatResponseComparator';
+import { hubApi } from '../../lib/hubApi';
 
 export function HubMultiChatPanel({
   instances,
@@ -20,15 +22,53 @@ export function HubMultiChatPanel({
   const [prompt, setPrompt] = React.useState('');
   const [selectedInstanceIds, setSelectedInstanceIds] = React.useState([]);
   const [instruction, setInstruction] = React.useState('Compare, reconcile, and refine the selected responses into a useful synthesis.');
+  const [draftLoaded, setDraftLoaded] = React.useState(false);
 
   const activeInstances = instances.filter((item) => !item.archived);
   const selectedPrompt = prompts.find((item) => item.prompt_id === selectedPromptId) || prompts[0] || null;
+  const chatDraftKey = React.useMemo(() => `chat-draft:${selectedPromptId || 'new'}`, [selectedPromptId]);
 
   React.useEffect(() => {
     if (!selectedPromptId && prompts[0]?.prompt_id) {
       setSelectedPromptId(prompts[0].prompt_id);
     }
   }, [prompts, selectedPromptId, setSelectedPromptId]);
+
+  React.useEffect(() => {
+    let active = true;
+    setDraftLoaded(false);
+    const loadDraft = async () => {
+      try {
+        const state = await hubApi.getState(chatDraftKey);
+        if (!active) return;
+        setPrompt(state?.payload?.prompt || '');
+        setInstruction(state?.payload?.instruction || 'Compare, reconcile, and refine the selected responses into a useful synthesis.');
+        setSelectedInstanceIds(Array.isArray(state?.payload?.selectedInstanceIds) ? state.payload.selectedInstanceIds : []);
+      } catch {
+        if (!active) return;
+        setPrompt('');
+        setInstruction('Compare, reconcile, and refine the selected responses into a useful synthesis.');
+      } finally {
+        if (active) setDraftLoaded(true);
+      }
+    };
+    loadDraft();
+    return () => {
+      active = false;
+    };
+  }, [chatDraftKey]);
+
+  React.useEffect(() => {
+    if (!draftLoaded) return;
+    const timer = window.setTimeout(() => {
+      hubApi.setState(chatDraftKey, {
+        prompt,
+        instruction,
+        selectedInstanceIds,
+      }).catch(() => {});
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [chatDraftKey, draftLoaded, instruction, prompt, selectedInstanceIds]);
 
   const toggleInstance = (instanceId) => {
     setSelectedInstanceIds((prev) => prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId]);
@@ -49,6 +89,7 @@ export function HubMultiChatPanel({
     if (!prompt.trim() || selectedInstanceIds.length === 0) return;
     const detail = await onSendPrompt({ prompt, instance_ids: selectedInstanceIds });
     setPrompt('');
+    hubApi.deleteState(chatDraftKey).catch(() => {});
     setSelectedPromptId(detail.prompt_id);
   };
 
@@ -155,37 +196,13 @@ export function HubMultiChatPanel({
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="selected-prompt-section">
           <div className="text-sm font-semibold text-zinc-100">Selected prompt</div>
           <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-300">{selectedPrompt.prompt}</div>
-          <div className="mt-4 space-y-3">
-            {(selectedPrompt.responses || []).map((response) => {
-              const sourceId = response.message_id || `${response.prompt_id}-${response.instance_id}`;
-              const inBasket = synthesisBasket.some((block) => block.source_id === sourceId);
-              return (
-                <article key={sourceId} className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4" data-testid={`selected-prompt-response-${sourceId}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-medium text-zinc-100">{response.instance_name}</div>
-                        <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-400">{response.model}</span>
-                      </div>
-                    </div>
-                    <button type="button" onClick={() => onToggleSynthesisBlock({
-                      source_type: 'chat_prompt_response',
-                      source_id: sourceId,
-                      source_label: `Prompt ${selectedPrompt.prompt_id} · ${response.instance_name}`,
-                      instance_id: response.instance_id,
-                      instance_name: response.instance_name,
-                      model: response.model,
-                      content: response.content,
-                    })} className={`rounded-xl border px-3 py-2 text-xs ${inBasket ? 'border-violet-500/30 bg-violet-500/10 text-violet-300' : 'border-zinc-800 text-zinc-300 hover:text-white'}`} data-testid={`queue-synthesis-button-${sourceId}`}>
-                      <span className="flex items-center gap-2"><Sparkles size={13} /> {inBasket ? 'Queued' : 'Queue for synthesis'}</span>
-                    </button>
-                  </div>
-                  <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-                    <ResponseMarkdown content={response.content} fontScale={1} />
-                  </div>
-                </article>
-              );
-            })}
+          <div className="mt-4">
+            <ChatResponseComparator
+              promptId={selectedPrompt.prompt_id}
+              responses={selectedPrompt.responses || []}
+              synthesisBasket={synthesisBasket}
+              onToggleSynthesisBlock={onToggleSynthesisBlock}
+            />
           </div>
         </section>
       )}

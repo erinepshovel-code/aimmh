@@ -21,6 +21,7 @@ from routes.keys import router as keys_router
 from routes.v1_analysis import router as analysis_router
 from routes.v1_lib import router as v1_lib_router
 from routes.v1_hub import router as v1_hub_router
+from routes.v1_hub_state import router as v1_hub_state_router
 from routes.payments_v2 import router as payments_router
 from routes.console import router as console_router
 from services.ai_instructions import get_ai_instruction_payload, get_ai_instruction_text
@@ -56,6 +57,7 @@ app.include_router(keys_router)
 app.include_router(analysis_router)
 app.include_router(v1_lib_router)
 app.include_router(v1_hub_router)
+app.include_router(v1_hub_state_router)
 app.include_router(payments_router)
 app.include_router(console_router)
 

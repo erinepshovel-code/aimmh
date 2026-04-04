@@ -45,6 +45,7 @@ Patterns (functional API):
 
 Instantiation API:
     MultiModelHub    — bind a CallFn once, call any pattern as a method
+    ModelInstance    — a single model as a stateful object with persistent history
 
 Note: aimmh_lib.adapters is NOT imported here to avoid pulling in backend dependencies.
 Import it explicitly: from aimmh_lib.adapters import make_call_fn
@@ -54,6 +55,7 @@ from aimmh_lib.conversations import (
     ModelResult,
     CallFn,
     MultiModelHub,
+    ModelInstance,
     fan_out,
     daisy_chain,
     room_all,
@@ -66,6 +68,7 @@ __all__ = [
     "ModelResult",
     "CallFn",
     "MultiModelHub",
+    "ModelInstance",
     "fan_out",
     "daisy_chain",
     "room_all",

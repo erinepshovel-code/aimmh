@@ -709,3 +709,82 @@ class MultiModelHub:
         max_history: int = 30,
     ) -> list[ModelResult]:
         return await roleplay(self.call, player_models, initial_prompt, dm_model, dm_rotation, rounds, slot_contexts, dm_slot_context, dm_rotation_contexts, action_word_limit, use_initiative, allow_reactions, max_history)
+
+
+# ---------------------------------------------------------------------------
+# ModelInstance — a single model as a semi-permanent stateful object
+# ---------------------------------------------------------------------------
+
+class ModelInstance:
+    """A single model with persistent conversation history.
+
+    Encapsulates a model_id, an optional system prompt, and an accumulating
+    message history so callers can hold a long-running conversation without
+    managing the history list themselves.
+
+    Example::
+
+        gpt = ModelInstance(call_fn, "gpt-4o", system_context="You are a Socratic tutor.")
+        r1 = await gpt.send("What is entropy?")
+        r2 = await gpt.send("Give me an example.")   # history carries over
+        print(gpt.history)                            # full message log
+        gpt.clear()                                   # reset to fresh state
+
+    Args:
+        call:           The async CallFn backend.
+        model_id:       The model identifier string (e.g. "gpt-4o").
+        system_context: Optional system prompt prepended to every call.
+        max_history:    Maximum number of messages to retain (rolling window).
+    """
+
+    def __init__(
+        self,
+        call: CallFn,
+        model_id: str,
+        system_context: Optional[str] = None,
+        max_history: int = 30,
+    ) -> None:
+        self.call = call
+        self.model_id = model_id
+        self.system_context = system_context
+        self.max_history = max_history
+        self._history: list[dict] = []
+
+    @property
+    def history(self) -> list[dict]:
+        """Read-only view of the current message history (no system prompt)."""
+        return list(self._history)
+
+    def clear(self) -> None:
+        """Reset conversation history to a fresh state."""
+        self._history = []
+
+    async def send(self, message: str) -> ModelResult:
+        """Send a user message and return the model's response.
+
+        The user message and the model's reply are appended to history so
+        subsequent calls have full context.
+        """
+        user_turn = {"role": "user", "content": message}
+        trimmed = _trim(self._history, self.max_history)
+        msgs = trimmed + [user_turn]
+        if self.system_context:
+            msgs = [{"role": "system", "content": self.system_context}] + msgs
+
+        t = time.monotonic()
+        try:
+            content = await self.call(self.model_id, msgs)
+        except Exception as e:
+            content = f"[ERROR] {e}"
+        elapsed_ms = int((time.monotonic() - t) * 1000)
+
+        result = ModelResult(
+            model=self.model_id,
+            content=content,
+            response_time_ms=elapsed_ms,
+            error=content if content.startswith("[ERROR]") else None,
+        )
+
+        self._history.append(user_turn)
+        self._history.append({"role": "assistant", "content": content})
+        return result

@@ -116,6 +116,10 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Backend persistence foundation: added `GET/PUT/DELETE /api/v1/hub/state/{state_key}` for user-scoped workspace state drafts
 - [x] Keystroke autosave (backend-backed, silent UX): chat prompt draft + run-builder draft now persist with debounce and restore on reload/tab switching
 - [x] Synthesis queue persistence moved to backend state (`synthesis-queue-global`) and restored on workspace reload
+- [x] First-visit onboarding flow: mandatory click-to-dismiss splash on first visit, then default landing to new `Claude.md` tab; returning visits auto-dismiss splash and default to Registry
+- [x] New welcome guide architecture: random first-visit welcome model is provisioned with `CLAUDE_MD_CONTEXT`, exposed via `ClaudeWelcomePanel` chat (with response popout)
+- [x] Registry analytics UX: added token usage endpoint `GET /api/v1/registry/usage` and frontend display of grand totals + per-model + per-instance token breakdown
+- [x] Disabled native browser zoom in runtime and static HTML viewport meta, favoring in-app text enlargement controls
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

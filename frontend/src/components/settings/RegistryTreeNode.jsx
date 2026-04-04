@@ -14,6 +14,7 @@ export function RegistryTreeNode({
   developer,
   keyStatus,
   defaultsNode,
+  usageNode,
   verificationMap,
   busyKey,
   onAddModel,
@@ -45,6 +46,9 @@ export function RegistryTreeNode({
               <span className="rounded-full border border-zinc-800 bg-zinc-900/70 px-2 py-1 text-[11px] text-zinc-400">{developer.developer_id}</span>
               <span className={`rounded-full border px-2 py-1 text-[11px] ${keyStatus?.status === 'configured' || keyStatus?.status === 'universal' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`} data-testid={`registry-key-status-${developer.developer_id}`}>
                 Key: {keyStatus?.status || 'missing'}
+              </span>
+              <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200" data-testid={`registry-developer-total-tokens-${developer.developer_id}`}>
+                Tokens: {usageNode?.total_tokens || 0}
               </span>
               {universalManaged && <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200">Universal key compatible</span>}
             </div>
@@ -98,6 +102,7 @@ export function RegistryTreeNode({
           const verifyKey = `${developer.developer_id}:${model.model_id}`;
           const verification = verificationMap[verifyKey];
           const modelPayload = defaultsNode?.models?.[model.model_id] || getModelDefaultPayload(developer.developer_id, model.model_id);
+          const modelUsage = (usageNode?.models || []).find((item) => item.model_id === model.model_id);
 
           return (
             <details key={model.model_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/50" data-testid={`registry-model-node-${developer.developer_id}-${model.model_id}`}>
@@ -106,6 +111,7 @@ export function RegistryTreeNode({
                   <div>
                     <div className="text-sm text-zinc-100">{model.display_name || model.model_id}</div>
                     <div className="mt-1 text-xs text-zinc-500">{model.model_id}</div>
+                    <div className="mt-1 text-[11px] text-blue-200" data-testid={`registry-model-total-tokens-${developer.developer_id}-${model.model_id}`}>Tokens: {modelUsage?.total_tokens || 0}</div>
                     {verification && (
                       <div className={`mt-2 inline-flex max-w-full items-center gap-2 rounded-full border px-2 py-1 text-[11px] ${statusTone(verification.status)}`}>
                         <CheckCircle2 size={11} />
@@ -142,6 +148,19 @@ export function RegistryTreeNode({
                   </button>
                 </div>
                 <pre className="max-h-64 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-[11px] text-zinc-300">{JSON.stringify(modelPayload, null, 2)}</pre>
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-2" data-testid={`registry-model-instance-breakdown-${developer.developer_id}-${model.model_id}`}>
+                  <div className="text-xs font-medium text-zinc-300">Instance token breakdown</div>
+                  <div className="mt-1 space-y-1">
+                    {(modelUsage?.instances || []).length === 0 ? (
+                      <div className="text-[11px] text-zinc-500">No instance usage yet.</div>
+                    ) : (modelUsage.instances || []).map((instance) => (
+                      <div key={instance.instance_id} className="flex items-center justify-between text-[11px] text-zinc-300" data-testid={`registry-model-instance-token-${developer.developer_id}-${model.model_id}-${instance.instance_id}`}>
+                        <span>{instance.instance_name || instance.instance_id}</span>
+                        <span>{instance.tokens}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </details>
           );

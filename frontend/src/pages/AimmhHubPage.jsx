@@ -8,7 +8,7 @@ import { HubMultiChatPanel } from '../components/hub/HubMultiChatPanel';
 import { HubResponsesPanel } from '../components/hub/HubResponsesPanel';
 import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
-import { AiVisitorGuidePanel } from '../components/hub/AiVisitorGuidePanel';
+import { ClaudeWelcomePanel } from '../components/hub/ClaudeWelcomePanel';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
 import { hubApi } from '../lib/hubApi';
 import { KeyManager } from '../components/settings/KeyManager';
@@ -16,14 +16,31 @@ import { RegistryManager } from '../components/settings/RegistryManager';
 import { useAuth } from '../contexts/AuthContext';
 
 const TABS = [
+  { id: 'claude', label: 'Claude.md' },
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
   { id: 'runs', label: 'Rooms & Runs' },
   { id: 'responses', label: 'Response Synthesis' },
   { id: 'chat', label: 'Chat+Synth' },
 ];
+const FIRST_VISIT_KEY = 'aimmh-first-visit-complete-v1';
+const CLAUDE_MD_CONTEXT = `You are the AIMMH Welcome Guide.
 
-const AI_GUIDE_SEEN_KEY = 'aimmh-ai-guide-seen-v1';
+Purpose:
+- Help users understand how to use AIMMH quickly and confidently.
+- Suggest next best actions based on where they are in the workflow.
+
+Style:
+- Clear, concise, practical.
+- Prefer bullet points and short examples.
+- Offer one recommended next step at the end of each reply.
+
+Coverage:
+- Registry and key setup
+- Instance creation and grouping
+- Runs and orchestration patterns
+- Response synthesis and comparison
+- Prompt strategy and troubleshooting`;
 
 export default function AimmhHubPage() {
   const navigate = useNavigate();
@@ -31,7 +48,9 @@ export default function AimmhHubPage() {
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
-  const [showAiGuidePanel, setShowAiGuidePanel] = React.useState(false);
+  const [showWelcomePanel, setShowWelcomePanel] = React.useState(false);
+  const [firstVisit, setFirstVisit] = React.useState(false);
+  const [welcomeProvisioning, setWelcomeProvisioning] = React.useState(false);
   const [chatPrompts, setChatPrompts] = React.useState([]);
   const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
   const [chatBusyKey, setChatBusyKey] = React.useState('');
@@ -74,30 +93,34 @@ export default function AimmhHubPage() {
 
   React.useEffect(() => {
     try {
-      const seen = window.localStorage.getItem(AI_GUIDE_SEEN_KEY) === '1';
-      setShowAiGuidePanel(!seen);
+      const seen = window.localStorage.getItem(FIRST_VISIT_KEY) === '1';
+      const isFirst = !seen;
+      setFirstVisit(isFirst);
+      setShowWelcomePanel(isFirst);
+      setActiveTab(isFirst ? 'claude' : 'registry');
     } catch {
-      setShowAiGuidePanel(true);
-    }
-  }, []);
-
-  const markGuideSeen = React.useCallback(() => {
-    try {
-      window.localStorage.setItem(AI_GUIDE_SEEN_KEY, '1');
-    } catch {
-      // ignore storage write issues
+      setFirstVisit(true);
+      setShowWelcomePanel(true);
+      setActiveTab('claude');
     }
   }, []);
 
   const dismissSplash = React.useCallback(() => {
     setShowSplash(false);
-    markGuideSeen();
-  }, [markGuideSeen]);
+    if (firstVisit) {
+      try {
+        window.localStorage.setItem(FIRST_VISIT_KEY, '1');
+      } catch {
+        // ignore write issues
+      }
+    }
+  }, [firstVisit]);
 
   React.useEffect(() => {
+    if (firstVisit) return;
     const timer = window.setTimeout(() => dismissSplash(), 1800);
     return () => window.clearTimeout(timer);
-  }, [dismissSplash]);
+  }, [dismissSplash, firstVisit]);
 
   React.useEffect(() => {
     let active = true;
@@ -176,8 +199,49 @@ export default function AimmhHubPage() {
     .filter((item) => !item.archived)
     .map((item) => ({ value: item.instance_id, label: `${item.name} · ${item.model_id}` }));
 
+  const welcomeInstance = React.useMemo(
+    () => workspace.instances.find((item) => item.metadata?.welcome_model) || null,
+    [workspace.instances],
+  );
+
+  React.useEffect(() => {
+    if (!firstVisit || workspace.loading || welcomeInstance || welcomeProvisioning) return;
+    if (workspace.modelOptions.length === 0) return;
+    const pick = workspace.modelOptions[Math.floor(Math.random() * workspace.modelOptions.length)];
+    if (!pick?.value) return;
+
+    const seedWelcomeModel = async () => {
+      try {
+        setWelcomeProvisioning(true);
+        await workspace.createInstance({
+          name: 'Welcome Guide',
+          model_id: pick.value,
+          role_preset: 'Mentor',
+          instance_prompt: CLAUDE_MD_CONTEXT,
+          history_window_messages: 24,
+          metadata: { welcome_model: true, welcome_seed: 'claude-md' },
+        });
+        await workspace.refreshCore();
+      } catch {
+        // silent fail: user can still create instances manually
+      } finally {
+        setWelcomeProvisioning(false);
+      }
+    };
+    seedWelcomeModel();
+  }, [firstVisit, workspace, welcomeInstance, welcomeProvisioning]);
+
   const renderTab = () => {
     switch (activeTab) {
+      case 'claude':
+        return (
+          <ClaudeWelcomePanel
+            welcomeInstance={welcomeInstance}
+            prompts={chatPrompts}
+            onSendPrompt={sendChatPrompt}
+            busyKey={chatBusyKey}
+          />
+        );
       case 'registry':
         return (
           <div className="space-y-4">
@@ -284,13 +348,10 @@ export default function AimmhHubPage() {
       <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4" data-testid="hub-splash-screen">
         <div className="w-full max-w-2xl space-y-4 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
           <div className="text-xs uppercase tracking-[0.24em] text-emerald-300">AIMMH HUB</div>
-          <h1 className="text-4xl font-semibold text-zinc-100 sm:text-5xl">Multi-model orchestration workspace</h1>
-          <p className="text-sm text-zinc-400 sm:text-base" data-testid="hub-splash-ai-guide-summary">Persistent isolated instances, nested groups, staged runs, and synthesis workflows. For agents: instantiate, run, compare, synthesize.</p>
-          <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-3 text-xs text-cyan-100" data-testid="hub-splash-ai-guide-block">
-            AI visitor instructions available at
-            <code className="ml-1">/api/ai-instructions</code>
-            <span className="mx-1">and</span>
-            <code>/ai-instructions.txt</code>
+          <h1 className="text-4xl font-semibold text-zinc-100 sm:text-5xl">changes inevitable. refinements welcome.</h1>
+          <div className="rounded-2xl border border-zinc-700 bg-zinc-950/50 p-3 text-sm text-zinc-300" data-testid="hub-splash-thanks-block">
+            thanks to those whose support made a difference at a critical time:<br />
+            founder's names
           </div>
           <button
             type="button"
@@ -298,8 +359,9 @@ export default function AimmhHubPage() {
             className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
             data-testid="dismiss-hub-splash-button"
           >
-            Enter workspace
+            {firstVisit ? 'Enter AIMMH' : 'Continue'}
           </button>
+          {firstVisit && <div className="text-xs text-zinc-500">First visit: click required to continue.</div>}
         </div>
       </div>
     );
@@ -333,21 +395,24 @@ export default function AimmhHubPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowAiGuidePanel((prev) => {
-                    const next = !prev;
-                    if (!next) markGuideSeen();
-                    return next;
-                  });
+                  setShowWelcomePanel((prev) => !prev);
                 }}
                 className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
                 data-testid="hub-toggle-ai-guide-button"
               >
-                {showAiGuidePanel ? 'Hide AI guide' : 'Help for AI'}
+                {showWelcomePanel ? 'Hide guide chat' : 'Guide chat'}
               </button>
             </div>
             <HubTabsNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
           </div>
-          {showAiGuidePanel && <AiVisitorGuidePanel activeTab={activeTab} />}
+          {showWelcomePanel && activeTab !== 'claude' && (
+            <ClaudeWelcomePanel
+              welcomeInstance={welcomeInstance}
+              prompts={chatPrompts}
+              onSendPrompt={sendChatPrompt}
+              busyKey={chatBusyKey}
+            />
+          )}
           <div data-testid={`hub-tab-panel-${activeTab}`}>
             {renderTab()}
           </div>

@@ -39,6 +39,7 @@ export const registryApi = {
     body: JSON.stringify({ developer_id: developerId, model_id: modelId, mode: 'strict' }),
   }),
   getDefaults: () => request('/v1/registry/defaults'),
+  getUsage: () => request('/v1/registry/usage'),
   verifyDeveloper: (developerId) => request(`/v1/registry/verify/developer/${developerId}`, { method: 'POST' }),
   verifyAll: () => request('/v1/registry/verify/all', { method: 'POST' }),
   getKeys: () => request('/v1/keys'),

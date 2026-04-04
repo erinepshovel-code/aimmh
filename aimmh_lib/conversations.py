@@ -613,3 +613,99 @@ async def roleplay(
         dm_narration = dm_result.content  # seeds next round
 
     return all_results
+
+
+# ---------------------------------------------------------------------------
+# MultiModelHub — instantiation-based API (binds call_fn once)
+# ---------------------------------------------------------------------------
+
+class MultiModelHub:
+    """Instantiation-based wrapper around all orchestration patterns.
+
+    Bind a CallFn once at construction time, then call any pattern as a method
+    without repeating the call argument.
+
+    Example::
+
+        hub = MultiModelHub(call_fn)
+        results = await hub.fan_out(["gpt-4o", "claude-haiku-4-5-20251001"], messages)
+        results = await hub.daisy_chain(["gpt-4o", "claude-haiku-4-5-20251001"], "Explain gravity")
+        results = await hub.council(["gpt-4o", "claude-haiku-4-5-20251001"], "What is consciousness?")
+
+    All keyword arguments are forwarded to the underlying function unchanged.
+    """
+
+    def __init__(self, call: CallFn) -> None:
+        self.call = call
+
+    async def fan_out(
+        self,
+        model_ids: list[str],
+        messages: list[dict],
+        slot_contexts: Optional[list[Optional[str]]] = None,
+        round_num: int = 0,
+        step_num: int = 0,
+    ) -> list[ModelResult]:
+        return await fan_out(self.call, model_ids, messages, slot_contexts, round_num, step_num)
+
+    async def daisy_chain(
+        self,
+        model_ids: list[str],
+        prompt: str,
+        rounds: int = 1,
+        slot_contexts: Optional[list[Optional[str]]] = None,
+        include_original_prompt: bool = True,
+        max_history: int = 30,
+    ) -> list[ModelResult]:
+        return await daisy_chain(self.call, model_ids, prompt, rounds, slot_contexts, include_original_prompt, max_history)
+
+    async def room_all(
+        self,
+        model_ids: list[str],
+        prompt: str,
+        rounds: int = 1,
+        slot_contexts: Optional[list[Optional[str]]] = None,
+        max_history: int = 30,
+    ) -> list[ModelResult]:
+        return await room_all(self.call, model_ids, prompt, rounds, slot_contexts, max_history)
+
+    async def room_synthesized(
+        self,
+        model_ids: list[str],
+        prompt: str,
+        synthesis_model: str,
+        rounds: int = 1,
+        synthesis_prompt: str = "Synthesize and analyze these AI responses:",
+        slot_contexts: Optional[list[Optional[str]]] = None,
+        synth_slot_context: Optional[str] = None,
+        max_history: int = 30,
+    ) -> list[ModelResult]:
+        return await room_synthesized(self.call, model_ids, prompt, synthesis_model, rounds, synthesis_prompt, slot_contexts, synth_slot_context, max_history)
+
+    async def council(
+        self,
+        model_ids: list[str],
+        prompt: str,
+        rounds: int = 1,
+        synthesis_prompt: str = "Synthesize and analyze all model responses including your own:",
+        slot_contexts: Optional[list[Optional[str]]] = None,
+        max_history: int = 30,
+    ) -> list[ModelResult]:
+        return await council(self.call, model_ids, prompt, rounds, synthesis_prompt, slot_contexts, max_history)
+
+    async def roleplay(
+        self,
+        player_models: list[str],
+        initial_prompt: str,
+        dm_model: Optional[str] = None,
+        dm_rotation: Optional[list[str]] = None,
+        rounds: int = 1,
+        slot_contexts: Optional[list[Optional[str]]] = None,
+        dm_slot_context: Optional[str] = None,
+        dm_rotation_contexts: Optional[list[Optional[str]]] = None,
+        action_word_limit: Optional[int] = None,
+        use_initiative: bool = True,
+        allow_reactions: bool = False,
+        max_history: int = 30,
+    ) -> list[ModelResult]:
+        return await roleplay(self.call, player_models, initial_prompt, dm_model, dm_rotation, rounds, slot_contexts, dm_slot_context, dm_rotation_contexts, action_word_limit, use_initiative, allow_reactions, max_history)

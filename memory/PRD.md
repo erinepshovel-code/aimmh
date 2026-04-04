@@ -113,6 +113,9 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Chat compare redesign: implemented OpenAI-style two-slot response comparator (`ChatResponseComparator`) with lock-by-model behavior and overflow carousel placement controls
 - [x] Registry redesign: replaced card-heavy view with collapsible tree (`RegistryTreeNode`) showing **Provider → Key → Models** branches and per-model default request JSON
 - [x] Added canonical backend model-defaults endpoint `GET /api/v1/registry/defaults` (used by frontend registry tree with copy payload controls)
+- [x] Backend persistence foundation: added `GET/PUT/DELETE /api/v1/hub/state/{state_key}` for user-scoped workspace state drafts
+- [x] Keystroke autosave (backend-backed, silent UX): chat prompt draft + run-builder draft now persist with debounce and restore on reload/tab switching
+- [x] Synthesis queue persistence moved to backend state (`synthesis-queue-global`) and restored on workspace reload
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

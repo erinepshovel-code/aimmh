@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCheck, Loader2, MessageSquareShare, Send, Sparkles } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
 import { ChatResponseComparator } from './ChatResponseComparator';
+import { hubApi } from '../../lib/hubApi';
 
 export function HubMultiChatPanel({
   instances,
@@ -21,15 +22,53 @@ export function HubMultiChatPanel({
   const [prompt, setPrompt] = React.useState('');
   const [selectedInstanceIds, setSelectedInstanceIds] = React.useState([]);
   const [instruction, setInstruction] = React.useState('Compare, reconcile, and refine the selected responses into a useful synthesis.');
+  const [draftLoaded, setDraftLoaded] = React.useState(false);
 
   const activeInstances = instances.filter((item) => !item.archived);
   const selectedPrompt = prompts.find((item) => item.prompt_id === selectedPromptId) || prompts[0] || null;
+  const chatDraftKey = React.useMemo(() => `chat-draft:${selectedPromptId || 'new'}`, [selectedPromptId]);
 
   React.useEffect(() => {
     if (!selectedPromptId && prompts[0]?.prompt_id) {
       setSelectedPromptId(prompts[0].prompt_id);
     }
   }, [prompts, selectedPromptId, setSelectedPromptId]);
+
+  React.useEffect(() => {
+    let active = true;
+    setDraftLoaded(false);
+    const loadDraft = async () => {
+      try {
+        const state = await hubApi.getState(chatDraftKey);
+        if (!active) return;
+        setPrompt(state?.payload?.prompt || '');
+        setInstruction(state?.payload?.instruction || 'Compare, reconcile, and refine the selected responses into a useful synthesis.');
+        setSelectedInstanceIds(Array.isArray(state?.payload?.selectedInstanceIds) ? state.payload.selectedInstanceIds : []);
+      } catch {
+        if (!active) return;
+        setPrompt('');
+        setInstruction('Compare, reconcile, and refine the selected responses into a useful synthesis.');
+      } finally {
+        if (active) setDraftLoaded(true);
+      }
+    };
+    loadDraft();
+    return () => {
+      active = false;
+    };
+  }, [chatDraftKey]);
+
+  React.useEffect(() => {
+    if (!draftLoaded) return;
+    const timer = window.setTimeout(() => {
+      hubApi.setState(chatDraftKey, {
+        prompt,
+        instruction,
+        selectedInstanceIds,
+      }).catch(() => {});
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [chatDraftKey, draftLoaded, instruction, prompt, selectedInstanceIds]);
 
   const toggleInstance = (instanceId) => {
     setSelectedInstanceIds((prev) => prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId]);
@@ -50,6 +89,7 @@ export function HubMultiChatPanel({
     if (!prompt.trim() || selectedInstanceIds.length === 0) return;
     const detail = await onSendPrompt({ prompt, instance_ids: selectedInstanceIds });
     setPrompt('');
+    hubApi.deleteState(chatDraftKey).catch(() => {});
     setSelectedPromptId(detail.prompt_id);
   };
 

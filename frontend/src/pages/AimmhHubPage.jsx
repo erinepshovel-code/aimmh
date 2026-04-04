@@ -36,6 +36,7 @@ export default function AimmhHubPage() {
   const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
   const [chatBusyKey, setChatBusyKey] = React.useState('');
   const [synthesisBasket, setSynthesisBasket] = React.useState([]);
+  const [queueLoaded, setQueueLoaded] = React.useState(false);
   const [synthesisInstanceIds, setSynthesisInstanceIds] = React.useState([]);
   const [synthesisBatches, setSynthesisBatches] = React.useState([]);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
@@ -97,6 +98,34 @@ export default function AimmhHubPage() {
     const timer = window.setTimeout(() => dismissSplash(), 1800);
     return () => window.clearTimeout(timer);
   }, [dismissSplash]);
+
+  React.useEffect(() => {
+    let active = true;
+    const loadQueue = async () => {
+      try {
+        const state = await hubApi.getState('synthesis-queue-global');
+        if (!active) return;
+        setSynthesisBasket(Array.isArray(state?.payload?.items) ? state.payload.items : []);
+      } catch {
+        if (!active) return;
+        setSynthesisBasket([]);
+      } finally {
+        if (active) setQueueLoaded(true);
+      }
+    };
+    loadQueue();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!queueLoaded) return;
+    const timer = window.setTimeout(() => {
+      hubApi.setState('synthesis-queue-global', { items: synthesisBasket }).catch(() => {});
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [queueLoaded, synthesisBasket]);
 
   const sendChatPrompt = React.useCallback(async (payload) => {
     try {

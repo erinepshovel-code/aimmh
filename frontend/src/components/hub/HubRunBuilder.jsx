@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowDownToLine, Plus, Trash2, Workflow } from 'lucide-react';
 import { createEmptyStage, INPUT_MODE_OPTIONS, PATTERN_OPTIONS } from './hubConfig';
+import { hubApi } from '../../lib/hubApi';
 
 function SourceSelector({ title, selected, onToggle, sourceOptions, testIdPrefix }) {
   return (
@@ -157,6 +158,44 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
   const [label, setLabel] = React.useState('');
   const [prompt, setPrompt] = React.useState('');
   const [stages, setStages] = React.useState([createEmptyStage()]);
+  const [draftLoaded, setDraftLoaded] = React.useState(false);
+  const runDraftKey = 'run-builder-draft:new';
+
+  React.useEffect(() => {
+    let active = true;
+    const loadDraft = async () => {
+      try {
+        const state = await hubApi.getState(runDraftKey);
+        if (!active) return;
+        setLabel(state?.payload?.label || '');
+        setPrompt(state?.payload?.prompt || '');
+        setStages(Array.isArray(state?.payload?.stages) && state.payload.stages.length > 0 ? state.payload.stages : [createEmptyStage()]);
+      } catch {
+        if (!active) return;
+        setLabel('');
+        setPrompt('');
+        setStages([createEmptyStage()]);
+      } finally {
+        if (active) setDraftLoaded(true);
+      }
+    };
+    loadDraft();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!draftLoaded) return;
+    const timer = window.setTimeout(() => {
+      hubApi.setState(runDraftKey, {
+        label,
+        prompt,
+        stages,
+      }).catch(() => {});
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draftLoaded, label, prompt, stages]);
 
   const updateStage = (index, nextStage) => {
     setStages((prev) => prev.map((stage, stageIndex) => stageIndex === index ? nextStage : stage));
@@ -186,6 +225,10 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
         dm_group_id: stage.dm_group_id || null,
       })),
     });
+    setLabel('');
+    setPrompt('');
+    setStages([createEmptyStage()]);
+    hubApi.deleteState(runDraftKey).catch(() => {});
   };
 
   return (

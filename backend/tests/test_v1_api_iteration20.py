@@ -2,7 +2,7 @@
 Iteration 20: Comprehensive backend API tests for the Multi-Model Hub v1 API surface.
 
 Tests covered:
-- Auth endpoints: login with testbot01/test123456
+- Auth endpoints: login with configured test credentials
 - v1 System endpoints: /health, /models
 - v1 a0 endpoints: /prompt, /prompt-single, /history, /feedback
 - v1 EDCM endpoint: /eval
@@ -14,11 +14,13 @@ import pytest
 import requests
 import time
 
+from tests.test_credentials import TEST_USER_PASSWORD, TEST_USER_WRONG_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 # Test credentials
 TEST_USERNAME = "testbot01"
-TEST_PASSWORD = "test123456"
+TEST_PASSWORD = TEST_USER_PASSWORD
 
 
 class TestAuth:
@@ -40,7 +42,7 @@ class TestAuth:
         """POST /api/auth/login - invalid credentials returns 401"""
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
-            json={"username": "wrong_user", "password": "wrong_pass"}
+            json={"username": "wrong_user", "password": TEST_USER_WRONG_PASSWORD}
         )
         assert response.status_code == 401
 

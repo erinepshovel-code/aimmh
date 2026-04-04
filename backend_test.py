@@ -1,216 +1,297 @@
 #!/usr/bin/env python3
 """
-Backend Health/Readiness Endpoints Validation Test
-Tests the health and readiness endpoints on the preview URL.
+Detailed backend regression test for AIMMH Hub
+Tests the 5 critical endpoints with detailed response information.
 """
 
 import requests
 import json
-import sys
+import uuid
+import time
 from typing import Dict, Any
 
-# Use the production URL from frontend/.env
+# Base URL from frontend .env
 BASE_URL = "https://aimmh-hub-1.preview.emergentagent.com"
 
-def test_endpoint(method: str, url: str, expected_status: int = 200) -> Dict[str, Any]:
-    """Test an endpoint and return structured results."""
-    try:
-        if method.upper() == "GET":
-            response = requests.get(url, timeout=10)
-        else:
-            raise ValueError(f"Unsupported method: {method}")
+class DetailedBackendTester:
+    def __init__(self):
+        self.base_url = BASE_URL
+        self.session = requests.Session()
+        self.test_user = None
+        self.access_token = None
         
-        result = {
-            "url": url,
-            "method": method,
-            "status_code": response.status_code,
-            "expected_status": expected_status,
-            "success": response.status_code == expected_status,
-            "response_time_ms": round(response.elapsed.total_seconds() * 1000, 2)
-        }
+    def log(self, message: str):
+        """Log test messages with timestamp"""
+        timestamp = time.strftime("%H:%M:%S")
+        print(f"[{timestamp}] {message}")
         
-        # Try to parse JSON response
+    def test_health_endpoint(self) -> Dict[str, Any]:
+        """Test 1: GET /api/health returns 200"""
+        self.log("Testing GET /api/health...")
         try:
-            result["response_json"] = response.json()
-        except:
-            result["response_text"] = response.text[:500]  # Truncate long responses
+            response = self.session.get(f"{self.base_url}/api/health")
+            result = {
+                "success": response.status_code == 200,
+                "status_code": response.status_code,
+                "response_size": len(response.text),
+                "content_type": response.headers.get('content-type', 'unknown')
+            }
             
-        return result
+            if result["success"]:
+                self.log(f"✅ Health check passed: {response.status_code}")
+            else:
+                self.log(f"❌ Health check failed: {response.status_code}")
+                
+            return result
+        except Exception as e:
+            self.log(f"❌ Health check error: {str(e)}")
+            return {"success": False, "error": str(e)}
+            
+    def test_register_login_user(self) -> Dict[str, Any]:
+        """Test 2: Register/login fresh user succeeds"""
+        self.log("Testing user registration/login...")
         
-    except Exception as e:
-        return {
-            "url": url,
-            "method": method,
-            "status_code": None,
-            "expected_status": expected_status,
-            "success": False,
-            "error": str(e),
-            "response_time_ms": None
+        # Generate unique test user
+        unique_id = str(uuid.uuid4())[:8]
+        self.test_user = {
+            "username": f"regtest_{unique_id}",
+            "password": f"testpass_{unique_id}"
         }
-
-def validate_health_response(response_data: Dict[str, Any], endpoint_name: str) -> Dict[str, Any]:
-    """Validate health endpoint response structure."""
-    validation = {
-        "endpoint": endpoint_name,
-        "valid_structure": True,
-        "issues": []
-    }
-    
-    # Check required fields
-    if "status" not in response_data:
-        validation["valid_structure"] = False
-        validation["issues"].append("Missing 'status' field")
-    elif response_data["status"] != "ok":
-        validation["valid_structure"] = False
-        validation["issues"].append(f"Status is '{response_data['status']}', expected 'ok'")
-    
-    return validation
-
-def validate_ready_response(response_data: Dict[str, Any], endpoint_name: str) -> Dict[str, Any]:
-    """Validate readiness endpoint response structure."""
-    validation = {
-        "endpoint": endpoint_name,
-        "valid_structure": True,
-        "issues": []
-    }
-    
-    # Check required fields
-    required_fields = ["status", "checks"]
-    for field in required_fields:
-        if field not in response_data:
-            validation["valid_structure"] = False
-            validation["issues"].append(f"Missing '{field}' field")
-    
-    # Check status value
-    if "status" in response_data:
-        if response_data["status"] not in ["ready", "not_ready"]:
-            validation["valid_structure"] = False
-            validation["issues"].append(f"Invalid status '{response_data['status']}', expected 'ready' or 'not_ready'")
-    
-    # Check checks.mongo structure
-    if "checks" in response_data:
-        if "mongo" not in response_data["checks"]:
-            validation["valid_structure"] = False
-            validation["issues"].append("Missing 'checks.mongo' field")
+        
+        try:
+            # Register user
+            self.log(f"Registering user: {self.test_user['username']}")
+            register_response = self.session.post(
+                f"{self.base_url}/api/auth/register",
+                json=self.test_user
+            )
+            
+            result = {
+                "success": register_response.status_code == 200,
+                "status_code": register_response.status_code,
+                "has_cookies": 'Set-Cookie' in register_response.headers,
+                "username": self.test_user['username']
+            }
+            
+            if not result["success"]:
+                self.log(f"❌ Registration failed: {register_response.status_code}")
+                result["error"] = register_response.text
+                return result
+                
+            # Check if we got cookies (cookie-based auth)
+            if result["has_cookies"]:
+                self.log("✅ Registration successful with cookie-based auth")
+            else:
+                # Fallback: try to extract token from response
+                try:
+                    register_data = register_response.json()
+                    if 'access_token' in register_data:
+                        self.access_token = register_data['access_token']
+                        result["has_token"] = True
+                        self.log("✅ Registration successful with token-based auth")
+                    else:
+                        self.log("✅ Registration successful (cookie-based)")
+                except:
+                    self.log("✅ Registration successful (cookie-based)")
+                    
+            return result
+            
+        except Exception as e:
+            self.log(f"❌ Registration error: {str(e)}")
+            return {"success": False, "error": str(e)}
+            
+    def test_auth_me_endpoint(self) -> Dict[str, Any]:
+        """Test 3: GET /api/auth/me with token succeeds"""
+        self.log("Testing GET /api/auth/me...")
+        
+        try:
+            headers = {}
+            if self.access_token:
+                headers['Authorization'] = f'Bearer {self.access_token}'
+                
+            response = self.session.get(
+                f"{self.base_url}/api/auth/me",
+                headers=headers
+            )
+            
+            result = {
+                "success": response.status_code == 200,
+                "status_code": response.status_code
+            }
+            
+            if result["success"]:
+                user_data = response.json()
+                result["user_email"] = user_data.get('email', 'unknown')
+                result["user_tier"] = user_data.get('subscription_tier', 'unknown')
+                self.log(f"✅ Auth me successful: user {result['user_email']}, tier {result['user_tier']}")
+            else:
+                self.log(f"❌ Auth me failed: {response.status_code}")
+                result["error"] = response.text
+                
+            return result
+                
+        except Exception as e:
+            self.log(f"❌ Auth me error: {str(e)}")
+            return {"success": False, "error": str(e)}
+            
+    def test_a0_options_endpoint(self) -> Dict[str, Any]:
+        """Test 4: GET /api/a0/non-ui/options with token succeeds"""
+        self.log("Testing GET /api/a0/non-ui/options...")
+        
+        try:
+            headers = {}
+            if self.access_token:
+                headers['Authorization'] = f'Bearer {self.access_token}'
+                
+            response = self.session.get(
+                f"{self.base_url}/api/a0/non-ui/options",
+                headers=headers
+            )
+            
+            result = {
+                "success": response.status_code == 200,
+                "status_code": response.status_code
+            }
+            
+            if result["success"]:
+                options_data = response.json()
+                result["endpoints_count"] = len(options_data.get('endpoints', {}))
+                result["has_models"] = 'models' in options_data
+                if result["has_models"]:
+                    result["models_count"] = len(options_data.get('models', []))
+                self.log(f"✅ A0 options successful: {result['endpoints_count']} endpoints")
+            else:
+                self.log(f"❌ A0 options failed: {response.status_code}")
+                result["error"] = response.text
+                
+            return result
+                
+        except Exception as e:
+            self.log(f"❌ A0 options error: {str(e)}")
+            return {"success": False, "error": str(e)}
+            
+    def test_models_endpoint(self) -> Dict[str, Any]:
+        """Test 5: GET /api/v1/models succeeds"""
+        self.log("Testing GET /api/v1/models...")
+        
+        try:
+            response = self.session.get(f"{self.base_url}/api/v1/models")
+            
+            result = {
+                "success": response.status_code == 200,
+                "status_code": response.status_code
+            }
+            
+            if result["success"]:
+                models_data = response.json()
+                result["models_count"] = len(models_data.get('models', []))
+                result["has_developers"] = 'developers' in models_data
+                if result["has_developers"]:
+                    result["developers_count"] = len(models_data.get('developers', []))
+                self.log(f"✅ Models endpoint successful: {result['models_count']} models")
+            else:
+                self.log(f"❌ Models endpoint failed: {response.status_code}")
+                result["error"] = response.text
+                
+            return result
+                
+        except Exception as e:
+            self.log(f"❌ Models endpoint error: {str(e)}")
+            return {"success": False, "error": str(e)}
+            
+    def run_detailed_regression_test(self) -> Dict[str, Any]:
+        """Run all regression tests and return detailed results"""
+        self.log("=== AIMMH Hub Detailed Backend Regression Test ===")
+        self.log(f"Testing against: {self.base_url}")
+        
+        results = {}
+        
+        # Test 1: Health check
+        results["health"] = self.test_health_endpoint()
+        
+        # Test 2: Register/login user
+        results["register_login"] = self.test_register_login_user()
+        
+        # Only proceed with authenticated tests if registration succeeded
+        if results["register_login"]["success"]:
+            # Test 3: Auth me
+            results["auth_me"] = self.test_auth_me_endpoint()
+            
+            # Test 4: A0 options
+            results["a0_options"] = self.test_a0_options_endpoint()
         else:
-            mongo_check = response_data["checks"]["mongo"]
-            if "ok" not in mongo_check:
-                validation["valid_structure"] = False
-                validation["issues"].append("Missing 'checks.mongo.ok' field")
-            if "message" not in mongo_check:
-                validation["valid_structure"] = False
-                validation["issues"].append("Missing 'checks.mongo.message' field")
-    
-    return validation
+            results["auth_me"] = {"success": False, "skipped": "Registration failed"}
+            results["a0_options"] = {"success": False, "skipped": "Registration failed"}
+        
+        # Test 5: Models (public endpoint)
+        results["models"] = self.test_models_endpoint()
+        
+        return results
+        
+    def print_detailed_summary(self, results: Dict[str, Any]):
+        """Print detailed test summary"""
+        self.log("\n=== DETAILED TEST SUMMARY ===")
+        
+        passed = sum(1 for result in results.values() if result.get("success", False))
+        total = len(results)
+        
+        # Health endpoint
+        health = results["health"]
+        if health.get("success"):
+            self.log(f"1) GET /api/health: ✅ PASS ({health.get('status_code')})")
+        else:
+            self.log(f"1) GET /api/health: ❌ FAIL ({health.get('status_code', 'ERROR')})")
+            
+        # Register/login
+        reg = results["register_login"]
+        if reg.get("success"):
+            auth_type = "cookie-based" if reg.get("has_cookies") else "token-based"
+            self.log(f"2) Register/login fresh user: ✅ PASS ({reg.get('status_code')}, {auth_type})")
+        else:
+            self.log(f"2) Register/login fresh user: ❌ FAIL ({reg.get('status_code', 'ERROR')})")
+            
+        # Auth me
+        auth = results["auth_me"]
+        if auth.get("success"):
+            self.log(f"3) GET /api/auth/me with token: ✅ PASS ({auth.get('status_code')}, tier: {auth.get('user_tier')})")
+        elif auth.get("skipped"):
+            self.log(f"3) GET /api/auth/me with token: ⏭️ SKIPPED (registration failed)")
+        else:
+            self.log(f"3) GET /api/auth/me with token: ❌ FAIL ({auth.get('status_code', 'ERROR')})")
+            
+        # A0 options
+        a0 = results["a0_options"]
+        if a0.get("success"):
+            self.log(f"4) GET /api/a0/non-ui/options with token: ✅ PASS ({a0.get('status_code')}, {a0.get('endpoints_count')} endpoints)")
+        elif a0.get("skipped"):
+            self.log(f"4) GET /api/a0/non-ui/options with token: ⏭️ SKIPPED (registration failed)")
+        else:
+            self.log(f"4) GET /api/a0/non-ui/options with token: ❌ FAIL ({a0.get('status_code', 'ERROR')})")
+            
+        # Models
+        models = results["models"]
+        if models.get("success"):
+            self.log(f"5) GET /api/v1/models: ✅ PASS ({models.get('status_code')}, {models.get('models_count')} models)")
+        else:
+            self.log(f"5) GET /api/v1/models: ❌ FAIL ({models.get('status_code', 'ERROR')})")
+            
+        self.log(f"\nOVERALL: {passed}/{total} tests passed")
+        
+        if passed == total:
+            self.log("🎉 All regression tests PASSED!")
+        else:
+            self.log("⚠️  Some regression tests FAILED!")
+            
+        return passed == total
 
 def main():
-    """Run all health/readiness endpoint tests."""
-    print("🔍 BACKEND HEALTH/READINESS ENDPOINTS VALIDATION")
-    print(f"Testing against: {BASE_URL}")
-    print("=" * 60)
+    """Main test runner"""
+    tester = DetailedBackendTester()
+    results = tester.run_detailed_regression_test()
+    success = tester.print_detailed_summary(results)
     
-    test_results = []
-    validations = []
-    
-    # Test 1: GET /api/health should return 200 with JSON containing status=ok
-    print("\n1️⃣  Testing GET /api/health")
-    result = test_endpoint("GET", f"{BASE_URL}/api/health", 200)
-    test_results.append(result)
-    
-    if result["success"] and "response_json" in result:
-        validation = validate_health_response(result["response_json"], "/api/health")
-        validations.append(validation)
-        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
-        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
-        if validation["valid_structure"]:
-            print(f"   ✅ Structure validation: PASSED")
-        else:
-            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
-    else:
-        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
-    
-    # Test 2: GET /api/ready should return 200/503 with proper structure
-    print("\n2️⃣  Testing GET /api/ready")
-    result = test_endpoint("GET", f"{BASE_URL}/api/ready")  # Don't specify expected status
-    test_results.append(result)
-    
-    if "response_json" in result:
-        validation = validate_ready_response(result["response_json"], "/api/ready")
-        validations.append(validation)
-        
-        response_data = result["response_json"]
-        mongo_status = response_data.get("checks", {}).get("mongo", {}).get("ok", False)
-        expected_status = 200 if mongo_status else 503
-        
-        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
-        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
-        
-        if result["status_code"] == expected_status:
-            print(f"   ✅ Status code validation: PASSED (expected {expected_status} based on mongo.ok={mongo_status})")
-        else:
-            print(f"   ❌ Status code validation: FAILED (got {result['status_code']}, expected {expected_status})")
-            
-        if validation["valid_structure"]:
-            print(f"   ✅ Structure validation: PASSED")
-        else:
-            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
-    else:
-        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
-    
-    # Test 3: GET /api/v1/health should return 200
-    print("\n3️⃣  Testing GET /api/v1/health")
-    result = test_endpoint("GET", f"{BASE_URL}/api/v1/health", 200)
-    test_results.append(result)
-    
-    if result["success"] and "response_json" in result:
-        validation = validate_health_response(result["response_json"], "/api/v1/health")
-        validations.append(validation)
-        print(f"   ✅ Status: {result['status_code']} | Response time: {result['response_time_ms']}ms")
-        print(f"   📄 Response: {json.dumps(result['response_json'], indent=2)}")
-        if validation["valid_structure"]:
-            print(f"   ✅ Structure validation: PASSED")
-        else:
-            print(f"   ❌ Structure validation: FAILED - {', '.join(validation['issues'])}")
-    else:
-        print(f"   ❌ Failed: Status {result.get('status_code', 'N/A')} | Error: {result.get('error', 'Unknown')}")
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST SUMMARY")
-    print("=" * 60)
-    
-    total_tests = len(test_results)
-    passed_tests = sum(1 for r in test_results if r["success"])
-    failed_tests = total_tests - passed_tests
-    
-    print(f"Total tests: {total_tests}")
-    print(f"Passed: {passed_tests}")
-    print(f"Failed: {failed_tests}")
-    
-    if failed_tests == 0:
-        print("\n🎉 ALL TESTS PASSED!")
-    else:
-        print(f"\n⚠️  {failed_tests} TEST(S) FAILED")
-        
-    # Detailed results
-    print("\n📋 DETAILED RESULTS:")
-    for i, result in enumerate(test_results, 1):
-        status_icon = "✅" if result["success"] else "❌"
-        print(f"{i}. {status_icon} {result['method']} {result['url']} - Status: {result.get('status_code', 'N/A')}")
-        if not result["success"] and "error" in result:
-            print(f"   Error: {result['error']}")
-    
-    # Structure validation summary
-    print("\n🔍 STRUCTURE VALIDATION SUMMARY:")
-    for validation in validations:
-        status_icon = "✅" if validation["valid_structure"] else "❌"
-        print(f"{status_icon} {validation['endpoint']}")
-        if not validation["valid_structure"]:
-            for issue in validation["issues"]:
-                print(f"   - {issue}")
-    
-    return failed_tests == 0
+    # Return appropriate exit code
+    exit(0 if success else 1)
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    main()

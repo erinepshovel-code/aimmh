@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
+import { useAuth } from './AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -12,8 +13,9 @@ export const useChat = () => {
 };
 
 export const ChatProvider = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const [threads, setThreads] = useState([]);
-  const [currentThread, setCurrentThread] = useState(() => sessionStorage.getItem('hub_thread') || null);
+  const [currentThread, setCurrentThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState({});
@@ -22,8 +24,6 @@ export const ChatProvider = ({ children }) => {
 
   const selectThread = useCallback((threadId) => {
     setCurrentThread(threadId);
-    if (threadId) sessionStorage.setItem('hub_thread', threadId);
-    else sessionStorage.removeItem('hub_thread');
   }, []);
 
   const fetchThreads = useCallback(async () => {
@@ -32,6 +32,9 @@ export const ChatProvider = ({ children }) => {
       setThreads(res.data.threads || []);
       return res.data.threads || [];
     } catch (err) {
+      if (err?.response?.status === 401) {
+        return [];
+      }
       console.error('Failed to fetch threads:', err);
       return [];
     }
@@ -43,13 +46,15 @@ export const ChatProvider = ({ children }) => {
       selectThread(threadId);
       setMessages(res.data || []);
     } catch (err) {
+      if (err?.response?.status === 401) {
+        return;
+      }
       console.error('Failed to load thread:', err);
     }
   }, [selectThread]);
 
   // ---- Fallback: non-streaming collected response ----
   const sendPromptCollected = useCallback(async (message, models, options = {}) => {
-    const token = localStorage.getItem('token');
     const body = {
       message,
       models,
@@ -62,7 +67,6 @@ export const ChatProvider = ({ children }) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: 'include',
       body: JSON.stringify(body),
@@ -86,7 +90,6 @@ export const ChatProvider = ({ children }) => {
 
     try {
       // Try SSE streaming first
-      const token = localStorage.getItem('token');
       const body = {
         message, models,
         thread_id: currentThread || undefined,
@@ -98,7 +101,6 @@ export const ChatProvider = ({ children }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: 'include',
         body: JSON.stringify(body),
@@ -165,8 +167,8 @@ export const ChatProvider = ({ children }) => {
                 });
               }
             }
-          } catch {
-            // Skip malformed JSON
+          } catch (parseError) {
+            console.error('Skipped malformed SSE JSON chunk:', parseError);
           }
         }
       }
@@ -235,42 +237,35 @@ export const ChatProvider = ({ children }) => {
     setMessages(prev => [...prev, msg]);
   }, []);
 
-  // Restore state on mount and on window focus
-  const restoreState = useCallback(async () => {
-    const savedThread = sessionStorage.getItem('hub_thread');
-    if (savedThread && messages.length === 0) {
-      try {
-        const res = await axios.get(`${API}/v1/a0/thread/${savedThread}`);
-        if (res.data && res.data.length > 0) {
-          setMessages(res.data);
-        }
-      } catch {
-        sessionStorage.removeItem('hub_thread');
-        setCurrentThread(null);
-      }
-    }
-  }, [messages.length]);
-
   React.useEffect(() => {
+    if (!isAuthenticated) {
+      setInitialized(false);
+      setThreads([]);
+      setCurrentThread(null);
+      setMessages([]);
+      setStreaming({});
+      return undefined;
+    }
+
     if (!initialized) {
       setInitialized(true);
       fetchThreads();
-      restoreState();
     }
 
     const handleFocus = () => {
       fetchThreads();
-      const saved = sessionStorage.getItem('hub_thread');
-      if (saved) {
-        axios.get(`${API}/v1/a0/thread/${saved}`).then(res => {
+      if (currentThread) {
+        axios.get(`${API}/v1/a0/thread/${currentThread}`).then(res => {
           if (res.data) setMessages(res.data);
-        }).catch(() => {});
+        }).catch((focusError) => {
+          console.error('Failed to refresh current thread on focus:', focusError);
+        });
       }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [initialized, fetchThreads, restoreState]);
+  }, [initialized, fetchThreads, currentThread, isAuthenticated]);
 
   return (
     <ChatContext.Provider value={{

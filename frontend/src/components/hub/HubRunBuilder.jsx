@@ -32,6 +32,25 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
   const isSynthRoom = stage.pattern === 'room_synthesized';
   const stageId = `run-stage-${index + 1}`;
 
+  const updateNumericField = (field) => (event) => {
+    const raw = event.target.value;
+    if (raw === '') {
+      onChange({ ...stage, [field]: '' });
+      return;
+    }
+    const parsed = Number(raw);
+    if (Number.isNaN(parsed)) return;
+    onChange({ ...stage, [field]: parsed });
+  };
+
+  const normalizeNumericField = (field, fallback, min, max) => () => {
+    const parsed = Number(stage[field]);
+    const safeValue = Number.isNaN(parsed) || stage[field] === ''
+      ? fallback
+      : Math.min(max, Math.max(min, parsed));
+    onChange({ ...stage, [field]: safeValue });
+  };
+
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4" data-testid={`${stageId}-card`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -39,7 +58,7 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
           <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Stage {index + 1}</div>
           <input value={stage.name} onChange={(e) => onChange({ ...stage, name: e.target.value })} placeholder="Optional stage label"
             data-testid={`${stageId}-name-input`}
-            className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
+            className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
         </div>
         <button type="button" onClick={onRemove} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-400 transition hover:border-red-500/30 hover:text-red-300" data-testid={`${stageId}-remove-button`}>
           <span className="flex items-center gap-2"><Trash2 size={13} /> Remove</span>
@@ -57,18 +76,18 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
           {INPUT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <input type="number" min={1} max={10} value={stage.rounds} onChange={(e) => onChange({ ...stage, rounds: Number(e.target.value) || 1 })}
-          placeholder="Rounds"
+        <input type="number" min={1} max={10} value={stage.rounds ?? ''} onChange={updateNumericField('rounds')} onBlur={normalizeNumericField('rounds', 1, 1, 10)}
+          placeholder="Rounds (default 1)"
           data-testid={`${stageId}-rounds-input`}
-          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
-        <input type="number" min={1} max={10} value={stage.verbosity} onChange={(e) => onChange({ ...stage, verbosity: Number(e.target.value) || 5 })}
-          placeholder="Verbosity"
+          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
+        <input type="number" min={1} max={10} value={stage.verbosity ?? ''} onChange={updateNumericField('verbosity')} onBlur={normalizeNumericField('verbosity', 5, 1, 10)}
+          placeholder="Verbosity (default 5)"
           data-testid={`${stageId}-verbosity-input`}
-          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
-        <input type="number" min={1} max={200} value={stage.max_history} onChange={(e) => onChange({ ...stage, max_history: Number(e.target.value) || 30 })}
-          placeholder="Max history"
+          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
+        <input type="number" min={1} max={200} value={stage.max_history ?? ''} onChange={updateNumericField('max_history')} onBlur={normalizeNumericField('max_history', 30, 1, 200)}
+          placeholder="Max history (default 30)"
           data-testid={`${stageId}-max-history-input`}
-          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
+          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
         {!isRoleplay && (
           <label className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
             <input type="checkbox" checked={stage.include_original_prompt} onChange={(e) => onChange({ ...stage, include_original_prompt: e.target.checked })} data-testid={`${stageId}-include-original-checkbox`} />
@@ -77,7 +96,7 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
         )}
         <textarea value={stage.prompt} onChange={(e) => onChange({ ...stage, prompt: e.target.value })} rows={3} placeholder="Optional stage prompt override"
           data-testid={`${stageId}-prompt-textarea`}
-          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 lg:col-span-2" />
+          className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50 lg:col-span-2" />
       </div>
 
       {isRoleplay ? (
@@ -96,10 +115,10 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
               <option value="">DM rotation group (optional)</option>
               {sourceOptions.filter((option) => option.source_type === 'group').map((option) => <option key={option.source_id} value={option.source_id}>{option.label}</option>)}
             </select>
-            <input type="number" min={10} max={2000} value={stage.action_word_limit} onChange={(e) => onChange({ ...stage, action_word_limit: Number(e.target.value) || 120 })}
-              placeholder="Action word limit"
+            <input type="number" min={10} max={2000} value={stage.action_word_limit ?? ''} onChange={updateNumericField('action_word_limit')} onBlur={normalizeNumericField('action_word_limit', 120, 10, 2000)}
+              placeholder="Action word limit (default 120)"
               data-testid={`${stageId}-action-word-limit-input`}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
             <div className="flex flex-wrap gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-xs text-zinc-300">
               <label className="flex items-center gap-2"><input type="checkbox" checked={stage.use_initiative} onChange={(e) => onChange({ ...stage, use_initiative: e.target.checked })} data-testid={`${stageId}-use-initiative-checkbox`} /> Use initiative</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={stage.allow_reactions} onChange={(e) => onChange({ ...stage, allow_reactions: e.target.checked })} data-testid={`${stageId}-allow-reactions-checkbox`} /> Allow reactions</label>
@@ -125,7 +144,7 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
               </select>
               <textarea value={stage.synthesis_prompt} onChange={(e) => onChange({ ...stage, synthesis_prompt: e.target.value })} rows={2} placeholder="Synthesis prompt"
                 data-testid={`${stageId}-synthesis-prompt-textarea`}
-                className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 lg:col-span-2" />
+                className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50 lg:col-span-2" />
             </div>
           )}
         </div>
@@ -156,6 +175,10 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
       persist_instance_threads: true,
       stages: stages.map((stage) => ({
         ...stage,
+        rounds: Number(stage.rounds) || 1,
+        verbosity: Number(stage.verbosity) || 5,
+        max_history: Number(stage.max_history) || 30,
+        action_word_limit: Number(stage.action_word_limit) || 120,
         prompt: stage.prompt || null,
         synthesis_instance_id: stage.synthesis_instance_id || null,
         synthesis_group_id: stage.synthesis_group_id || null,
@@ -185,10 +208,10 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
       <form onSubmit={submit} className="mt-4 space-y-4" data-testid="run-builder-form">
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Run label (optional)"
           data-testid="run-label-input"
-          className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
+          className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
         <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="Root prompt"
           data-testid="run-root-prompt-textarea"
-          className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
+          className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none focus:border-emerald-500/50" />
 
         <div className="space-y-4">
           {stages.map((stage, index) => (

@@ -43,7 +43,7 @@ async def eval_edcm(
     await emit_event(
         "metric",
         request.thread_id,
-        f"system:edcm",
+        "system:edcm",
         {
             "snapshot_id": report["snapshot_id"],
             "metrics": {k: v["value"] for k, v in report["metrics"].items()},

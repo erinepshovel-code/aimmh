@@ -16,15 +16,23 @@ export default function AuthCallback() {
 
     const processSession = async () => {
       // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-      
-      // Extract session_id from URL fragment
-      const hash = window.location.hash;
-      const params = new URLSearchParams(hash.substring(1));
-      const sessionId = params.get('session_id');
+
+      const queryParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+      const oauthError = queryParams.get('error') || hashParams.get('error');
+      const oauthErrorDescription = queryParams.get('error_description') || hashParams.get('error_description');
+      if (oauthError) {
+        toast.error(oauthErrorDescription || 'Google sign-in failed. Please try again.');
+        navigate('/auth', { replace: true });
+        return;
+      }
+
+      const sessionId = hashParams.get('session_id') || queryParams.get('session_id');
 
       if (!sessionId) {
-        toast.error('No session ID found');
-        navigate('/auth');
+        toast.error('Google sign-in session missing. Please try again.');
+        navigate('/auth', { replace: true });
         return;
       }
 
@@ -45,7 +53,6 @@ export default function AuthCallback() {
         const accessToken = response.data?.access_token;
 
         if (accessToken) {
-          localStorage.setItem('token', accessToken);
           axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         }
         
@@ -56,8 +63,12 @@ export default function AuthCallback() {
         
       } catch (error) {
         console.error('Auth callback error:', error);
-        toast.error('Authentication failed');
-        navigate('/auth');
+        const detail = error?.response?.data?.detail;
+        const message = (typeof detail === 'string' && detail)
+          || (typeof detail === 'object' && (detail.error_description || detail.error || detail.message))
+          || 'Authentication failed';
+        toast.error(message);
+        navigate('/auth', { replace: true });
       }
     };
 

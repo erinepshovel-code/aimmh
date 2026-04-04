@@ -8,8 +8,10 @@ import pytest
 import requests
 import time
 
+from tests.test_credentials import TEST_USER_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-TEST_USER = {"username": "testbot01", "password": "test123456"}
+TEST_USER = {"username": "testbot01", "password": TEST_USER_PASSWORD}
 
 # ---- Fixtures ----
 

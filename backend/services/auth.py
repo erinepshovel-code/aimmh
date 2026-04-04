@@ -45,6 +45,7 @@ async def get_current_user(
 ) -> dict:
     """Support both Google OAuth session tokens (cookie) and JWT tokens (header)"""
     session_token = request.cookies.get("session_token")
+    access_cookie_token = request.cookies.get("access_token")
 
     if session_token:
         session = await db.user_sessions.find_one(
@@ -69,8 +70,8 @@ async def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
         return user
 
-    if credentials:
-        token = credentials.credentials
+    token = credentials.credentials if credentials else access_cookie_token
+    if token:
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             user_id = payload.get("sub")

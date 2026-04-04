@@ -7,11 +7,13 @@ import requests
 import os
 import uuid
 
+from tests.test_credentials import TEST_FAKE_API_KEY, TEST_SHORT_PASSWORD, TEST_USER_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 # Test credentials
 TEST_USERNAME = f"testuser_refactor_{uuid.uuid4().hex[:8]}"
-TEST_PASSWORD = "test123456"
+TEST_PASSWORD = TEST_USER_PASSWORD
 
 
 @pytest.fixture(scope="module")
@@ -76,7 +78,7 @@ class TestAuthEndpoints:
         unique_username = f"test_register_{uuid.uuid4().hex[:8]}"
         response = api_client.post(
             f"{BASE_URL}/api/auth/register",
-            json={"username": unique_username, "password": "test123456"}
+            json={"username": unique_username, "password": TEST_USER_PASSWORD}
         )
         
         assert response.status_code == 200, f"Register failed: {response.text}"
@@ -95,13 +97,13 @@ class TestAuthEndpoints:
         unique_username = f"test_dup_{uuid.uuid4().hex[:8]}"
         api_client.post(
             f"{BASE_URL}/api/auth/register",
-            json={"username": unique_username, "password": "test123456"}
+            json={"username": unique_username, "password": TEST_USER_PASSWORD}
         )
         
         # Duplicate registration
         response = api_client.post(
             f"{BASE_URL}/api/auth/register",
-            json={"username": unique_username, "password": "test123456"}
+            json={"username": unique_username, "password": TEST_USER_PASSWORD}
         )
         
         assert response.status_code == 400, "Should fail for duplicate username"
@@ -113,13 +115,13 @@ class TestAuthEndpoints:
         unique_username = f"test_login_{uuid.uuid4().hex[:8]}"
         api_client.post(
             f"{BASE_URL}/api/auth/register",
-            json={"username": unique_username, "password": "test123456"}
+            json={"username": unique_username, "password": TEST_USER_PASSWORD}
         )
         
         # Login
         response = api_client.post(
             f"{BASE_URL}/api/auth/login",
-            json={"username": unique_username, "password": "test123456"}
+            json={"username": unique_username, "password": TEST_USER_PASSWORD}
         )
         
         assert response.status_code == 200, f"Login failed: {response.text}"
@@ -133,7 +135,7 @@ class TestAuthEndpoints:
         """Test login with invalid credentials returns 401"""
         response = api_client.post(
             f"{BASE_URL}/api/auth/login",
-            json={"username": "nonexistent_user_xyz", "password": "wrongpass"}
+            json={"username": "nonexistent_user_xyz", "password": TEST_SHORT_PASSWORD}
         )
         
         assert response.status_code == 401
@@ -197,7 +199,7 @@ class TestAPIKeysEndpoints:
     
     def test_update_key_custom(self, authenticated_client):
         """Test PUT /api/keys with custom API key"""
-        test_key = "sk-test-key-1234567890"
+        test_key = TEST_FAKE_API_KEY
         response = authenticated_client.put(
             f"{BASE_URL}/api/keys",
             json={"provider": "grok", "api_key": test_key, "use_universal": False}

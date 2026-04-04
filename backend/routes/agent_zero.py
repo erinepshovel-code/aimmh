@@ -48,6 +48,139 @@ async def get_a0_connection(user_id: str) -> dict:
     }
 
 
+def _validate_a0_connection(conn: dict) -> None:
+    if not conn.get("url"):
+        raise HTTPException(status_code=503, detail="Agent Zero not configured")
+
+
+async def _load_ingest_conversation_and_messages(request: A0IngestRequest, uid: str):
+    conversation = await db.conversations.find_one(
+        {"id": request.conversation_id, "user_id": uid},
+        {"_id": 0},
+    )
+
+    messages = None
+    if conversation:
+        cursor = db.messages.find(
+            {"conversation_id": request.conversation_id, "user_id": uid},
+            {"_id": 0},
+        ).sort("timestamp", 1)
+        try:
+            messages = await cursor.to_list(length=None)
+        except TypeError:
+            messages = await cursor.to_list(length=2000)
+
+    if not messages and request.messages:
+        messages = request.messages
+
+    if not messages:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return conversation, messages
+
+
+def _resolve_ingest_constraints(request: A0IngestRequest, conversation: dict | None) -> dict:
+    return {
+        "global_context": request.global_context if request.global_context is not None else (conversation.get("global_context") if conversation else None),
+        "model_roles": request.model_roles if request.model_roles is not None else (conversation.get("model_roles") if conversation else None),
+        "context_mode": request.context_mode if request.context_mode is not None else (conversation.get("context_mode") if conversation else None),
+        "shared_room_mode": request.shared_room_mode if request.shared_room_mode is not None else (conversation.get("shared_room_mode") if conversation else None),
+        "shared_pairs": request.shared_pairs if request.shared_pairs is not None else (conversation.get("shared_pairs") if conversation else None),
+    }
+
+
+def _resolve_ingest_metadata(request: A0IngestRequest, conversation: dict | None) -> dict:
+    metadata = request.metadata or {}
+    if conversation:
+        metadata = {
+            **metadata,
+            "conversation_meta": {
+                "title": conversation.get("title"),
+                "created_at": conversation.get("created_at"),
+                "updated_at": conversation.get("updated_at"),
+            },
+        }
+    return metadata
+
+
+def _build_ingest_payload(request: A0IngestRequest, uid: str, conversation: dict | None, messages: list, constraints: dict, metadata: dict) -> dict:
+    title = request.title or (conversation.get("title") if conversation else "Conversation")
+    return {
+        "source": "multi-ai-hub",
+        "conversation_id": request.conversation_id,
+        "title": title,
+        "user_id": uid,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "messages": messages,
+        "constraints": constraints,
+        "metadata": metadata,
+    }
+
+
+async def _post_to_a0(conn: dict, path: str, payload: dict, timeout: float = 10.0) -> dict:
+    headers = {"Content-Type": "application/json"}
+    if conn.get("key"):
+        headers["X-A0-Key"] = conn["key"]
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(
+            f"{conn['url']}{path}",
+            json=payload,
+            headers=headers,
+        )
+        response.raise_for_status()
+    return response.json()
+
+
+def _normalize_selected_message_ids(selected_message_ids: list[str]) -> list[str]:
+    selected_ids = [mid for mid in selected_message_ids if isinstance(mid, str) and mid]
+    if not selected_ids:
+        raise HTTPException(status_code=400, detail="selected_message_ids must include at least one ID")
+    return selected_ids
+
+
+def _normalize_target_models(target_models: list[str]) -> list[str]:
+    models = [model.strip() for model in target_models if isinstance(model, str) and model.strip()]
+    if not models:
+        raise HTTPException(status_code=400, detail="target_models must include at least one model")
+    return list(dict.fromkeys(models))
+
+
+async def _fetch_synthesis_source_messages(
+    conversation_id: str,
+    uid: str,
+    selected_ids: list[str],
+    source_model: str | None,
+) -> list[dict]:
+    selected_messages = await db.messages.find(
+        {
+            "conversation_id": conversation_id,
+            "user_id": uid,
+            "role": "assistant",
+            "id": {"$in": selected_ids},
+        },
+        {"_id": 0},
+    ).to_list(5000)
+
+    if source_model:
+        selected_messages = [msg for msg in selected_messages if msg.get("model") == source_model]
+
+    if not selected_messages:
+        raise HTTPException(status_code=404, detail="No matching assistant responses found for synthesis")
+
+    selected_messages.sort(key=lambda msg: msg.get("timestamp", ""))
+    return selected_messages
+
+
+def _build_synthesis_prompt_message(synthesis_prompt: str | None, selected_messages: list[dict]) -> str:
+    prompt = synthesis_prompt or "Synthesize and analyze these AI responses:"
+    responses_text = [
+        f"Response #{idx} from {msg.get('model', 'unknown')}:\n{msg.get('content', '')}"
+        for idx, msg in enumerate(selected_messages, start=1)
+    ]
+    return f"{prompt}\n\n" + "\n\n".join(responses_text)
+
+
 @router.get("/config")
 async def get_a0_config(current_user: dict = Depends(get_current_user)):
     """Get user's A0 connection config"""
@@ -95,81 +228,15 @@ async def ingest_to_agent_zero(
     """Send conversation to Agent Zero for EDCM analysis"""
     uid = get_user_id(current_user)
     conn = await get_a0_connection(uid)
-
-    if not conn["url"]:
-        raise HTTPException(status_code=503, detail="Agent Zero not configured")
+    _validate_a0_connection(conn)
 
     try:
-        conversation = await db.conversations.find_one(
-            {"id": request.conversation_id, "user_id": uid},
-            {"_id": 0}
-        )
-
-        messages = None
-        if conversation:
-            cursor = db.messages.find(
-                {"conversation_id": request.conversation_id, "user_id": uid},
-                {"_id": 0}
-            ).sort("timestamp", 1)
-            try:
-                messages = await cursor.to_list(length=None)
-            except TypeError:
-                messages = await cursor.to_list(length=2000)
-
-        if not messages and request.messages:
-            messages = request.messages
-
-        if not messages:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-
-        global_context = request.global_context if request.global_context is not None else (conversation.get("global_context") if conversation else None)
-        model_roles = request.model_roles if request.model_roles is not None else (conversation.get("model_roles") if conversation else None)
-        context_mode = request.context_mode if request.context_mode is not None else (conversation.get("context_mode") if conversation else None)
-        shared_room_mode = request.shared_room_mode if request.shared_room_mode is not None else (conversation.get("shared_room_mode") if conversation else None)
-        shared_pairs = request.shared_pairs if request.shared_pairs is not None else (conversation.get("shared_pairs") if conversation else None)
-        title = request.title or (conversation.get("title") if conversation else "Conversation")
-
-        metadata = request.metadata or {}
-        if conversation:
-            metadata = {
-                **metadata,
-                "conversation_meta": {
-                    "title": conversation.get("title"),
-                    "created_at": conversation.get("created_at"),
-                    "updated_at": conversation.get("updated_at")
-                }
-            }
-
-        edcm_payload = {
-            "source": "multi-ai-hub",
-            "conversation_id": request.conversation_id,
-            "title": title,
-            "user_id": uid,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "messages": messages,
-            "constraints": {
-                "global_context": global_context,
-                "model_roles": model_roles,
-                "context_mode": context_mode,
-                "shared_room_mode": shared_room_mode,
-                "shared_pairs": shared_pairs
-            },
-            "metadata": metadata
-        }
-
-        headers = {"Content-Type": "application/json"}
-        if conn["key"]:
-            headers["X-A0-Key"] = conn["key"]
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"{conn['url']}/ingest/transcript",
-                json=edcm_payload,
-                headers=headers
-            )
-            response.raise_for_status()
-
-        return {"message": "Ingested to Agent Zero", "a0_response": response.json()}
+        conversation, messages = await _load_ingest_conversation_and_messages(request, uid)
+        constraints = _resolve_ingest_constraints(request, conversation)
+        metadata = _resolve_ingest_metadata(request, conversation)
+        edcm_payload = _build_ingest_payload(request, uid, conversation, messages, constraints, metadata)
+        a0_response = await _post_to_a0(conn, "/ingest/transcript", edcm_payload)
+        return {"message": "Ingested to Agent Zero", "a0_response": a0_response}
 
     except httpx.HTTPError as e:
         logger.error(f"Agent Zero ingestion failed: {e}")
@@ -184,29 +251,16 @@ async def route_via_agent_zero(
     """Route request through Agent Zero for TIW policy + logging"""
     uid = get_user_id(current_user)
     conn = await get_a0_connection(uid)
-
-    if not conn["url"]:
-        raise HTTPException(status_code=503, detail="Agent Zero not configured")
+    _validate_a0_connection(conn)
 
     try:
-        headers = {"Content-Type": "application/json"}
-        if conn["key"]:
-            headers["X-A0-Key"] = conn["key"]
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"{conn['url']}/route",
-                json={
-                    "message": request.message,
-                    "models": request.models,
-                    "user_id": uid,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                },
-                headers=headers
-            )
-            response.raise_for_status()
-
-        return response.json()
+        payload = {
+            "message": request.message,
+            "models": request.models,
+            "user_id": uid,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        return await _post_to_a0(conn, "/route", payload)
 
     except httpx.HTTPError as e:
         logger.error(f"Agent Zero routing failed: {e}")
@@ -345,43 +399,19 @@ async def a0_non_ui_synthesis(
 ):
     """One-off synthesis endpoint for Agent Zero: selected assistant responses => target models."""
     uid = get_user_id(current_user)
-    selected_ids = [mid for mid in request.selected_message_ids if isinstance(mid, str) and mid]
-    if not selected_ids:
-        raise HTTPException(status_code=400, detail="selected_message_ids must include at least one ID")
-
-    target_models = [model.strip() for model in request.target_models if isinstance(model, str) and model.strip()]
-    if not target_models:
-        raise HTTPException(status_code=400, detail="target_models must include at least one model")
-
-    selected_messages = await db.messages.find(
-        {
-            "conversation_id": request.conversation_id,
-            "user_id": uid,
-            "role": "assistant",
-            "id": {"$in": selected_ids},
-        },
-        {"_id": 0},
-    ).to_list(5000)
-
-    if request.source_model:
-        selected_messages = [msg for msg in selected_messages if msg.get("model") == request.source_model]
-
-    if not selected_messages:
-        raise HTTPException(status_code=404, detail="No matching assistant responses found for synthesis")
-
-    selected_messages.sort(key=lambda msg: msg.get("timestamp", ""))
-    responses_text = []
-    for idx, msg in enumerate(selected_messages, start=1):
-        responses_text.append(
-            f"Response #{idx} from {msg.get('model', 'unknown')}:\n{msg.get('content', '')}"
-        )
-
-    synthesis_prompt = request.synthesis_prompt or "Synthesize and analyze these AI responses:"
-    synthesis_message = f"{synthesis_prompt}\n\n" + "\n\n".join(responses_text)
+    selected_ids = _normalize_selected_message_ids(request.selected_message_ids)
+    target_models = _normalize_target_models(request.target_models)
+    selected_messages = await _fetch_synthesis_source_messages(
+        conversation_id=request.conversation_id,
+        uid=uid,
+        selected_ids=selected_ids,
+        source_model=request.source_model,
+    )
+    synthesis_message = _build_synthesis_prompt_message(request.synthesis_prompt, selected_messages)
 
     chat_request = ChatRequest(
         message=synthesis_message,
-        models=list(dict.fromkeys(target_models)),
+        models=target_models,
         conversation_id=request.conversation_id,
         context_mode=request.context_mode,
         shared_room_mode=request.shared_room_mode,

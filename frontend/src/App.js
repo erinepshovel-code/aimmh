@@ -10,6 +10,7 @@ import SettingsPageV2 from './pages/SettingsPageV2';
 import PricingPageV2 from './pages/PricingPageV2';
 import HallOfMakersPage from './pages/HallOfMakersPage';
 import AnalysisPage from './pages/AnalysisPage';
+import ConsolePage from './pages/ConsolePage';
 import './App.css';
 
 class ErrorBoundary extends React.Component {
@@ -51,13 +52,20 @@ const PublicRoute = ({ children }) => {
 
 function AppRoutes() {
   const location = useLocation();
-  if (location.pathname === '/auth/callback' || location.hash?.includes('session_id=')) {
+  if (
+    location.pathname === '/auth/callback'
+    || location.pathname === '/auth/google'
+    || location.hash?.includes('session_id=')
+    || location.search?.includes('session_id=')
+    || location.search?.includes('error=')
+  ) {
     return <AuthCallback />;
   }
   return (
     <Routes>
       <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
       <Route path="/chat" element={<ProtectedRoute><AimmhHubPage /></ProtectedRoute>} />
+      <Route path="/console" element={<ProtectedRoute><ConsolePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPageV2 /></ProtectedRoute>} />
       <Route path="/pricing" element={<ProtectedRoute><PricingPageV2 /></ProtectedRoute>} />
       <Route path="/makers" element={<HallOfMakersPage />} />

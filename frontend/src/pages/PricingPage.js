@@ -14,10 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 axios.defaults.withCredentials = true;
 
-const getAuthConfig = () => {
-  const token = localStorage.getItem('token');
-  return token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
-};
+const getAuthConfig = () => undefined;
 
 const PackageCard = ({ item, onCheckout, loadingPackage, disabled = false, extraBadge = null }) => (
   <Card className="border-border bg-zinc-950/70" data-testid={`pricing-package-card-${item.package_id}`}>

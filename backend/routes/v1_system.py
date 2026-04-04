@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 from services.llm import DEFAULT_REGISTRY
+from services.ai_instructions import get_ai_instruction_payload
 
 router = APIRouter(prefix="/api/v1", tags=["system"])
 
@@ -78,3 +79,8 @@ async def list_available_models():
             "models": models,
         })
     return {"developers": result}
+
+
+@router.get("/ai-instructions")
+async def ai_instructions_v1():
+    return get_ai_instruction_payload()

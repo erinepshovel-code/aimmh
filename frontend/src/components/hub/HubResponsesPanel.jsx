@@ -1,10 +1,10 @@
 import React from 'react';
-import { CheckCheck, Copy, LayoutPanelTop, Rows3, Share2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { hubApi } from '../../lib/hubApi';
 import { ResponseCarousel } from './ResponseCarousel';
-import { ResponseMarkdown } from './ResponseMarkdown';
 import { ResponsePane } from './ResponsePane';
+import { ResponsesToolbar } from './ResponsesToolbar';
+import { ResponsesComparePopout } from './ResponsesComparePopout';
 
 export function HubResponsesPanel({
   runs,
@@ -144,73 +144,30 @@ export function HubResponsesPanel({
 
   return (
     <section className="space-y-4" data-testid="hub-responses-panel">
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="responses-toolbar">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-100">Responses</h2>
-            <p className="mt-1 text-xs text-zinc-500">Native formatting preserved. Compare vertically in stack mode or pane mode.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300" data-testid="responses-show-archived-toggle-wrap">
-              <input
-                type="checkbox"
-                checked={showArchivedResponses}
-                onChange={(event) => setShowArchivedResponses(event.target.checked)}
-                data-testid="responses-show-archived-checkbox"
-              />
-              Show archived
-            </label>
-            <button type="button" onClick={() => setSourceType('runs')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'runs' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-source-runs-button">
-              Run responses
-            </button>
-            <button type="button" onClick={() => setSourceType('prompts')} className={`rounded-xl border px-3 py-2 text-xs ${sourceType === 'prompts' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-source-prompts-button">
-              Prompt responses
-            </button>
-            <button type="button" onClick={() => setCompareMode('stack')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'stack' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-compare-stack-button">
-              <span className="flex items-center gap-2"><Rows3 size={13} /> Stack</span>
-            </button>
-            <button type="button" onClick={() => setCompareMode('carousel')} className={`rounded-xl border px-3 py-2 text-xs ${compareMode === 'carousel' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 text-zinc-300'}`} data-testid="responses-compare-carousel-button">
-              <span className="flex items-center gap-2"><LayoutPanelTop size={13} /> Pane mode</span>
-            </button>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          {sourceType === 'runs' ? (
-            <>
-              <select value={selectedRunId || ''} onChange={(event) => setSelectedRunId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" data-testid="responses-run-select">
-                <option value="">Select a run</option>
-                {runs.map((run) => <option key={run.run_id} value={run.run_id}>{run.label || run.run_id}</option>)}
-              </select>
-              <select value={selectedStageIndex} onChange={(event) => setSelectedStageIndex(Number(event.target.value))} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" data-testid="responses-stage-select">
-                {stageOptions.length === 0 ? <option value={0}>Stage 1</option> : stageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
-              </select>
-            </>
-          ) : (
-            <>
-              <select value={selectedPromptId || ''} onChange={(event) => setSelectedPromptId(event.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 md:col-span-2" data-testid="responses-prompt-select">
-                <option value="">Select a prompt batch</option>
-                {prompts.map((prompt) => <option key={prompt.prompt_id} value={prompt.prompt_id}>{prompt.label || prompt.prompt}</option>)}
-              </select>
-            </>
-          )}
-          <div className="flex gap-2">
-            <button type="button" onClick={toggleSelectAllResponses} disabled={visibleResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-select-all-button">
-              <span className="flex items-center gap-2"><CheckCheck size={13} /> {allVisibleSelected ? 'Clear visible' : 'Select all responses'}</span>
-            </button>
-            <button type="button" onClick={copySelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-copy-selected-button"><span className="flex items-center gap-2"><Copy size={13} /> Copy selected</span></button>
-            <button type="button" onClick={shareSelected} disabled={selectedResponses.length === 0} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40" data-testid="responses-share-selected-button"><span className="flex items-center gap-2"><Share2 size={13} /> Share selected</span></button>
-            <button
-              type="button"
-              onClick={() => setComparePopoutOpen(true)}
-              disabled={selectedResponses.length < 2}
-              className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 disabled:opacity-40"
-              data-testid="responses-compare-popout-button"
-            >
-              Compare popout
-            </button>
-          </div>
-        </div>
-      </div>
+      <ResponsesToolbar
+        sourceType={sourceType}
+        setSourceType={setSourceType}
+        compareMode={compareMode}
+        setCompareMode={setCompareMode}
+        showArchivedResponses={showArchivedResponses}
+        setShowArchivedResponses={setShowArchivedResponses}
+        selectedRunId={selectedRunId}
+        setSelectedRunId={setSelectedRunId}
+        runs={runs}
+        selectedStageIndex={selectedStageIndex}
+        setSelectedStageIndex={setSelectedStageIndex}
+        stageOptions={stageOptions}
+        selectedPromptId={selectedPromptId}
+        setSelectedPromptId={setSelectedPromptId}
+        prompts={prompts}
+        onToggleSelectAll={toggleSelectAllResponses}
+        onCopySelected={copySelected}
+        onShareSelected={shareSelected}
+        onOpenCompare={() => setComparePopoutOpen(true)}
+        visibleResponsesCount={visibleResponses.length}
+        selectedResponsesCount={selectedResponses.length}
+        allVisibleSelected={allVisibleSelected}
+      />
 
       {(sourceType === 'runs' && !selectedRun) || (sourceType === 'prompts' && !selectedPrompt) ? (
         <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500" data-testid="responses-empty-state">Select a {sourceType === 'runs' ? 'run' : 'prompt batch'} to compare responses.</div>
@@ -259,29 +216,12 @@ export function HubResponsesPanel({
         </div>
       )}
 
-      {comparePopoutOpen && selectedResponses.length >= 2 && (
-        <div className="fixed inset-0 z-50 bg-black/70 p-4 sm:p-8" data-testid="responses-compare-popout-overlay">
-          <div className="mx-auto flex h-full w-full max-w-[1300px] flex-col rounded-3xl border border-zinc-700 bg-zinc-950" data-testid="responses-compare-popout-modal">
-            <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-              <div className="text-sm font-semibold text-zinc-100" data-testid="responses-compare-popout-title">Compare selected responses ({selectedResponses.length})</div>
-              <button type="button" onClick={() => setComparePopoutOpen(false)} className="rounded-full border border-zinc-700 p-2 text-zinc-300 hover:text-white" data-testid="responses-compare-popout-close-button">
-                <X size={14} />
-              </button>
-            </div>
-            <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-4 md:grid-cols-2 xl:grid-cols-3" data-testid="responses-compare-popout-grid">
-              {selectedResponses.map((item) => (
-                <article key={`compare-${item.run_step_id}`} className="flex min-h-0 flex-col rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`responses-compare-popout-item-${item.run_step_id}`}>
-                  <div className="mb-2 text-sm font-medium text-zinc-100">{item.instance_name || item.model}</div>
-                  <div className="rounded-full border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-400">{item.model}</div>
-                  <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3" data-testid={`responses-compare-popout-content-${item.run_step_id}`}>
-                    <ResponseMarkdown content={item.content} fontScale={fontScale} />
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <ResponsesComparePopout
+        open={comparePopoutOpen}
+        selectedResponses={selectedResponses}
+        fontScale={fontScale}
+        onClose={() => setComparePopoutOpen(false)}
+      />
     </section>
   );
 }

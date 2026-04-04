@@ -156,9 +156,20 @@ def _stripe_key() -> str:
     return os.environ["STRIPE_API_KEY"]
 
 
+def _stripe_mode() -> str:
+    key = os.environ.get("STRIPE_API_KEY", "")
+    if not key:
+        return "missing"
+    if key.startswith("sk_live_") or key.startswith("rk_live_"):
+        return "live"
+    if key.startswith("sk_test_") or key.startswith("rk_test_"):
+        return "test"
+    return "unknown"
+
+
 def _build_checkout(request: Request) -> StripeCheckout:
     host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
+    webhook_url = f"{host_url}/api/payments/webhook/stripe"
     return StripeCheckout(api_key=_stripe_key(), webhook_url=webhook_url)
 
 
@@ -396,6 +407,16 @@ async def get_payments_summary(current_user: dict = Depends(get_current_user)):
         total_donation_usd=float(billing.get("total_donation_usd") or 0.0),
         team_seats=int(billing.get("team_seats") or billing_profile["team_seats"]),
     )
+
+
+@router.get("/stripe/mode")
+async def get_stripe_mode(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    mode = _stripe_mode()
+    return {
+        "stripe_mode": mode,
+        "key_present": mode != "missing",
+    }
 
 
 @router.put("/hall-of-makers/profile")

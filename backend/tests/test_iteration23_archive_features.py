@@ -15,13 +15,15 @@ import requests
 import time
 import random
 
+from tests.test_credentials import TEST_USER_ALT_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 @pytest.fixture(scope="module")
 def test_user():
     """Register a fresh test user and return auth token"""
     username = f"archive_test_{random.randint(100000, 999999)}"
-    password = "testpass123"
+    password = TEST_USER_ALT_PASSWORD
     
     # Register
     response = requests.post(f"{BASE_URL}/api/auth/register", json={

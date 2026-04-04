@@ -9,19 +9,9 @@ axios.defaults.withCredentials = true;
 const AuthContext = createContext(null);
 
 const clearLocalAuth = () => {
-  localStorage.removeItem('token');
   localStorage.removeItem('multi_ai_hub_chat');
+  localStorage.removeItem('token'); // legacy cleanup only
   delete axios.defaults.headers.common['Authorization'];
-};
-
-const isJwtExpired = (jwtToken) => {
-  try {
-    const payload = JSON.parse(atob(jwtToken.split('.')[1]));
-    if (!payload?.exp) return false;
-    return (payload.exp * 1000) <= Date.now();
-  } catch {
-    return true;
-  }
 };
 
 export const useAuth = () => {
@@ -34,15 +24,35 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const checkAuth = React.useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
+    try {
+      const response = await axios.get(`${API}/auth/me`);
+      if (response.data) {
+        setUser(response.data);
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      if (error.response?.status === 401) {
+        clearLocalAuth();
+        setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401 && localStorage.getItem('token')) {
+        if (error.response?.status === 401 && isAuthenticated) {
           clearLocalAuth();
           setToken(null);
           setUser(null);
@@ -53,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     );
 
     return () => axios.interceptors.response.eject(interceptor);
-  }, []);
+  }, [isAuthenticated]);
 
   // Check authentication on mount and window focus
   useEffect(() => {
@@ -66,54 +76,7 @@ export const AuthProvider = ({ children }) => {
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, []);
-
-  const checkAuth = async (isInitial = false) => {
-    if (isInitial) setLoading(true);
-
-    const storedToken = localStorage.getItem('token');
-    if (storedToken && !isJwtExpired(storedToken)) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-      setToken(storedToken);
-      try {
-        const response = await axios.get(`${API}/auth/me`);
-        if (response.data) {
-          setUser(response.data);
-          setIsAuthenticated(true);
-        }
-      } catch (error) {
-        if (error.response?.status === 401) {
-          clearLocalAuth();
-          setToken(null);
-          setUser(null);
-          setIsAuthenticated(false);
-        }
-      } finally {
-        if (isInitial) setLoading(false);
-      }
-      return;
-    }
-
-    if (storedToken && isJwtExpired(storedToken)) {
-      clearLocalAuth();
-      setToken(null);
-    }
-
-    try {
-      const response = await axios.get(`${API}/auth/me`);
-      if (response.data) {
-        setUser(response.data);
-        setIsAuthenticated(true);
-      }
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    } finally {
-      if (isInitial) setLoading(false);
-    }
-  };
+  }, [checkAuth]);
 
   useEffect(() => {
     const tier = user?.subscription_tier || 'free';
@@ -126,7 +89,6 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     const response = await axios.post(`${API}/auth/login`, { username, password });
     const { access_token, user: userData } = response.data;
-    localStorage.setItem('token', access_token);
     setToken(access_token);
     setUser(userData);
     setIsAuthenticated(true);
@@ -137,7 +99,6 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, password) => {
     const response = await axios.post(`${API}/auth/register`, { username, password });
     const { access_token, user: userData } = response.data;
-    localStorage.setItem('token', access_token);
     setToken(access_token);
     setUser(userData);
     setIsAuthenticated(true);
@@ -150,7 +111,7 @@ export const AuthProvider = ({ children }) => {
       // Try to logout from backend (for cookie sessions)
       await axios.post(`${API}/auth/logout`);
     } catch (error) {
-      // Ignore errors
+      console.error('Logout request failed:', error);
     }
     
     clearLocalAuth();

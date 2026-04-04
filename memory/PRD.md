@@ -82,6 +82,33 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Added backend readiness endpoint `GET /api/ready` (Mongo ping check; returns 503 when not ready)
 - [x] Added backend liveness endpoint `GET /api/health` for simple startup/health probes
 - [x] Kept existing `/api/v1/health` intact; readiness/liveness checks verified via curl on preview URL
+- [x] Added AI visitor instruction endpoints: `GET /api/ai-instructions`, `GET /api/v1/ai-instructions`, and public text guide at `/ai-instructions.txt`
+- [x] Added in-app hybrid AI/Human guidance: splash summary + per-tab guide panel with persistent top-shell “Help for AI” toggle
+- [x] Added first-visit guide memory via localStorage key `aimmh-ai-guide-seen-v1`
+- [x] Stripe hardening: corrected checkout webhook URL target to `/api/payments/webhook/stripe` in `backend/routes/payments_v2.py`
+- [x] Restored in-workspace pricing access after header simplification by adding top-shell `Pricing` button (`data-testid="hub-open-pricing-button"`) linking to `/pricing`
+- [x] Added safe Stripe diagnostics endpoint `GET /api/payments/stripe/mode` (auth required) returning only `{ stripe_mode, key_present }` without exposing secret key material
+- [x] Hardened Google OAuth callback handling: switched redirect target to `/auth/google`, added callback support for both query/hash `session_id`, and graceful handling for OAuth `error` / invalid-state responses (no raw callback dead-end)
+- [x] Tightened workspace tabs to single-row layout (`hub-tabs-row-single-line`) with compact labels for consistent one-line rendering
+- [x] Fixed Runs/Rooms numeric inputs so users can clear/delete values while editing; defaults now normalize on blur and payload coercion remains valid on execute
+- [x] Added stronger editable ghost-label behavior for run-stage numeric fields using explicit placeholder hints (e.g., default values visible when empty)
+- [x] Improved two-finger response-pane gestures: clearer pinch/spread zoom detection, gesture-type locking, larger safe font-scale range (0.85–1.9), and reduced accidental pane switching during zoom
+- [x] Security hardening: moved frontend auth from `localStorage` token persistence to secure cookie-first flow (`access_token` HttpOnly cookie set on login/register/google session)
+- [x] Backend auth updated to accept JWT from `access_token` cookie in addition to header/session cookie paths
+- [x] Removed localStorage token reads from API clients (`hubApi`, `paymentsApi`, `registryApi`) and chat advanced/synthesis fetch calls
+- [x] Chat context hardened for unauthenticated state (no background 401 thread fetch spam on `/auth`)
+- [x] Restored explicit logout UX button in hub top shell (`hub-logout-button`) and verified end-to-end logout routing
+- [x] Hook dependency quality pass for reported legacy pages (`SettingsPage.js`, `ConsolePage.js`, `ChatPage.js`) with stable callbacks/effects
+- [x] Backend complexity reduction started in `routes/chat.py`: decomposed streaming flow into helpers (`_validate_chat_request`, `_ensure_conversation_record`, `_create_context_log`, `_persist_base_user_message`, `_build_messages_context`, `_resolve_stream_iterator`, `_stream_chat_response`, `_handle_chat_error`)
+- [x] Continued backend decomposition in `routes/agent_zero.py`: extracted ingestion pipeline helpers (`_load_ingest_conversation_and_messages`, `_resolve_ingest_constraints`, `_resolve_ingest_metadata`, `_build_ingest_payload`, `_post_to_a0`) and synthesis helpers (`_normalize_selected_message_ids`, `_normalize_target_models`, `_fetch_synthesis_source_messages`, `_build_synthesis_prompt_message`)
+- [x] Ensured Agent Zero route wiring is active in server bootstrap (`server.py` includes `agent_zero_router`)
+- [x] Test secret hardening batch: replaced hardcoded test passwords/API-key literals across backend test suites with env-driven shared constants in `backend/tests/test_credentials.py`
+- [x] Undefined-variable audit across backend routes/services completed via lint sweep; cleaned remaining route lint blocker in `routes/v1_edcm.py`
+- [x] Frontend modularization pass: split `HubResponsesPanel.jsx` into focused components `ResponsesToolbar.jsx` and `ResponsesComparePopout.jsx` while preserving all existing test IDs and behavior
+- [x] Frontend modularization pass: split `ConsolePage.js` context tab into `ConsoleLogViewer.jsx` and `ConsoleContextEditor.jsx` components while preserving existing selectors/actions
+- [x] Route wiring hardening from regression test: ensured `/console` route is registered in frontend router and backend console router is mounted in `server.py`
+- [x] Frontend modularization pass: split `ServiceAccountManager.js` into focused components `ServiceAccountCreateForm.js`, `ServiceAccountList.js`, and `ServiceAccountDetails.js`
+- [x] Settings integration hardened: `SettingsPageV2.jsx` now exposes Service Accounts tab with full create/issue/revoke flow verified
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

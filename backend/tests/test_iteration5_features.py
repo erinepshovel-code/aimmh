@@ -13,6 +13,8 @@ import os
 import time
 import uuid
 
+from tests.test_credentials import TEST_USER_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 
@@ -20,7 +22,7 @@ BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 def test_user():
     """Create a test user for the session"""
     username = f"test_iter5_{int(time.time())}"
-    password = "test123456"
+    password = TEST_USER_PASSWORD
     
     response = requests.post(f"{BASE_URL}/api/auth/register", json={
         "username": username,

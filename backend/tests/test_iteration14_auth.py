@@ -11,6 +11,8 @@ import requests
 import os
 import time
 
+from tests.test_credentials import TEST_AUTH_STRONG_PASSWORD, TEST_USER_WRONG_PASSWORD
+
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL')
 
 
@@ -21,7 +23,7 @@ class TestStandardAuth:
     def setup(self):
         self.timestamp = int(time.time())
         self.test_username = f"testauth_{self.timestamp}"
-        self.test_password = "SecurePass123!"
+        self.test_password = TEST_AUTH_STRONG_PASSWORD
     
     def test_register_returns_access_token(self):
         """POST /api/auth/register should return access_token"""
@@ -70,7 +72,7 @@ class TestStandardAuth:
         """POST /api/auth/login with invalid credentials should return 401"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
             "username": "nonexistent_user_xyz",
-            "password": "wrongpassword"
+            "password": TEST_USER_WRONG_PASSWORD
         })
         assert response.status_code == 401
         
@@ -138,7 +140,7 @@ class TestTokenPersistence:
         # Register
         register_response = requests.post(f"{BASE_URL}/api/auth/register", json={
             "username": f"protectedtest_{self.timestamp}",
-            "password": "SecurePass123!"
+            "password": TEST_AUTH_STRONG_PASSWORD
         })
         assert register_response.status_code == 200
         token = register_response.json()["access_token"]

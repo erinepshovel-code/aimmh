@@ -7,9 +7,11 @@ import { HubInstancesPanel } from '../components/hub/HubInstancesPanel';
 import { HubMultiChatPanel } from '../components/hub/HubMultiChatPanel';
 import { HubResponsesPanel } from '../components/hub/HubResponsesPanel';
 import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
+import { HubSplashScreen } from '../components/hub/HubSplashScreen';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
 import { ClaudeWelcomePanel } from '../components/hub/ClaudeWelcomePanel';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
+import { CLAUDE_MD_CONTEXT } from '../lib/claudeContext';
 import { hubApi } from '../lib/hubApi';
 import { KeyManager } from '../components/settings/KeyManager';
 import { RegistryManager } from '../components/settings/RegistryManager';
@@ -24,23 +26,6 @@ const TABS = [
   { id: 'chat', label: 'Chat+Synth' },
 ];
 const FIRST_VISIT_KEY = 'aimmh-first-visit-complete-v1';
-const CLAUDE_MD_CONTEXT = `You are the AIMMH Welcome Guide.
-
-Purpose:
-- Help users understand how to use AIMMH quickly and confidently.
-- Suggest next best actions based on where they are in the workflow.
-
-Style:
-- Clear, concise, practical.
-- Prefer bullet points and short examples.
-- Offer one recommended next step at the end of each reply.
-
-Coverage:
-- Registry and key setup
-- Instance creation and grouping
-- Runs and orchestration patterns
-- Response synthesis and comparison
-- Prompt strategy and troubleshooting`;
 
 export default function AimmhHubPage() {
   const navigate = useNavigate();
@@ -344,27 +329,7 @@ export default function AimmhHubPage() {
   }
 
   if (showSplash) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4" data-testid="hub-splash-screen">
-        <div className="w-full max-w-2xl space-y-4 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-          <div className="text-xs uppercase tracking-[0.24em] text-emerald-300">AIMMH HUB</div>
-          <h1 className="text-4xl font-semibold text-zinc-100 sm:text-5xl">changes inevitable. refinements welcome.</h1>
-          <div className="rounded-2xl border border-zinc-700 bg-zinc-950/50 p-3 text-sm text-zinc-300" data-testid="hub-splash-thanks-block">
-            thanks to those whose support made a difference at a critical time:<br />
-            founder's names
-          </div>
-          <button
-            type="button"
-            onClick={dismissSplash}
-            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
-            data-testid="dismiss-hub-splash-button"
-          >
-            {firstVisit ? 'Enter AIMMH' : 'Continue'}
-          </button>
-          {firstVisit && <div className="text-xs text-zinc-500">First visit: click required to continue.</div>}
-        </div>
-      </div>
-    );
+    return <HubSplashScreen firstVisit={firstVisit} onDismiss={dismissSplash} />;
   }
 
   return (

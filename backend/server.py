@@ -75,6 +75,7 @@ app.add_middleware(
     allow_origin_regex=r'https?://.*' if allow_all_origins else None,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 

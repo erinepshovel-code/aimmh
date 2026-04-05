@@ -97,8 +97,9 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         "description": "Unlimited AIMMH access with advanced synthesis and priority support.",
         "grants_tier": "pro",
         "features": [
-            "Unlimited instances",
+            "Unlimited agents and personas",
             "Unlimited runs",
+            "Unlimited connected keys",
             "Advanced synthesis",
             "Priority support",
             "All supporter perks",
@@ -113,8 +114,9 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         "description": "Yearly Pro access at a discount.",
         "grants_tier": "pro",
         "features": [
-            "Unlimited instances",
+            "Unlimited agents and personas",
             "Unlimited runs",
+            "Unlimited connected keys",
             "Advanced synthesis",
             "Priority support",
             "All supporter perks",

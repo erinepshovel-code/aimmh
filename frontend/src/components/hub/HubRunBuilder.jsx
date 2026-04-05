@@ -2,6 +2,8 @@ import React from 'react';
 import { ArrowDownToLine, Plus, Trash2, Workflow } from 'lucide-react';
 import { createEmptyStage, INPUT_MODE_OPTIONS, PATTERN_OPTIONS } from './hubConfig';
 import { hubApi } from '../../lib/hubApi';
+import { paymentsApi } from '../../lib/paymentsApi';
+import { UpgradeToProModal } from '../ui/UpgradeToProModal';
 
 function SourceSelector({ title, selected, onToggle, sourceOptions, testIdPrefix }) {
   return (
@@ -159,7 +161,10 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
   const [prompt, setPrompt] = React.useState('');
   const [stages, setStages] = React.useState([createEmptyStage()]);
   const [draftLoaded, setDraftLoaded] = React.useState(false);
+  const [billingSummary, setBillingSummary] = React.useState(null);
+  const [showStageLimitModal, setShowStageLimitModal] = React.useState(false);
   const runDraftKey = 'run-builder-draft:new';
+  const maxPersonaStages = typeof billingSummary?.max_personas === 'number' ? billingSummary.max_personas : null;
 
   React.useEffect(() => {
     let active = true;
@@ -186,6 +191,22 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
   }, []);
 
   React.useEffect(() => {
+    let active = true;
+    const loadSummary = async () => {
+      try {
+        const summary = await paymentsApi.getSummary();
+        if (active) setBillingSummary(summary);
+      } catch {
+        if (active) setBillingSummary(null);
+      }
+    };
+    loadSummary();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
     if (!draftLoaded) return;
     const timer = window.setTimeout(() => {
       hubApi.setState(runDraftKey, {
@@ -205,30 +226,49 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
     setStages((prev) => prev.filter((_, stageIndex) => stageIndex !== index));
   };
 
+  const addStage = () => {
+    if (maxPersonaStages !== null && stages.length >= maxPersonaStages) {
+      setShowStageLimitModal(true);
+      return;
+    }
+    setStages((prev) => [...prev, createEmptyStage()]);
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (!prompt.trim() || stages.length === 0) return;
-    await onRun({
-      label: label || null,
-      prompt,
-      persist_instance_threads: true,
-      stages: stages.map((stage) => ({
-        ...stage,
-        rounds: Number(stage.rounds) || 1,
-        verbosity: Number(stage.verbosity) || 5,
-        max_history: Number(stage.max_history) || 30,
-        action_word_limit: Number(stage.action_word_limit) || 120,
-        prompt: stage.prompt || null,
-        synthesis_instance_id: stage.synthesis_instance_id || null,
-        synthesis_group_id: stage.synthesis_group_id || null,
-        dm_instance_id: stage.dm_instance_id || null,
-        dm_group_id: stage.dm_group_id || null,
-      })),
-    });
-    setLabel('');
-    setPrompt('');
-    setStages([createEmptyStage()]);
-    hubApi.deleteState(runDraftKey).catch(() => {});
+    if (maxPersonaStages !== null && stages.length > maxPersonaStages) {
+      setShowStageLimitModal(true);
+      return;
+    }
+
+    try {
+      await onRun({
+        label: label || null,
+        prompt,
+        persist_instance_threads: true,
+        stages: stages.map((stage) => ({
+          ...stage,
+          rounds: Number(stage.rounds) || 1,
+          verbosity: Number(stage.verbosity) || 5,
+          max_history: Number(stage.max_history) || 30,
+          action_word_limit: Number(stage.action_word_limit) || 120,
+          prompt: stage.prompt || null,
+          synthesis_instance_id: stage.synthesis_instance_id || null,
+          synthesis_group_id: stage.synthesis_group_id || null,
+          dm_instance_id: stage.dm_instance_id || null,
+          dm_group_id: stage.dm_group_id || null,
+        })),
+      });
+      setLabel('');
+      setPrompt('');
+      setStages([createEmptyStage()]);
+      hubApi.deleteState(runDraftKey).catch(() => {});
+    } catch (error) {
+      if (String(error?.message || '').toLowerCase().includes('persona stages')) {
+        setShowStageLimitModal(true);
+      }
+    }
   };
 
   return (
@@ -264,7 +304,7 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => setStages((prev) => [...prev, createEmptyStage()])}
+          <button type="button" onClick={addStage}
             data-testid="add-run-stage-button"
             className="rounded-xl border border-zinc-800 px-4 py-2 text-sm text-zinc-300 transition hover:border-zinc-700 hover:text-white">
             <span className="flex items-center gap-2"><Plus size={14} /> Add stage</span>
@@ -277,6 +317,19 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
           <div className="text-xs text-zinc-500">Runs persist structured stage/round/step results.</div>
         </div>
       </form>
+
+      <UpgradeToProModal
+        open={showStageLimitModal}
+        title="Persona stage limit reached"
+        description="Free tier supports up to 3 persona stages per run. Upgrade to Pro for unlimited stage orchestration."
+        currentCount={stages.length}
+        maxAllowed={maxPersonaStages}
+        contextLabel="Persona stages"
+        onClose={() => setShowStageLimitModal(false)}
+        onUpgrade={() => {
+          window.location.href = '/pricing';
+        }}
+      />
     </section>
   );
 }

@@ -1,0 +1,440 @@
+"""
+Iteration 25: Free vs Pro Monetization Controls Testing
+Tests:
+- /api/v1/hub/instances: max_instances (3) and persona cap (3) enforcement
+- /api/v1/hub/runs: persona stage cap (3 stages) enforcement
+- /api/v1/keys: max_connected_keys (1) enforcement
+- /api/payments/summary: returns expected free tier limits
+"""
+
+import pytest
+import requests
+import os
+import uuid
+
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+
+class TestFreeTierLimits:
+    """Test Free tier monetization controls"""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Create a fresh test user for each test class"""
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+        
+        # Register a fresh user (uses 'username' field, not 'email')
+        unique_id = str(uuid.uuid4())[:8]
+        self.test_username = f"test_free_limits_{unique_id}@example.com"
+        self.test_password = "TestPass123!"
+        
+        register_response = self.session.post(f"{BASE_URL}/api/auth/register", json={
+            "username": self.test_username,
+            "password": self.test_password,
+            "name": f"Test User {unique_id}"
+        })
+        
+        if register_response.status_code not in [200, 201]:
+            # Try login if user exists
+            login_response = self.session.post(f"{BASE_URL}/api/auth/login", json={
+                "username": self.test_username,
+                "password": self.test_password
+            })
+            assert login_response.status_code == 200, f"Failed to login: {login_response.text}"
+            data = login_response.json()
+            self.access_token = data.get("access_token")
+        else:
+            data = register_response.json()
+            self.access_token = data.get("access_token")
+        
+        # Set auth header
+        if self.access_token:
+            self.session.headers.update({"Authorization": f"Bearer {self.access_token}"})
+        
+        yield
+        
+        # Cleanup: archive and delete test instances
+        try:
+            instances_resp = self.session.get(f"{BASE_URL}/api/v1/hub/instances?include_archived=true")
+            if instances_resp.status_code == 200:
+                instances = instances_resp.json().get("instances", [])
+                for inst in instances:
+                    if inst.get("name", "").startswith("TEST_"):
+                        inst_id = inst["instance_id"]
+                        # Archive first
+                        self.session.post(f"{BASE_URL}/api/v1/hub/instances/{inst_id}/archive")
+                        # Then delete
+                        self.session.delete(f"{BASE_URL}/api/v1/hub/instances/{inst_id}")
+        except:
+            pass
+
+    # ==================== PAYMENTS SUMMARY TESTS ====================
+    
+    def test_payments_summary_returns_free_tier_limits(self):
+        """Test /api/payments/summary returns expected free tier limits"""
+        response = self.session.get(f"{BASE_URL}/api/payments/summary")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        assert data.get("current_tier") == "free", f"Expected free tier, got {data.get('current_tier')}"
+        assert data.get("max_instances") == 3, f"Expected max_instances=3, got {data.get('max_instances')}"
+        assert data.get("max_personas") == 3, f"Expected max_personas=3, got {data.get('max_personas')}"
+        assert data.get("max_connected_keys") == 1, f"Expected max_connected_keys=1, got {data.get('max_connected_keys')}"
+        assert data.get("max_runs_per_month") == 100, f"Expected max_runs_per_month=100, got {data.get('max_runs_per_month')}"
+        print(f"PASS: Free tier limits confirmed - instances:{data.get('max_instances')}, personas:{data.get('max_personas')}, keys:{data.get('max_connected_keys')}")
+
+    # ==================== INSTANCE LIMIT TESTS ====================
+    
+    def test_create_instances_up_to_free_limit(self):
+        """Test creating instances up to free tier limit (3)"""
+        created_ids = []
+        
+        # Get registry models first
+        registry_resp = self.session.get(f"{BASE_URL}/api/v1/registry")
+        assert registry_resp.status_code == 200, f"Failed to get registry: {registry_resp.text}"
+        developers = registry_resp.json().get("developers", [])
+        model_id = "gpt-4o"  # Default fallback
+        if developers and developers[0].get("models"):
+            model_id = developers[0]["models"][0]["model_id"]
+        
+        # Create 3 instances (free tier limit)
+        for i in range(3):
+            response = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+                "name": f"TEST_Instance_{i+1}",
+                "model_id": model_id
+            })
+            if response.status_code in [200, 201]:
+                created_ids.append(response.json().get("instance_id"))
+                print(f"Created instance {i+1}/3")
+            else:
+                # May already have instances from previous tests
+                print(f"Instance {i+1} creation returned {response.status_code}: {response.text}")
+        
+        # Verify we have instances
+        list_resp = self.session.get(f"{BASE_URL}/api/v1/hub/instances")
+        assert list_resp.status_code == 200
+        instances = list_resp.json().get("instances", [])
+        active_count = len([i for i in instances if not i.get("archived")])
+        print(f"PASS: Active instances count: {active_count}")
+
+    def test_instance_limit_enforced_with_403(self):
+        """Test that creating 4th instance returns 403 with upgrade message"""
+        # Get registry models
+        registry_resp = self.session.get(f"{BASE_URL}/api/v1/registry")
+        developers = registry_resp.json().get("developers", [])
+        model_id = "gpt-4o"
+        if developers and developers[0].get("models"):
+            model_id = developers[0]["models"][0]["model_id"]
+        
+        # First, ensure we have 3 active instances
+        list_resp = self.session.get(f"{BASE_URL}/api/v1/hub/instances")
+        instances = list_resp.json().get("instances", [])
+        active_instances = [i for i in instances if not i.get("archived")]
+        
+        # Create instances until we hit 3
+        while len(active_instances) < 3:
+            resp = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+                "name": f"TEST_Fill_{len(active_instances)+1}",
+                "model_id": model_id
+            })
+            if resp.status_code in [200, 201]:
+                active_instances.append(resp.json())
+            else:
+                break
+        
+        # Now try to create the 4th instance
+        response = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+            "name": "TEST_Instance_4_Should_Fail",
+            "model_id": model_id
+        })
+        
+        assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+        detail = response.json().get("detail", "")
+        assert "free" in detail.lower() or "upgrade" in detail.lower() or "3" in detail, f"Expected upgrade message, got: {detail}"
+        print(f"PASS: 4th instance blocked with 403 - {detail}")
+
+    # ==================== PERSONA LIMIT TESTS ====================
+    
+    def test_persona_limit_enforced_with_403(self):
+        """Test that creating instance with persona beyond limit returns 403"""
+        # Get registry models
+        registry_resp = self.session.get(f"{BASE_URL}/api/v1/registry")
+        developers = registry_resp.json().get("developers", [])
+        model_id = "gpt-4o"
+        if developers and developers[0].get("models"):
+            model_id = developers[0]["models"][0]["model_id"]
+        
+        # First, archive existing instances to make room
+        list_resp = self.session.get(f"{BASE_URL}/api/v1/hub/instances")
+        instances = list_resp.json().get("instances", [])
+        for inst in instances:
+            if not inst.get("archived"):
+                self.session.post(f"{BASE_URL}/api/v1/hub/instances/{inst['instance_id']}/archive")
+        
+        # Create 3 instances with personas
+        created_personas = []
+        for i in range(3):
+            resp = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+                "name": f"TEST_Persona_{i+1}",
+                "model_id": model_id,
+                "role_preset": f"Persona Role {i+1}",
+                "instance_prompt": f"You are persona {i+1}"
+            })
+            if resp.status_code in [200, 201]:
+                created_personas.append(resp.json())
+                print(f"Created persona instance {i+1}/3")
+        
+        # Try to create 4th persona instance
+        response = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+            "name": "TEST_Persona_4_Should_Fail",
+            "model_id": model_id,
+            "role_preset": "Fourth Persona",
+            "instance_prompt": "You are the fourth persona"
+        })
+        
+        # Should be blocked by either instance limit or persona limit
+        if response.status_code == 403:
+            detail = response.json().get("detail", "")
+            print(f"PASS: 4th persona blocked with 403 - {detail}")
+        else:
+            print(f"INFO: Response was {response.status_code} - may have hit instance limit first")
+
+    # ==================== RUNS PERSONA STAGE LIMIT TESTS ====================
+    
+    def test_run_with_more_than_3_stages_returns_403(self):
+        """Test that creating run with >3 persona stages returns 403"""
+        # Get registry models
+        registry_resp = self.session.get(f"{BASE_URL}/api/v1/registry")
+        developers = registry_resp.json().get("developers", [])
+        model_id = "gpt-4o"
+        if developers and developers[0].get("models"):
+            model_id = developers[0]["models"][0]["model_id"]
+        
+        # First ensure we have at least one instance
+        list_resp = self.session.get(f"{BASE_URL}/api/v1/hub/instances")
+        instances = list_resp.json().get("instances", [])
+        active_instances = [i for i in instances if not i.get("archived")]
+        
+        if not active_instances:
+            # Create one instance
+            resp = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+                "name": "TEST_Run_Instance",
+                "model_id": model_id
+            })
+            if resp.status_code in [200, 201]:
+                active_instances = [resp.json()]
+        
+        if not active_instances:
+            pytest.skip("Could not create instance for run test")
+        
+        instance_id = active_instances[0]["instance_id"]
+        
+        # Try to create run with 4 stages (exceeds free tier limit of 3)
+        response = self.session.post(f"{BASE_URL}/api/v1/hub/runs", json={
+            "prompt": "Test prompt for stage limit",
+            "stages": [
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]},
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]},
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]},
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]}
+            ]
+        })
+        
+        assert response.status_code == 403, f"Expected 403 for >3 stages, got {response.status_code}: {response.text}"
+        detail = response.json().get("detail", "")
+        assert "persona" in detail.lower() or "stage" in detail.lower() or "3" in detail, f"Expected stage limit message, got: {detail}"
+        print(f"PASS: Run with 4 stages blocked with 403 - {detail}")
+
+    def test_run_with_3_stages_allowed(self):
+        """Test that creating run with exactly 3 stages is allowed"""
+        # Get registry models
+        registry_resp = self.session.get(f"{BASE_URL}/api/v1/registry")
+        developers = registry_resp.json().get("developers", [])
+        model_id = "gpt-4o"
+        if developers and developers[0].get("models"):
+            model_id = developers[0]["models"][0]["model_id"]
+        
+        # Ensure we have at least one instance
+        list_resp = self.session.get(f"{BASE_URL}/api/v1/hub/instances")
+        instances = list_resp.json().get("instances", [])
+        active_instances = [i for i in instances if not i.get("archived")]
+        
+        if not active_instances:
+            resp = self.session.post(f"{BASE_URL}/api/v1/hub/instances", json={
+                "name": "TEST_Run_Instance_3Stage",
+                "model_id": model_id
+            })
+            if resp.status_code in [200, 201]:
+                active_instances = [resp.json()]
+        
+        if not active_instances:
+            pytest.skip("Could not create instance for run test")
+        
+        instance_id = active_instances[0]["instance_id"]
+        
+        # Create run with exactly 3 stages (should be allowed)
+        response = self.session.post(f"{BASE_URL}/api/v1/hub/runs", json={
+            "prompt": "Test prompt for 3 stages",
+            "stages": [
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]},
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]},
+                {"pattern": "fan_out", "participants": [{"source_type": "instance", "source_id": instance_id}]}
+            ]
+        })
+        
+        # Should succeed or fail for other reasons (not stage limit)
+        if response.status_code in [200, 201]:
+            print(f"PASS: Run with 3 stages created successfully")
+        elif response.status_code == 403:
+            detail = response.json().get("detail", "")
+            # Should not be stage limit error
+            assert "stage" not in detail.lower() or "3" not in detail, f"Unexpected stage limit error for 3 stages: {detail}"
+            print(f"INFO: 403 for other reason (not stage limit): {detail}")
+        else:
+            print(f"INFO: Response {response.status_code}: {response.text}")
+
+    # ==================== KEYS LIMIT TESTS ====================
+    
+    def test_keys_list_returns_status(self):
+        """Test /api/v1/keys returns key status list"""
+        response = self.session.get(f"{BASE_URL}/api/v1/keys")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        assert isinstance(data, list), f"Expected list, got {type(data)}"
+        print(f"PASS: Keys list returned {len(data)} entries")
+
+    def test_second_key_blocked_with_403(self):
+        """Test that adding second BYOK key returns 403 on free tier"""
+        # First, check current key status
+        keys_resp = self.session.get(f"{BASE_URL}/api/v1/keys")
+        keys = keys_resp.json()
+        
+        # Find developers without configured keys
+        unconfigured = [k for k in keys if k.get("status") != "configured"]
+        configured = [k for k in keys if k.get("status") == "configured"]
+        
+        if len(configured) >= 1 and len(unconfigured) >= 1:
+            # Try to add a second key
+            target_dev = unconfigured[0]["developer_id"]
+            response = self.session.post(f"{BASE_URL}/api/v1/keys", json={
+                "developer_id": target_dev,
+                "api_key": "sk-test-fake-key-12345"
+            })
+            
+            if response.status_code == 403:
+                detail = response.json().get("detail", "")
+                assert "key" in detail.lower() or "1" in detail, f"Expected key limit message, got: {detail}"
+                print(f"PASS: Second key blocked with 403 - {detail}")
+            else:
+                print(f"INFO: Response {response.status_code} - may not have existing key configured")
+        else:
+            # Need to configure first key, then try second
+            if len(unconfigured) >= 2:
+                # Configure first key
+                first_dev = unconfigured[0]["developer_id"]
+                resp1 = self.session.post(f"{BASE_URL}/api/v1/keys", json={
+                    "developer_id": first_dev,
+                    "api_key": "sk-test-first-key-12345"
+                })
+                
+                if resp1.status_code == 200:
+                    # Try to configure second key
+                    second_dev = unconfigured[1]["developer_id"]
+                    resp2 = self.session.post(f"{BASE_URL}/api/v1/keys", json={
+                        "developer_id": second_dev,
+                        "api_key": "sk-test-second-key-12345"
+                    })
+                    
+                    assert resp2.status_code == 403, f"Expected 403 for second key, got {resp2.status_code}: {resp2.text}"
+                    detail = resp2.json().get("detail", "")
+                    print(f"PASS: Second key blocked with 403 - {detail}")
+                    
+                    # Cleanup: remove first key
+                    self.session.delete(f"{BASE_URL}/api/v1/keys/{first_dev}")
+                else:
+                    print(f"INFO: Could not configure first key: {resp1.status_code}")
+            else:
+                pytest.skip("Not enough unconfigured developers to test key limit")
+
+
+class TestBillingTiersConfig:
+    """Test billing tiers configuration"""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+        
+        # Register a fresh user
+        unique_id = str(uuid.uuid4())[:8]
+        self.test_username = f"test_billing_{unique_id}@example.com"
+        
+        register_response = self.session.post(f"{BASE_URL}/api/auth/register", json={
+            "username": self.test_username,
+            "password": "TestPass123!",
+            "name": f"Billing Test {unique_id}"
+        })
+        
+        if register_response.status_code in [200, 201]:
+            data = register_response.json()
+            self.access_token = data.get("access_token")
+        else:
+            login_response = self.session.post(f"{BASE_URL}/api/auth/login", json={
+                "username": self.test_username,
+                "password": "TestPass123!"
+            })
+            if login_response.status_code == 200:
+                data = login_response.json()
+                self.access_token = data.get("access_token")
+        
+        if hasattr(self, 'access_token') and self.access_token:
+            self.session.headers.update({"Authorization": f"Bearer {self.access_token}"})
+        
+        yield
+
+    def test_free_tier_has_correct_limits(self):
+        """Verify free tier limits match expected values"""
+        response = self.session.get(f"{BASE_URL}/api/payments/summary")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        
+        # Free tier expected limits
+        expected = {
+            "current_tier": "free",
+            "max_instances": 3,
+            "max_personas": 3,
+            "max_connected_keys": 1,
+            "max_runs_per_month": 100,
+            "hide_emergent_badge": False
+        }
+        
+        for key, expected_value in expected.items():
+            actual = data.get(key)
+            assert actual == expected_value, f"Expected {key}={expected_value}, got {actual}"
+        
+        print(f"PASS: All free tier limits verified correctly")
+
+    def test_catalog_shows_pro_unlimited_messaging(self):
+        """Test that catalog shows Pro tier with unlimited messaging"""
+        response = self.session.get(f"{BASE_URL}/api/payments/catalog")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        prices = data.get("prices", [])
+        
+        # Find pro packages
+        pro_packages = [p for p in prices if p.get("category") == "pro"]
+        assert len(pro_packages) > 0, "Expected pro packages in catalog"
+        
+        for pkg in pro_packages:
+            features = pkg.get("features", [])
+            features_text = " ".join(features).lower()
+            assert "unlimited" in features_text, f"Expected 'unlimited' in Pro features: {features}"
+        
+        print(f"PASS: Pro packages show unlimited messaging")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

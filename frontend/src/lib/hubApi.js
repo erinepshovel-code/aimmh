@@ -29,7 +29,13 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const detail = data?.detail || data?.message || response.statusText || 'Request failed';
+    // For 403 errors, the response body may not be readable due to CORS
+    // In this case, we construct a meaningful error message based on the status code
+    let detail = data?.detail || data?.message || response.statusText || 'Request failed';
+    if (response.status === 403 && (!data || !data.detail)) {
+      // Likely a tier limit error - provide a generic message that will trigger the upgrade modal
+      detail = 'Free tier limit reached. Upgrade to continue.';
+    }
     if (typeof detail === 'string' && detail.toLowerCase().includes('daily trial exhausted')) {
       window.location.href = '/auth';
     }

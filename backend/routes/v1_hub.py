@@ -45,6 +45,35 @@ from services.hub_store import (
 router = APIRouter(prefix="/api/v1/hub", tags=["hub"])
 
 
+def _has_persona_payload(role_preset: str | None, context: Dict[str, Any] | None, instance_prompt: str | None) -> bool:
+    ctx = context or {}
+    persona_fields = [
+        role_preset,
+        ctx.get("role"),
+        ctx.get("system_message"),
+        ctx.get("prompt_modifier"),
+        instance_prompt,
+    ]
+    return any(isinstance(value, str) and value.strip() for value in persona_fields)
+
+
+def _persona_query(user_id: str, exclude_instance_id: str | None = None) -> Dict[str, Any]:
+    query: Dict[str, Any] = {
+        "user_id": user_id,
+        "archived": {"$ne": True},
+        "$or": [
+            {"role_preset": {"$nin": [None, ""]}},
+            {"context.role": {"$nin": [None, ""]}},
+            {"context.system_message": {"$nin": [None, ""]}},
+            {"context.prompt_modifier": {"$nin": [None, ""]}},
+            {"instance_prompt": {"$nin": [None, ""]}},
+        ],
+    }
+    if exclude_instance_id:
+        query["instance_id"] = {"$ne": exclude_instance_id}
+    return query
+
+
 def _connections_payload() -> HubConnectionsResponse:
     return HubConnectionsResponse(
         fastapi_connections={
@@ -140,6 +169,20 @@ async def create_instance(req: HubInstanceCreateRequest, current_user: dict = De
                 status_code=403,
                 detail=f"Your {billing_profile['subscription_tier']} tier allows up to {per_model_cap} active instances per model. Choose another model or upgrade.",
             )
+    max_personas = billing_profile.get("max_personas")
+    if max_personas is not None:
+        request_has_persona = _has_persona_payload(
+            req.role_preset,
+            req.context.model_dump(exclude_none=True) if req.context else None,
+            req.instance_prompt,
+        )
+        if request_has_persona:
+            persona_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_persona_query(user_id))
+            if persona_count >= int(max_personas):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} saved personas. Upgrade to continue.",
+                )
     await ensure_models_exist(user_id, [req.model_id])
     now = iso_now()
     doc = req.model_dump()
@@ -186,6 +229,26 @@ async def update_instance(instance_id: str, req: HubInstanceUpdateRequest, curre
         raise HTTPException(status_code=404, detail="Instance not found")
 
     update = req.model_dump(exclude_none=True)
+
+    billing_profile = await get_user_billing_profile(user_id)
+    max_personas = billing_profile.get("max_personas")
+    if max_personas is not None:
+        current_context = existing.get("context") or {}
+        next_context = update.get("context", current_context) or {}
+        was_persona = _has_persona_payload(existing.get("role_preset"), current_context, existing.get("instance_prompt"))
+        becomes_persona = _has_persona_payload(
+            update.get("role_preset", existing.get("role_preset")),
+            next_context,
+            update.get("instance_prompt", existing.get("instance_prompt")),
+        )
+        if becomes_persona and not was_persona:
+            persona_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_persona_query(user_id, exclude_instance_id=instance_id))
+            if persona_count >= int(max_personas):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} saved personas. Upgrade to continue.",
+                )
+
     if "model_id" in update:
         await ensure_models_exist(user_id, [update["model_id"]])
     if "archived" in update:
@@ -332,6 +395,12 @@ async def create_hub_run(req: HubRunRequest, current_user: dict = Depends(get_cu
         run_count = await db[HUB_RUN_COLLECTION].count_documents({"user_id": user_id, "created_at": {"$gte": current_month_start_iso()}})
         if run_count >= int(max_runs):
             raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows {max_runs} runs per month. Upgrade to continue.")
+    max_personas = billing_profile.get("max_personas")
+    if max_personas is not None and len(req.stages) > int(max_personas):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} persona stages per run. Upgrade to continue.",
+        )
     return await execute_hub_run(current_user, req)
 
 

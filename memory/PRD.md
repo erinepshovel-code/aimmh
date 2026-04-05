@@ -18,7 +18,7 @@ The application is now a full-stack AIMMH workspace with:
 - **Backend:** FastAPI, Pydantic, MongoDB via motor
 - **Core orchestration library:** local `/app/aimmh_lib`
 - **Payments:** Stripe via `/api/v2/payments`
-- **Auth:** JWT-based application auth
+- **Auth:** httpOnly cookie-based auth + guest trial identity fallback (`X-Guest-Id`)
 
 ## Primary Routes
 - `/auth` — login and registration
@@ -127,6 +127,25 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Free-tier alignment: guest trial daily cap now derives from free-tier config (`TIER_LIMITS['free']['daily_trial_requests']`) with env override support
 - [x] Response formatting compliance update: comparator carousel now renders markdown-rich response boxes in scrollable containers (no plain text clamp fallback)
 
+## Latest Verified Fixes — 2026-04-05
+- [x] Finalized strict free-tier monetization guardrails:
+  - max **3 active agents/instances**
+  - max **3 saved personas**
+  - max **1 connected BYOK key**
+- [x] Added backend persona guardrails in `v1_hub.py` for both create and update flows
+- [x] Added backend run-stage guardrail in `v1_hub.py` (`max_personas` now blocks >3 persona stages for free tier)
+- [x] Added frontend hard-stop **Upgrade to Pro** modal (CTA to `/pricing`) for:
+  - instance-limit hit in `HubInstancesPanel.jsx`
+  - persona-limit hit in `HubInstancesPanel.jsx`
+  - BYOK key-limit hit in `KeyManager.jsx`
+  - persona-stage-limit hit in `HubRunBuilder.jsx`
+- [x] Updated pricing copy in `PricingPageV2.jsx` to explicitly communicate free vs pro limits
+- [x] Updated Pro package feature messaging in backend catalog seed (`payments_v2.py`) to reflect unlimited agents/personas/keys
+- [x] Verified with testing agent report `iteration_25.json`:
+  - backend limits: PASS
+  - frontend upgrade modals: PASS
+  - pricing copy and summary chips: PASS
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
@@ -159,6 +178,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Chat & Synthesis tab rendering / usability blocker
 - [x] Instance history metadata exposure for chat and synthesis
 - [x] Universal-key registry cleanup and protection rules
+- [x] Free-vs-Pro enforcement with upgrade modals (instances/personas/keys/stages)
 
 ### P1 — Next
 - [ ] Deployment/release pass when requested

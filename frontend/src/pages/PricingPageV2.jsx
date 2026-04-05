@@ -37,6 +37,7 @@ export default function PricingPageV2() {
   const [pollingStatus, setPollingStatus] = React.useState(false);
   const [hallName, setHallName] = React.useState('');
   const [hallLink, setHallLink] = React.useState('');
+  const [donationAmount, setDonationAmount] = React.useState('10.00');
 
   const loadPricing = React.useCallback(async () => {
     try {
@@ -106,6 +107,22 @@ export default function PricingPageV2() {
     }
   };
 
+  const startCustomDonation = async () => {
+    const parsed = Number(donationAmount);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      toast.error('Enter a valid donation amount (minimum $1.00).');
+      return;
+    }
+    try {
+      setLoadingPackage('supporter_custom');
+      const response = await paymentsApi.createCheckout('supporter_custom', window.location.origin, Number(parsed.toFixed(2)));
+      window.location.href = response.url;
+    } catch (error) {
+      toast.error(error.message || 'Unable to start donation checkout');
+      setLoadingPackage('');
+    }
+  };
+
   const saveHallProfile = async () => {
     try {
       await paymentsApi.updateHallProfile({ display_name: hallName.trim(), link: hallLink.trim() || null, opt_in: true });
@@ -160,6 +177,38 @@ export default function PricingPageV2() {
             {grouped.supporter.map((item) => <PackageCard key={item.package_id} item={item} onCheckout={startCheckout} loadingPackage={loadingPackage} />)}
             {grouped.pro.map((item) => <PackageCard key={item.package_id} item={item} onCheckout={startCheckout} loadingPackage={loadingPackage} />)}
             {grouped.team.map((item) => <PackageCard key={item.package_id} item={item} onCheckout={startCheckout} loadingPackage={loadingPackage} />)}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5" data-testid="pricing-v2-custom-donation-section">
+          <div className="flex flex-wrap items-center gap-2 text-zinc-100"><HeartHandshake size={16} /> Effort support donation</div>
+          <p className="mt-2 text-sm text-zinc-500" data-testid="pricing-v2-custom-donation-description">
+            Enter any one-time amount to support the project effort.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="text-sm text-zinc-400" htmlFor="custom-donation-amount">Amount (USD)</label>
+            <input
+              id="custom-donation-amount"
+              type="number"
+              min={1}
+              step="0.01"
+              value={donationAmount}
+              onChange={(event) => setDonationAmount(event.target.value)}
+              className="w-40 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50"
+              data-testid="pricing-v2-custom-donation-input"
+            />
+            <button
+              type="button"
+              onClick={startCustomDonation}
+              disabled={loadingPackage === 'supporter_custom'}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
+              data-testid="pricing-v2-custom-donation-button"
+            >
+              <span className="flex items-center gap-2">
+                {loadingPackage === 'supporter_custom' ? <Loader2 size={14} className="animate-spin" /> : <BadgeCheck size={14} />}
+                Donate now
+              </span>
+            </button>
           </div>
         </section>
 

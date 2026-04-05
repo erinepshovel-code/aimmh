@@ -11,6 +11,7 @@ BillingType = Literal["one_time", "monthly", "yearly"]
 class CheckoutCreateRequestV2(BaseModel):
     package_id: str
     origin_url: str
+    custom_amount: Optional[float] = Field(default=None, ge=1.0, le=10000.0)
 
 
 class CheckoutCreateResponseV2(BaseModel):

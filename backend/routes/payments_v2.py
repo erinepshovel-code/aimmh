@@ -89,8 +89,8 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         ],
     },
     "pro_monthly": {
-        "name": "Pro — $19 / month",
-        "amount": 19.00,
+        "name": "Pro — $31 / month",
+        "amount": 31.00,
         "currency": "usd",
         "billing_type": "monthly",
         "category": "pro",
@@ -106,8 +106,8 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         ],
     },
     "pro_yearly": {
-        "name": "Pro — $149 / year",
-        "amount": 149.00,
+        "name": "Pro — $313 / year",
+        "amount": 313.00,
         "currency": "usd",
         "billing_type": "yearly",
         "category": "pro",
@@ -152,6 +152,23 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         "features": ["Adds 1 extra team seat"],
     },
 }
+
+
+def _custom_support_package(amount: float) -> Dict[str, Any]:
+    safe_amount = round(float(amount), 2)
+    return {
+        "name": f"Effort support donation — ${safe_amount:.2f} one-time",
+        "amount": safe_amount,
+        "currency": "usd",
+        "billing_type": "one_time",
+        "category": "supporter",
+        "description": "User-entered effort support donation.",
+        "grants_tier": "free",
+        "features": [
+            "One-time effort support donation",
+            "No subscription required",
+        ],
+    }
 
 
 def _stripe_key() -> str:
@@ -206,6 +223,11 @@ async def _fulfill_transaction_once(session_id: str) -> None:
     if not user_id:
         return
     package = PACKAGES.get(tx.get("package_id"))
+    if not package and tx.get("package_id") == "supporter_custom":
+        amount = float(tx.get("amount") or 0.0)
+        if amount <= 0:
+            return
+        package = _custom_support_package(amount)
     if not package:
         return
 
@@ -279,15 +301,20 @@ async def get_catalog(current_user: dict = Depends(get_current_user)):
 
 @router.post("/checkout/session", response_model=CheckoutCreateResponseV2)
 async def create_checkout_session(checkout_data: CheckoutCreateRequestV2, request: Request, current_user: dict = Depends(get_current_user)):
-    package = PACKAGES.get(checkout_data.package_id)
+    is_custom_support = checkout_data.package_id == "supporter_custom"
+    package = _custom_support_package(checkout_data.custom_amount) if is_custom_support and checkout_data.custom_amount else PACKAGES.get(checkout_data.package_id)
     if not package:
+        if is_custom_support:
+            raise HTTPException(status_code=400, detail="Custom support amount is required")
         raise HTTPException(status_code=400, detail="Invalid package")
     if not checkout_data.origin_url.startswith("http://") and not checkout_data.origin_url.startswith("https://"):
         raise HTTPException(status_code=400, detail="Invalid origin URL")
 
     await _ensure_catalog_seeded()
-    price_doc = await db.payment_catalog.find_one({"package_id": checkout_data.package_id}, {"_id": 0})
-    if not price_doc:
+    price_doc = None
+    if not is_custom_support:
+        price_doc = await db.payment_catalog.find_one({"package_id": checkout_data.package_id}, {"_id": 0})
+    if not is_custom_support and not price_doc:
         raise HTTPException(status_code=500, detail="Payment catalog unavailable for selected package")
 
     user_id = get_user_id(current_user)
@@ -302,10 +329,11 @@ async def create_checkout_session(checkout_data: CheckoutCreateRequestV2, reques
         "billing_type": package["billing_type"],
         "category": package["category"],
         "grants_tier": package.get("grants_tier", "free"),
+        "custom_support": "true" if is_custom_support else "false",
     }
 
     stripe_checkout = _build_checkout(request)
-    stripe_price_id = price_doc.get("stripe_price_id")
+    stripe_price_id = price_doc.get("stripe_price_id") if price_doc else None
     checkout_request = CheckoutSessionRequest(
         stripe_price_id=stripe_price_id,
         quantity=1,

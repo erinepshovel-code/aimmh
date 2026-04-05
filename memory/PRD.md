@@ -124,6 +124,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Welcome-model resilience: auto-repair invalid legacy welcome model IDs (e.g., deprecated Gemini variants) by switching to a valid curated model before guide-chat use
 - [x] Guest trial auth flow: removed login wall for `/chat` and `/pricing`; backend now supports guest identity via `X-Guest-Id` with daily-reset request quota enforcement in `services/auth.py`
 - [x] Frontend trial routing UX: guest users see `Sign in` CTA while retaining full trial access; trial-exhausted API responses redirect to `/auth`
+- [x] Free-tier alignment: guest trial daily cap now derives from free-tier config (`TIER_LIMITS['free']['daily_trial_requests']`) with env override support
+- [x] Response formatting compliance update: comparator carousel now renders markdown-rich response boxes in scrollable containers (no plain text clamp fallback)
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

@@ -5,6 +5,48 @@ import { toast } from 'sonner';
 import { paymentsApi } from '../lib/paymentsApi';
 
 const CATEGORY_ORDER = ['supporter', 'pro', 'team', 'team_addon'];
+const FALLBACK_CATALOG = [
+  {
+    package_id: 'supporter_monthly', name: 'Supporter — $5 / month', amount: 5.0, currency: 'usd', billing_type: 'monthly',
+    category: 'supporter', description: 'Support the AIMMH project and unlock supporter perks.',
+    features: ['15 persistent instances', '30 runs per month', 'Remove Made with Emergent badge', 'Hall of Makers eligibility'],
+  },
+  {
+    package_id: 'supporter_coffee', name: 'Coffee — $5 one-time', amount: 5.0, currency: 'usd', billing_type: 'one_time',
+    category: 'supporter', description: 'One-time supporter donation.',
+    features: ['Supporter perks', 'Hall of Makers eligibility', 'One-time donation'],
+  },
+  {
+    package_id: 'supporter_builder', name: 'Builder — $25 one-time', amount: 25.0, currency: 'usd', billing_type: 'one_time',
+    category: 'supporter', description: 'Builder-level one-time supporter donation.',
+    features: ['Supporter perks', 'Hall of Makers eligibility', 'Builder donation tier'],
+  },
+  {
+    package_id: 'supporter_patron', name: 'Patron — $50 one-time', amount: 50.0, currency: 'usd', billing_type: 'one_time',
+    category: 'supporter', description: 'Patron-level one-time supporter donation.',
+    features: ['Supporter perks', 'Hall of Makers eligibility', 'Patron donation tier'],
+  },
+  {
+    package_id: 'pro_monthly', name: 'Pro — $31 / month', amount: 31.0, currency: 'usd', billing_type: 'monthly',
+    category: 'pro', description: 'Unlimited AIMMH access with advanced synthesis and priority support.',
+    features: ['Unlimited agents and personas', 'Unlimited runs', 'Unlimited connected keys', 'Advanced synthesis', 'Priority support'],
+  },
+  {
+    package_id: 'pro_yearly', name: 'Pro — $313 / year', amount: 313.0, currency: 'usd', billing_type: 'yearly',
+    category: 'pro', description: 'Yearly Pro access at a discount.',
+    features: ['Unlimited agents and personas', 'Unlimited runs', 'Unlimited connected keys', 'Advanced synthesis', 'Priority support'],
+  },
+  {
+    package_id: 'team_monthly', name: 'Team — $49 / month (3 seats)', amount: 49.0, currency: 'usd', billing_type: 'monthly',
+    category: 'team', description: 'Team base plan with 3 seats and shared workspace foundation.',
+    features: ['Unlimited instances', 'Unlimited runs', '3 seats included', 'Shared workspace foundation'],
+  },
+  {
+    package_id: 'team_extra_seat_monthly', name: 'Team extra seat — $15 / month', amount: 15.0, currency: 'usd', billing_type: 'monthly',
+    category: 'team_addon', description: 'Add an extra team seat to an existing Team plan.',
+    features: ['Adds 1 extra team seat'],
+  },
+];
 
 function PackageCard({ item, onCheckout, loadingPackage }) {
   return (
@@ -42,13 +84,24 @@ export default function PricingPageV2() {
   const loadPricing = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [catalogResponse, summaryResponse] = await Promise.all([
+      const [catalogResult, summaryResult] = await Promise.allSettled([
         paymentsApi.getCatalog(),
         paymentsApi.getSummary(),
       ]);
-      const ordered = [...(catalogResponse.prices || [])].sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category));
-      setCatalog(ordered);
-      setSummary(summaryResponse);
+      if (catalogResult.status === 'fulfilled') {
+        const ordered = [...(catalogResult.value.prices || [])].sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category));
+        setCatalog(ordered);
+      } else {
+        const orderedFallback = [...FALLBACK_CATALOG].sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category));
+        setCatalog(orderedFallback);
+        toast.error('Live pricing feed unavailable. Showing fallback pricing.');
+      }
+
+      if (summaryResult.status === 'fulfilled') {
+        setSummary(summaryResult.value);
+      } else {
+        setSummary(null);
+      }
     } catch (error) {
       toast.error(error.message || 'Failed to load pricing');
     } finally {

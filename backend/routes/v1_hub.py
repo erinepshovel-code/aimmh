@@ -126,6 +126,20 @@ async def create_instance(req: HubInstanceCreateRequest, current_user: dict = De
         active_instance_count = await db[HUB_INSTANCE_COLLECTION].count_documents({"user_id": user_id, "archived": {"$ne": True}})
         if active_instance_count >= int(max_instances):
             raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_instances} active instances. Archive an instance or upgrade to continue.")
+    per_model_cap = billing_profile.get("per_model_instance_cap")
+    if per_model_cap is not None:
+        same_model_count = await db[HUB_INSTANCE_COLLECTION].count_documents(
+            {
+                "user_id": user_id,
+                "archived": {"$ne": True},
+                "model_id": req.model_id,
+            }
+        )
+        if same_model_count >= int(per_model_cap):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Your {billing_profile['subscription_tier']} tier allows up to {per_model_cap} active instances per model. Choose another model or upgrade.",
+            )
     await ensure_models_exist(user_id, [req.model_id])
     now = iso_now()
     doc = req.model_dump()
@@ -397,6 +411,14 @@ async def get_chat_synthesis_detail(synthesis_batch_id: str, current_user: dict 
 
 @router.post("/chat/prompts", response_model=HubChatPromptOut)
 async def create_chat_prompt(req: HubChatPromptRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    billing_profile = await get_user_billing_profile(user_id)
+    max_batch_size = billing_profile.get("max_batch_size")
+    if max_batch_size is not None and len(req.instance_ids) > int(max_batch_size):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_batch_size} responses per batch.",
+        )
     return await send_chat_prompt(current_user, req)
 
 

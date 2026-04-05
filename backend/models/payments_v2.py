@@ -50,6 +50,12 @@ class PaymentSummaryResponseV2(BaseModel):
     hide_emergent_badge: bool
     max_instances: Optional[int] = None
     max_runs_per_month: Optional[int] = None
+    per_model_instance_cap: Optional[int] = None
+    max_personas: Optional[int] = None
+    hosted_requests_per_month: Optional[int] = None
+    max_connected_keys: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    queue_priority: Optional[str] = None
     total_paid_usd: float
     total_supporter_usd: float
     total_pro_usd: float

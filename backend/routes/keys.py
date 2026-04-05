@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from db import db
 from models.v1 import KeyStatusResponse, SetKeyRequest
 from services.auth import get_current_user, get_user_id
+from services.billing_tiers import get_user_billing_profile
 from services.llm import DEFAULT_REGISTRY, validate_universal_key
 
 router = APIRouter(prefix="/api/v1/keys", tags=["keys"])
@@ -49,6 +50,20 @@ async def set_key(
 ):
     """Set an API key for a developer. Stored in user document."""
     uid = get_user_id(current_user)
+    if str(uid).startswith("guest:"):
+        raise HTTPException(status_code=403, detail="Sign in required to manage API keys")
+
+    billing_profile = await get_user_billing_profile(uid)
+    max_connected_keys = billing_profile.get("max_connected_keys")
+    existing_keys = (current_user.get("api_keys") or {}).copy()
+    already_configured = bool(existing_keys.get(request.developer_id))
+    configured_count = len([key for key in existing_keys.values() if key])
+    if max_connected_keys is not None and not already_configured and configured_count >= int(max_connected_keys):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_connected_keys} connected keys.",
+        )
+
     await db.users.update_one(
         {"$or": [{"id": uid}, {"user_id": uid}]},
         {"$set": {f"api_keys.{request.developer_id}": request.api_key}},

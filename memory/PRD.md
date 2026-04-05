@@ -122,6 +122,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Disabled native browser zoom in runtime and static HTML viewport meta, favoring in-app text enlargement controls
 - [x] Stability patch: hardened API response parsing to avoid `body stream already read` runtime errors in frontend request wrappers (`hubApi`, `registryApi`, `paymentsApi`)
 - [x] Welcome-model resilience: auto-repair invalid legacy welcome model IDs (e.g., deprecated Gemini variants) by switching to a valid curated model before guide-chat use
+- [x] Guest trial auth flow: removed login wall for `/chat` and `/pricing`; backend now supports guest identity via `X-Guest-Id` with daily-reset request quota enforcement in `services/auth.py`
+- [x] Frontend trial routing UX: guest users see `Sign in` CTA while retaining full trial access; trial-exhausted API responses redirect to `/auth`
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

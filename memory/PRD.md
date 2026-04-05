@@ -120,6 +120,8 @@ The application is now a full-stack AIMMH workspace with:
 - [x] New welcome guide architecture: random first-visit welcome model is provisioned with `CLAUDE_MD_CONTEXT`, exposed via `ClaudeWelcomePanel` chat (with response popout)
 - [x] Registry analytics UX: added token usage endpoint `GET /api/v1/registry/usage` and frontend display of grand totals + per-model + per-instance token breakdown
 - [x] Disabled native browser zoom in runtime and static HTML viewport meta, favoring in-app text enlargement controls
+- [x] Stability patch: hardened API response parsing to avoid `body stream already read` runtime errors in frontend request wrappers (`hubApi`, `registryApi`, `paymentsApi`)
+- [x] Welcome-model resilience: auto-repair invalid legacy welcome model IDs (e.g., deprecated Gemini variants) by switching to a valid curated model before guide-chat use
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

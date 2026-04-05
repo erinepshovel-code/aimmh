@@ -1,8 +1,11 @@
+import { getTrialGuestId } from './trialSession';
+
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 async function request(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    'X-Guest-Id': getTrialGuestId(),
     ...(options.headers || {}),
   };
 
@@ -27,6 +30,9 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const detail = data?.detail || data?.message || response.statusText || 'Request failed';
+    if (typeof detail === 'string' && detail.toLowerCase().includes('daily trial exhausted')) {
+      window.location.href = '/auth';
+    }
     throw new Error(detail);
   }
 

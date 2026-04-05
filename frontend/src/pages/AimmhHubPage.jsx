@@ -29,7 +29,7 @@ const FIRST_VISIT_KEY = 'aimmh-first-visit-complete-v1';
 
 export default function AimmhHubPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, isAuthenticated } = useAuth();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
@@ -380,13 +380,17 @@ export default function AimmhHubPage() {
               <button
                 type="button"
                 onClick={async () => {
+                  if (!isAuthenticated) {
+                    navigate('/auth', { replace: true });
+                    return;
+                  }
                   await logout();
                   navigate('/auth', { replace: true });
                 }}
                 className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
                 data-testid="hub-logout-button"
               >
-                Logout
+                {isAuthenticated ? 'Logout' : 'Sign in'}
               </button>
               <button
                 type="button"

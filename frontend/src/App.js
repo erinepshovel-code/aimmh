@@ -64,10 +64,10 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
-      <Route path="/chat" element={<ProtectedRoute><AimmhHubPage /></ProtectedRoute>} />
+      <Route path="/chat" element={<AimmhHubPage />} />
       <Route path="/console" element={<ProtectedRoute><ConsolePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPageV2 /></ProtectedRoute>} />
-      <Route path="/pricing" element={<ProtectedRoute><PricingPageV2 /></ProtectedRoute>} />
+      <Route path="/pricing" element={<PricingPageV2 />} />
       <Route path="/makers" element={<HallOfMakersPage />} />
       <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/chat" replace />} />

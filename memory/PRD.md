@@ -141,10 +141,21 @@ The application is now a full-stack AIMMH workspace with:
   - persona-stage-limit hit in `HubRunBuilder.jsx`
 - [x] Updated pricing copy in `PricingPageV2.jsx` to explicitly communicate free vs pro limits
 - [x] Updated Pro package feature messaging in backend catalog seed (`payments_v2.py`) to reflect unlimited agents/personas/keys
+- [x] Updated Pro pricing points per user request:
+  - `pro_monthly` → **$31 / month**
+  - `pro_yearly` → **$313 / year**
+- [x] Added user-entered one-time **Effort support donation** flow:
+  - frontend donation input + checkout CTA in `PricingPageV2.jsx`
+  - backend custom checkout support via `package_id="supporter_custom"` + validated `custom_amount`
+  - transaction + webhook/status flow remains in existing `/api/payments` pipeline
 - [x] Verified with testing agent report `iteration_25.json`:
   - backend limits: PASS
   - frontend upgrade modals: PASS
   - pricing copy and summary chips: PASS
+- [x] Verified latest pricing change and donation flow via backend+frontend testing:
+  - `/api/payments/catalog` returns Pro amounts 31.0 and 313.0
+  - custom donation checkout session creates successfully with user-entered amount
+  - `/pricing` renders new Pro labels and donation section
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

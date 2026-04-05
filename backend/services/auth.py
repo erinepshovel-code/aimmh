@@ -9,11 +9,17 @@ from typing import Optional
 from fastapi import HTTPException, status, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+from services.billing_tiers import TIER_LIMITS
 from db import db
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
-TRIAL_DAILY_REQUEST_LIMIT = int(os.environ.get("TRIAL_DAILY_REQUEST_LIMIT", "120"))
+TRIAL_DAILY_REQUEST_LIMIT = int(
+    os.environ.get(
+        "TRIAL_DAILY_REQUEST_LIMIT",
+        str(TIER_LIMITS.get("free", {}).get("daily_trial_requests") or 120),
+    )
+)
 
 
 def hash_password(password: str) -> str:

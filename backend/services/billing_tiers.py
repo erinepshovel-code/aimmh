@@ -10,21 +10,25 @@ TIER_LIMITS: Dict[str, Dict[str, Any]] = {
     "free": {
         "max_instances": 5,
         "max_runs_per_month": 10,
+        "daily_trial_requests": 120,
         "hide_emergent_badge": False,
     },
     "supporter": {
         "max_instances": 15,
         "max_runs_per_month": 30,
+        "daily_trial_requests": None,
         "hide_emergent_badge": True,
     },
     "pro": {
         "max_instances": None,
         "max_runs_per_month": None,
+        "daily_trial_requests": None,
         "hide_emergent_badge": True,
     },
     "team": {
         "max_instances": None,
         "max_runs_per_month": None,
+        "daily_trial_requests": None,
         "hide_emergent_badge": True,
     },
 }

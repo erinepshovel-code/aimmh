@@ -12,7 +12,12 @@ async function request(path, options = {}) {
     headers,
   });
 
-  const text = await response.text();
+  let text = '';
+  try {
+    text = await response.text();
+  } catch {
+    text = '';
+  }
   let data = null;
   try {
     data = text ? JSON.parse(text) : null;

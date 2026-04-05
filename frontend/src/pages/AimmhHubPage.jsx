@@ -184,23 +184,54 @@ export default function AimmhHubPage() {
     .filter((item) => !item.archived)
     .map((item) => ({ value: item.instance_id, label: `${item.name} · ${item.model_id}` }));
 
+  const curatedWelcomeModelIds = React.useMemo(() => {
+    const allowedDevelopers = new Set(['openai', 'anthropic', 'google']);
+    return workspace.models
+      .filter((developer) => allowedDevelopers.has(developer.developer_id))
+      .flatMap((developer) => developer.models.map((model) => model.model_id));
+  }, [workspace.models]);
+
   const welcomeInstance = React.useMemo(
     () => workspace.instances.find((item) => item.metadata?.welcome_model) || null,
     [workspace.instances],
   );
 
+  const welcomeModelValid = !welcomeInstance || curatedWelcomeModelIds.includes(welcomeInstance.model_id);
+
+  React.useEffect(() => {
+    if (!welcomeInstance || welcomeModelValid || welcomeProvisioning) return;
+    if (curatedWelcomeModelIds.length === 0) return;
+    const fallbackModel = curatedWelcomeModelIds[Math.floor(Math.random() * curatedWelcomeModelIds.length)];
+    const repairWelcomeModel = async () => {
+      try {
+        setWelcomeProvisioning(true);
+        await workspace.updateInstance(welcomeInstance.instance_id, {
+          model_id: fallbackModel,
+          instance_prompt: CLAUDE_MD_CONTEXT,
+          metadata: { ...(welcomeInstance.metadata || {}), welcome_model: true, welcome_repaired: true },
+        });
+        await workspace.refreshCore();
+      } catch {
+        // silent fail, user can continue with other models
+      } finally {
+        setWelcomeProvisioning(false);
+      }
+    };
+    repairWelcomeModel();
+  }, [CLAUDE_MD_CONTEXT, curatedWelcomeModelIds, welcomeInstance, welcomeModelValid, welcomeProvisioning, workspace]);
+
   React.useEffect(() => {
     if (!firstVisit || workspace.loading || welcomeInstance || welcomeProvisioning) return;
-    if (workspace.modelOptions.length === 0) return;
-    const pick = workspace.modelOptions[Math.floor(Math.random() * workspace.modelOptions.length)];
-    if (!pick?.value) return;
+    if (curatedWelcomeModelIds.length === 0) return;
+    const modelId = curatedWelcomeModelIds[Math.floor(Math.random() * curatedWelcomeModelIds.length)];
+    if (!modelId) return;
 
     const seedWelcomeModel = async () => {
       try {
         setWelcomeProvisioning(true);
         await workspace.createInstance({
           name: 'Welcome Guide',
-          model_id: pick.value,
+          model_id: modelId,
           role_preset: 'Mentor',
           instance_prompt: CLAUDE_MD_CONTEXT,
           history_window_messages: 24,
@@ -214,7 +245,7 @@ export default function AimmhHubPage() {
       }
     };
     seedWelcomeModel();
-  }, [firstVisit, workspace, welcomeInstance, welcomeProvisioning]);
+  }, [CLAUDE_MD_CONTEXT, curatedWelcomeModelIds, firstVisit, welcomeInstance, welcomeProvisioning, workspace]);
 
   const renderTab = () => {
     switch (activeTab) {

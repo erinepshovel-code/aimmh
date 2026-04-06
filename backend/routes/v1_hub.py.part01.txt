@@ -61,6 +61,7 @@ def _persona_query(user_id: str, exclude_instance_id: str | None = None) -> Dict
     query: Dict[str, Any] = {
         "user_id": user_id,
         "archived": {"$ne": True},
+        "metadata.welcome_model": {"$ne": True},
         "$or": [
             {"role_preset": {"$nin": [None, ""]}},
             {"context.role": {"$nin": [None, ""]}},
@@ -71,6 +72,17 @@ def _persona_query(user_id: str, exclude_instance_id: str | None = None) -> Dict
     }
     if exclude_instance_id:
         query["instance_id"] = {"$ne": exclude_instance_id}
+    return query
+
+
+def _instance_quota_query(user_id: str, model_id: str | None = None) -> Dict[str, Any]:
+    query: Dict[str, Any] = {
+        "user_id": user_id,
+        "archived": {"$ne": True},
+        "metadata.welcome_model": {"$ne": True},
+    }
+    if model_id:
+        query["model_id"] = model_id
     return query
 
 
@@ -152,18 +164,12 @@ async def create_instance(req: HubInstanceCreateRequest, current_user: dict = De
     billing_profile = await get_user_billing_profile(user_id)
     max_instances = billing_profile.get("max_instances")
     if max_instances is not None:
-        active_instance_count = await db[HUB_INSTANCE_COLLECTION].count_documents({"user_id": user_id, "archived": {"$ne": True}})
+        active_instance_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_instance_quota_query(user_id))
         if active_instance_count >= int(max_instances):
             raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_instances} active instances. Archive an instance or upgrade to continue.")
     per_model_cap = billing_profile.get("per_model_instance_cap")
     if per_model_cap is not None:
-        same_model_count = await db[HUB_INSTANCE_COLLECTION].count_documents(
-            {
-                "user_id": user_id,
-                "archived": {"$ne": True},
-                "model_id": req.model_id,
-            }
-        )
+        same_model_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_instance_quota_query(user_id, req.model_id))
         if same_model_count >= int(per_model_cap):
             raise HTTPException(
                 status_code=403,

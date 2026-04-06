@@ -41,6 +41,11 @@ function hasPersonaConfig(payload) {
   );
 }
 
+function isWelcomeGuideInstance(instance) {
+  const metadata = instance?.metadata || {};
+  return Boolean(metadata.welcome_model);
+}
+
 export function HubInstancesPanel({
   modelOptions,
   instances,
@@ -64,8 +69,14 @@ export function HubInstancesPanel({
   const [upgradeModal, setUpgradeModal] = useState({ open: false, title: '', description: '', currentCount: 0, maxAllowed: null, contextLabel: '' });
 
   const activeInstances = useMemo(() => instances, [instances]);
-  const activeInstanceCount = useMemo(() => activeInstances.filter((item) => !item.archived).length, [activeInstances]);
-  const activePersonaCount = useMemo(() => activeInstances.filter((item) => !item.archived && hasPersonaConfig(item)).length, [activeInstances]);
+  const activeInstanceCount = useMemo(
+    () => activeInstances.filter((item) => !item.archived && !isWelcomeGuideInstance(item)).length,
+    [activeInstances],
+  );
+  const activePersonaCount = useMemo(
+    () => activeInstances.filter((item) => !item.archived && !isWelcomeGuideInstance(item) && hasPersonaConfig(item)).length,
+    [activeInstances],
+  );
   const maxInstances = typeof billingSummary?.max_instances === 'number' ? billingSummary.max_instances : null;
   const maxPersonas = typeof billingSummary?.max_personas === 'number' ? billingSummary.max_personas : null;
   const allVisibleSelected = activeInstances.length > 0 && selectedInstanceIds.length === activeInstances.length;

@@ -207,6 +207,34 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
     }
   };
 
+  const setDeveloperKey = async (developerId) => {
+    const raw = window.prompt(`Enter API key for ${developerId}`);
+    if (!raw || !raw.trim()) return;
+    try {
+      setBusyKey(`set-key-${developerId}`);
+      await registryApi.setKey({ developer_id: developerId, api_key: raw.trim() });
+      toast.success(`Saved key for ${developerId}`);
+      await fetchRegistry(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to save key');
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const removeDeveloperKey = async (developerId) => {
+    try {
+      setBusyKey(`remove-key-${developerId}`);
+      await registryApi.removeKey(developerId);
+      toast.success(`Removed key for ${developerId}`);
+      await fetchRegistry(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove key');
+    } finally {
+      setBusyKey('');
+    }
+  };
+
   if (loading) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-400">
@@ -257,6 +285,8 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
             onVerifyModel={verifyModel}
             onVerifyDeveloper={verifyDeveloper}
             onRemoveDeveloper={removeDeveloper}
+            onSetDeveloperKey={setDeveloperKey}
+            onRemoveDeveloperKey={removeDeveloperKey}
           />
         ))}
       </div>

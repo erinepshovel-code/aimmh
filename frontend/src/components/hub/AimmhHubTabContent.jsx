@@ -5,7 +5,6 @@ import { HubMultiChatPanel } from './HubMultiChatPanel';
 import { HubResponsesPanel } from './HubResponsesPanel';
 import { HubRunsWorkspace } from './HubRunsWorkspace';
 import { ClaudeWelcomePanel } from './ClaudeWelcomePanel';
-import { KeyManager } from '../settings/KeyManager';
 import { RegistryManager } from '../settings/RegistryManager';
 
 export function AimmhHubTabContent({
@@ -30,12 +29,7 @@ export function AimmhHubTabContent({
     case 'claude':
       return <ClaudeWelcomePanel welcomeInstance={welcomeInstance} prompts={chatPrompts} onSendPrompt={sendChatPrompt} busyKey={chatBusyKey} />;
     case 'registry':
-      return (
-        <div className="space-y-4">
-          <KeyManager compact />
-          <RegistryManager onInventoryChanged={workspace.refreshCore} />
-        </div>
-      );
+      return <RegistryManager onInventoryChanged={workspace.refreshCore} />;
     case 'instantiation':
       return (
         <div className="space-y-4">

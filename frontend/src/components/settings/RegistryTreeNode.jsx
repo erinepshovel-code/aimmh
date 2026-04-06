@@ -23,6 +23,8 @@ export function RegistryTreeNode({
   onVerifyDeveloper,
   onRemoveModel,
   onRemoveDeveloper,
+  onSetDeveloperKey,
+  onRemoveDeveloperKey,
 }) {
   const universalManaged = developer.auth_type === 'emergent';
 
@@ -55,6 +57,32 @@ export function RegistryTreeNode({
             <div className="mt-1 text-xs text-zinc-500">{developer.models.length} model{developer.models.length === 1 ? '' : 's'} available under this key.</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                onSetDeveloperKey(developer.developer_id);
+              }}
+              disabled={busyKey === `set-key-${developer.developer_id}`}
+              className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white disabled:opacity-60"
+              data-testid={`registry-set-key-button-${developer.developer_id}`}
+            >
+              {busyKey === `set-key-${developer.developer_id}` ? 'Saving key…' : keyStatus?.status === 'configured' ? 'Change key' : 'Add key'}
+            </button>
+            {keyStatus?.status === 'configured' && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onRemoveDeveloperKey(developer.developer_id);
+                }}
+                disabled={busyKey === `remove-key-${developer.developer_id}`}
+                className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-red-500/30 hover:text-red-300 disabled:opacity-60"
+                data-testid={`registry-remove-key-button-${developer.developer_id}`}
+              >
+                {busyKey === `remove-key-${developer.developer_id}` ? 'Removing key…' : 'Remove key'}
+              </button>
+            )}
             <button
               type="button"
               onClick={(event) => {

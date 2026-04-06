@@ -1,0 +1,155 @@
+
+    def test_checkout_session_returns_url_and_session_id(self, api_client, auth_headers):
+        """Test POST /api/payments/checkout/session returns redirect URL"""
+        payload = {
+            "package_id": "core_monthly",
+            "origin_url": "https://aimmh-hub-1.preview.emergentagent.com"
+        }
+        response = api_client.post(
+            f"{BASE_URL}/api/payments/checkout/session",
+            json=payload,
+            headers=auth_headers
+        )
+        assert response.status_code == 200, f"Checkout session creation failed: {response.text}"
+        data = response.json()
+        
+        # Verify response structure
+        assert "url" in data, "Missing checkout URL"
+        assert "session_id" in data, "Missing session_id"
+        
+        # URL should be a valid Stripe checkout URL
+        assert data["url"].startswith("https://"), "Invalid URL format"
+        assert "checkout.stripe.com" in data["url"] or "stripe.com" in data["url"], \
+            "URL should be Stripe checkout URL"
+        
+        # Session ID should not be empty
+        assert len(data["session_id"]) > 0, "Empty session_id"
+        
+        print(f"Checkout session created: {data['session_id']}")
+        print(f"URL prefix: {data['url'][:60]}...")
+        
+        return data["session_id"]
+
+    def test_checkout_status_polling_works(self, api_client, auth_headers):
+        """Test GET /api/payments/checkout/status/{session_id} returns status"""
+        # First create a session
+        create_payload = {
+            "package_id": "support_one_time_1",
+            "origin_url": "https://aimmh-hub-1.preview.emergentagent.com"
+        }
+        create_response = api_client.post(
+            f"{BASE_URL}/api/payments/checkout/session",
+            json=create_payload,
+            headers=auth_headers
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["session_id"]
+        
+        # Now poll status
+        status_response = api_client.get(
+            f"{BASE_URL}/api/payments/checkout/status/{session_id}",
+            headers=auth_headers
+        )
+        assert status_response.status_code == 200, f"Status polling failed: {status_response.text}"
+        data = status_response.json()
+        
+        # Verify status response structure
+        assert "session_id" in data
+        assert "status" in data
+        assert "payment_status" in data
+        assert "amount_total" in data
+        assert "currency" in data
+        
+        # For a fresh session, status should be open/pending
+        assert data["session_id"] == session_id
+        assert data["status"] in ["open", "complete", "expired"], f"Unexpected status: {data['status']}"
+        assert data["payment_status"] in ["unpaid", "paid", "pending", "no_payment_required"], \
+            f"Unexpected payment_status: {data['payment_status']}"
+        
+        print(f"Session {session_id} status: {data['status']}, payment: {data['payment_status']}")
+
+    def test_checkout_different_packages(self, api_client, auth_headers):
+        """Test checkout works for different package types"""
+        package_ids = ["credits_10", "support_monthly_2", "founder_one_time"]
+        
+        for package_id in package_ids:
+            payload = {
+                "package_id": package_id,
+                "origin_url": "https://aimmh-hub-1.preview.emergentagent.com"
+            }
+            response = api_client.post(
+                f"{BASE_URL}/api/payments/checkout/session",
+                json=payload,
+                headers=auth_headers
+            )
+            assert response.status_code == 200, f"Checkout failed for {package_id}: {response.text}"
+            data = response.json()
+            assert "url" in data
+            assert "session_id" in data
+            print(f"Checkout session for {package_id}: {data['session_id'][:20]}...")
+
+    def test_checkout_requires_auth(self, api_client):
+        """Test checkout session creation requires authentication"""
+        payload = {
+            "package_id": "core_monthly",
+            "origin_url": "https://aimmh-hub-1.preview.emergentagent.com"
+        }
+        response = api_client.post(
+            f"{BASE_URL}/api/payments/checkout/session",
+            json=payload
+        )
+        assert response.status_code in [401, 403], \
+            f"Expected 401/403, got {response.status_code}"
+        print("Checkout correctly requires auth")
+
+
+class TestChatStreamPersistence:
+    """Test chat stream persists messages and creates conversation"""
+
+    def test_chat_stream_persists_and_retrievable(self, api_client, auth_headers):
+        """Test that chat stream persists messages that can be retrieved later"""
+        # Create a unique conversation
+        conv_id = f"test_persist_{uuid.uuid4().hex[:8]}"
+        
+        # Send a chat message
+        chat_payload = {
+            "message": "Test persistence message iter8",
+            "models": ["gpt-4o-mini"],
+            "conversation_id": conv_id,
+            "context_mode": "compartmented",
+            "persist_user_message": True
+        }
+        
+        stream_response = api_client.post(
+            f"{BASE_URL}/api/chat/stream",
+            json=chat_payload,
+            headers=auth_headers,
+            stream=True
+        )
+        assert stream_response.status_code == 200
+        
+        # Consume stream
+        for line in stream_response.iter_lines():
+            pass
+        
+        time.sleep(1)  # Wait for persistence
+        
+        # Now retrieve messages
+        get_response = api_client.get(
+            f"{BASE_URL}/api/conversations/{conv_id}/messages",
+            headers=auth_headers
+        )
+        assert get_response.status_code == 200
+        messages = get_response.json()
+        
+        assert len(messages) >= 2, f"Expected at least 2 messages (user + assistant), got {len(messages)}"
+        
+        roles = [m["role"] for m in messages]
+        assert "user" in roles, "Missing user message in persisted conversation"
+        assert "assistant" in roles, "Missing assistant message in persisted conversation"
+        
+        print(f"Chat stream persisted {len(messages)} messages to conversation {conv_id}")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

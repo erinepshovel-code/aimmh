@@ -1,0 +1,105 @@
+        max_history=req.max_history,
+    )
+
+    thread_id = None
+    if req.persist:
+        thread_id = _resolve_thread(req.thread_id)
+        await _persist_results(_user_id(current_user), thread_id, req.prompt, "room_synthesized", results)
+
+    return LibResponse(
+        results=[_to_lib_result(r) for r in results],
+        pattern="room_synthesized",
+        thread_id=thread_id,
+    )
+
+
+@router.post("/council", response_model=LibResponse, summary="Every model synthesizes all responses in parallel")
+async def lib_council(
+    req: CouncilRequest,
+    current_user: dict = Depends(get_current_user),
+) -> LibResponse:
+    """Each model produces its own synthesis of ALL responses (including its own), concurrently.
+
+    step_num=0 → initial responses; step_num=1 → per-model syntheses.
+    """
+    call = make_call_fn(user=current_user)
+    model_ids = _model_ids(req.slots)
+    slot_ctxs = _slots_to_contexts(req.slots, req.verbosity)
+
+    results = await council(
+        call, model_ids, req.prompt,
+        rounds=req.rounds,
+        synthesis_prompt=req.synthesis_prompt,
+        slot_contexts=slot_ctxs,
+        max_history=req.max_history,
+    )
+
+    thread_id = None
+    if req.persist:
+        thread_id = _resolve_thread(req.thread_id)
+        await _persist_results(_user_id(current_user), thread_id, req.prompt, "council", results)
+
+    return LibResponse(
+        results=[_to_lib_result(r) for r in results],
+        pattern="council",
+        thread_id=thread_id,
+    )
+
+
+@router.post("/roleplay", response_model=LibResponse, summary="DM-driven roleplay with initiative and reactions")
+async def lib_roleplay(
+    req: RoleplayRequest,
+    current_user: dict = Depends(get_current_user),
+) -> LibResponse:
+    """DM narrates, players act in initiative order, optional reactions between turns.
+
+    Filter results:
+        players:   [r for r in results if r.role == "player"]
+        dm turns:  [r for r in results if r.role == "dm"]
+        reactions: [r for r in results if r.role == "reaction"]
+    """
+    if req.dm_slot and req.dm_rotation:
+        raise HTTPException(status_code=422, detail="Provide dm_slot or dm_rotation, not both.")
+
+    call = make_call_fn(user=current_user)
+    player_model_ids = _model_ids(req.player_slots)
+    player_ctxs = _slots_to_contexts(req.player_slots, req.verbosity)
+
+    dm_model: Optional[str] = None
+    dm_ctx: Optional[str] = None
+    dm_rotation_ids: Optional[list[str]] = None
+    dm_rotation_ctxs: Optional[list[Optional[str]]] = None
+
+    if req.dm_slot:
+        dm_model = req.dm_slot.model_id
+        dm_ctx = _slot_to_context(req.dm_slot, req.verbosity)
+    elif req.dm_rotation:
+        dm_rotation_ids = [s.model_id for s in req.dm_rotation]
+        dm_rotation_ctxs = [_slot_to_context(s, req.verbosity) for s in req.dm_rotation]
+
+    results = await roleplay(
+        call,
+        player_models=player_model_ids,
+        initial_prompt=req.initial_prompt,
+        dm_model=dm_model,
+        dm_rotation=dm_rotation_ids,
+        rounds=req.rounds,
+        slot_contexts=player_ctxs,
+        dm_slot_context=dm_ctx,
+        dm_rotation_contexts=dm_rotation_ctxs,
+        action_word_limit=req.action_word_limit,
+        use_initiative=req.use_initiative,
+        allow_reactions=req.allow_reactions,
+        max_history=req.max_history,
+    )
+
+    thread_id = None
+    if req.persist:
+        thread_id = _resolve_thread(req.thread_id)
+        await _persist_results(_user_id(current_user), thread_id, req.initial_prompt, "roleplay", results)
+
+    return LibResponse(
+        results=[_to_lib_result(r) for r in results],
+        pattern="roleplay",
+        thread_id=thread_id,
+    )

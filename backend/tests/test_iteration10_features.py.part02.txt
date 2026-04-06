@@ -1,0 +1,134 @@
+        assert data.get("active") == True
+
+    def test_list_service_accounts(self):
+        """GET /api/auth/service-accounts lists owned accounts"""
+        unique_id = uuid.uuid4().hex[:8]
+        sa_username = f"TEST_list_bot_{unique_id}"
+        
+        # Create one
+        requests.post(
+            f"{BASE_URL}/api/auth/service-account/create",
+            headers=self.headers,
+            json={"username": sa_username, "password": "test123"}
+        )
+        
+        # List
+        resp = requests.get(f"{BASE_URL}/api/auth/service-accounts", headers=self.headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        assert len(data["items"]) >= 1
+
+    def test_issue_token(self):
+        """POST /api/auth/service-account/token issues a token"""
+        unique_id = uuid.uuid4().hex[:8]
+        sa_username = f"TEST_token_bot_{unique_id}"
+        
+        # Create account
+        requests.post(
+            f"{BASE_URL}/api/auth/service-account/create",
+            headers=self.headers,
+            json={"username": sa_username, "password": "test123"}
+        )
+        
+        # Issue token
+        resp = requests.post(
+            f"{BASE_URL}/api/auth/service-account/token",
+            json={"username": sa_username, "password": "test123", "expires_in_days": 30}
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "access_token" in data
+        assert data["access_token"].startswith("sat_")
+        assert "expires_at" in data
+
+    def test_revoke_token(self):
+        """POST /api/auth/service-account/tokens/{id}/revoke revokes token"""
+        unique_id = uuid.uuid4().hex[:8]
+        sa_username = f"TEST_revoke_bot_{unique_id}"
+        
+        # Create account
+        sa_resp = requests.post(
+            f"{BASE_URL}/api/auth/service-account/create",
+            headers=self.headers,
+            json={"username": sa_username, "password": "test123"}
+        )
+        sa_id = sa_resp.json().get("id")
+        
+        # Issue token
+        token_resp = requests.post(
+            f"{BASE_URL}/api/auth/service-account/token",
+            json={"username": sa_username, "password": "test123", "expires_in_days": 30}
+        )
+        token = token_resp.json().get("access_token")
+        
+        # Get token id from list
+        list_resp = requests.get(f"{BASE_URL}/api/auth/service-accounts/{sa_id}/tokens", headers=self.headers)
+        tokens = list_resp.json().get("items", [])
+        assert len(tokens) > 0
+        token_id = tokens[0]["id"]
+        
+        # Revoke
+        revoke_resp = requests.post(
+            f"{BASE_URL}/api/auth/service-account/tokens/{token_id}/revoke",
+            headers=self.headers
+        )
+        assert revoke_resp.status_code == 200
+        
+        # Token should no longer work
+        me_resp = requests.get(f"{BASE_URL}/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_resp.status_code == 401
+
+
+class TestChatBasicFlow:
+    """Basic regression test for chat send (triggers chat_event_logs audit)"""
+
+    @pytest.fixture(autouse=True)
+    def setup_user(self, request):
+        unique_id = uuid.uuid4().hex[:8]
+        self.username = f"TEST_chat_user_{unique_id}"
+        self.password = "chat_test_123"
+        
+        reg_resp = requests.post(f"{BASE_URL}/api/auth/register", json={
+            "username": self.username,
+            "password": self.password
+        })
+        assert reg_resp.status_code == 200
+        data = reg_resp.json()
+        self.token = data.get("access_token")
+        self.headers = {"Authorization": f"Bearer {self.token}"}
+        
+        yield
+
+    def test_chat_stream_endpoint_exists(self):
+        """POST /api/chat/stream should accept request (even without real AI key)"""
+        # Note: Without valid API keys, the models will return errors, but endpoint should accept request
+        resp = requests.post(
+            f"{BASE_URL}/api/chat/stream",
+            headers=self.headers,
+            json={
+                "message": "Test message",
+                "models": ["gpt-4"],
+                "conversation_id": f"test_conv_{uuid.uuid4().hex[:8]}",
+                "context_mode": "compartmented",
+            },
+            stream=True
+        )
+        # Should at least accept the request (200 for SSE)
+        assert resp.status_code == 200, f"Chat stream returned {resp.status_code}"
+
+    def test_chat_feedback_endpoint(self):
+        """POST /api/chat/feedback should work"""
+        # First we need to get a message ID from a conversation
+        # This test just validates the endpoint exists
+        resp = requests.post(
+            f"{BASE_URL}/api/chat/feedback",
+            headers=self.headers,
+            json={"message_id": "test_msg_id", "feedback": "up"}
+        )
+        # Will return 404 because message doesn't exist, but validates endpoint works
+        assert resp.status_code in [200, 404], f"Feedback endpoint error: {resp.text}"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

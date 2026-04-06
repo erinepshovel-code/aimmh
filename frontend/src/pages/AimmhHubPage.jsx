@@ -10,6 +10,7 @@ import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
 import { HubSplashScreen } from '../components/hub/HubSplashScreen';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
 import { ClaudeWelcomePanel } from '../components/hub/ClaudeWelcomePanel';
+import { AimmhHubTabContent } from '../components/hub/AimmhHubTabContent';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
 import { CLAUDE_MD_CONTEXT } from '../lib/claudeContext';
 import { hubApi } from '../lib/hubApi';
@@ -247,106 +248,6 @@ export default function AimmhHubPage() {
     seedWelcomeModel();
   }, [CLAUDE_MD_CONTEXT, curatedWelcomeModelIds, firstVisit, welcomeInstance, welcomeProvisioning, workspace]);
 
-  const renderTab = () => {
-    switch (activeTab) {
-      case 'claude':
-        return (
-          <ClaudeWelcomePanel
-            welcomeInstance={welcomeInstance}
-            prompts={chatPrompts}
-            onSendPrompt={sendChatPrompt}
-            busyKey={chatBusyKey}
-          />
-        );
-      case 'registry':
-        return (
-          <div className="space-y-4">
-            <KeyManager compact />
-            <RegistryManager onInventoryChanged={workspace.refreshCore} />
-          </div>
-        );
-      case 'instantiation':
-        return (
-          <div className="space-y-4">
-            <HubInstancesPanel
-              modelOptions={workspace.modelOptions}
-              instances={workspace.instances}
-              includeArchived={workspace.includeArchivedInstances}
-              setIncludeArchived={workspace.setIncludeArchivedInstances}
-              onCreate={workspace.createInstance}
-              onUpdate={workspace.updateInstance}
-              onToggleArchive={workspace.toggleInstanceArchive}
-              onDeleteArchived={workspace.deleteArchivedInstance}
-              onArchiveMany={workspace.archiveManyInstances}
-              onRestoreMany={workspace.restoreManyInstances}
-              onDeleteMany={workspace.deleteManyArchivedInstances}
-              onFetchHistory={workspace.fetchInstanceHistory}
-              busyKey={workspace.busyKey}
-            />
-            <HubGroupsPanel
-              instances={workspace.instances}
-              groups={workspace.groups}
-              includeArchived={workspace.includeArchivedGroups}
-              setIncludeArchived={workspace.setIncludeArchivedGroups}
-              onCreate={workspace.createGroup}
-              onUpdate={workspace.updateGroup}
-              onToggleArchive={workspace.toggleGroupArchive}
-              busyKey={workspace.busyKey}
-            />
-          </div>
-        );
-      case 'runs':
-        return (
-          <HubRunsWorkspace
-            sourceOptions={workspace.sourceOptions}
-            instanceOptions={instanceOptions}
-            onRun={workspace.createRun}
-            busyKey={workspace.busyKey}
-            runs={workspace.runs}
-            selectedRunId={workspace.selectedRunId}
-            setSelectedRunId={workspace.setSelectedRunId}
-            includeArchivedRuns={workspace.includeArchivedRuns}
-            setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
-            onToggleRunArchive={workspace.toggleRunArchive}
-            onDeleteArchivedRun={workspace.deleteArchivedRun}
-          />
-        );
-      case 'responses':
-        return (
-          <HubResponsesPanel
-            runs={workspace.runs}
-            selectedRun={workspace.selectedRun}
-            selectedRunId={workspace.selectedRunId}
-            setSelectedRunId={workspace.setSelectedRunId}
-            prompts={chatPrompts}
-            selectedPromptId={selectedChatPromptId}
-            setSelectedPromptId={setSelectedChatPromptId}
-            synthesisBasket={synthesisBasket}
-            onToggleSynthesisBlock={toggleSynthesisBlock}
-          />
-        );
-      case 'chat':
-      default:
-        return (
-          <HubMultiChatPanel
-            instances={workspace.instances}
-            prompts={chatPrompts}
-            selectedPromptId={selectedChatPromptId}
-            setSelectedPromptId={setSelectedChatPromptId}
-            onSendPrompt={sendChatPrompt}
-            busyKey={chatBusyKey}
-            synthesisBasket={synthesisBasket}
-            onToggleSynthesisBlock={toggleSynthesisBlock}
-            synthesisInstanceIds={synthesisInstanceIds}
-            setSynthesisInstanceIds={setSynthesisInstanceIds}
-            onRunSynthesis={runSynthesis}
-            synthesisBusy={synthesisBusy}
-            synthesisBatches={synthesisBatches}
-          />
-        );
-    }
-  };
-
   if (workspace.loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -414,7 +315,24 @@ export default function AimmhHubPage() {
             />
           )}
           <div data-testid={`hub-tab-panel-${activeTab}`}>
-            {renderTab()}
+            <AimmhHubTabContent
+              activeTab={activeTab}
+              workspace={workspace}
+              instanceOptions={instanceOptions}
+              chatPrompts={chatPrompts}
+              selectedChatPromptId={selectedChatPromptId}
+              setSelectedChatPromptId={setSelectedChatPromptId}
+              chatBusyKey={chatBusyKey}
+              sendChatPrompt={sendChatPrompt}
+              synthesisBasket={synthesisBasket}
+              toggleSynthesisBlock={toggleSynthesisBlock}
+              synthesisInstanceIds={synthesisInstanceIds}
+              setSynthesisInstanceIds={setSynthesisInstanceIds}
+              runSynthesis={runSynthesis}
+              synthesisBusy={synthesisBusy}
+              synthesisBatches={synthesisBatches}
+              welcomeInstance={welcomeInstance}
+            />
           </div>
         </div>
       </main>

@@ -1,0 +1,128 @@
+            history = await db.messages.find(
+                {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+            ).sort("timestamp", 1).limit(30).to_list(30)
+
+            ctx = _build_context(
+                history, prompt_text,
+                global_context=request.global_context or "",
+                role_override=pmc.role if pmc and pmc.role else "",
+                prompt_modifier=pmc.prompt_modifier if pmc and pmc.prompt_modifier else "",
+            )
+            resp = await _run_model(model_id, ctx, thread_id, user_id, current_user, registry)
+            all_responses.append(resp)
+            last_response_content = resp.content
+
+    return PromptResponse(
+        thread_id=thread_id,
+        responses=all_responses,
+        provenance=build_provenance(),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Poll async job status."""
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobStatusResponse(
+        job_id=job_id,
+        thread_id=job["thread_id"],
+        status=job["status"],
+        responses=[ModelResponse(**r) for r in job.get("responses", [])],
+        event_ids=job.get("event_ids", []),
+        provenance=build_provenance(),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+# ---- History / Export ----
+
+@router.get("/history", response_model=ThreadListResponse)
+async def get_history(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get thread history with pagination."""
+    user_id = get_user_id(current_user)
+    total = await db.threads.count_documents({"user_id": user_id})
+    threads = await db.threads.find(
+        {"user_id": user_id}, {"_id": 0},
+    ).sort("updated_at", -1).skip(offset).limit(limit).to_list(limit)
+
+    summaries = []
+    for t in threads:
+        msg_count = await db.messages.count_documents({"thread_id": t["thread_id"], "user_id": user_id})
+        models_used = await db.messages.distinct("model", {"thread_id": t["thread_id"], "user_id": user_id, "role": "assistant"})
+        summaries.append(ThreadSummary(
+            thread_id=t["thread_id"],
+            title=t.get("title", "Untitled"),
+            created_at=t.get("created_at", ""),
+            updated_at=t.get("updated_at", ""),
+            message_count=msg_count,
+            models_used=models_used,
+        ))
+
+    return ThreadListResponse(threads=summaries, total=total, offset=offset, limit=limit)
+
+
+@router.get("/thread/{thread_id}")
+async def get_thread_messages(
+    thread_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get all messages in a thread."""
+    user_id = get_user_id(current_user)
+    messages = await db.messages.find(
+        {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+    ).sort("timestamp", 1).to_list(1000)
+    return messages
+
+
+@router.get("/export/{thread_id}")
+async def export_thread(
+    thread_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Full export: messages + events + snapshot."""
+    user_id = get_user_id(current_user)
+    messages = await db.messages.find(
+        {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+    ).sort("timestamp", 1).to_list(1000)
+
+    from services.events import get_events
+    events = await get_events(thread_id, limit=2000)
+
+    return {
+        "thread_id": thread_id,
+        "events": events,
+        "messages": messages,
+        "snapshot_id": f"snap_{uuid.uuid4().hex[:16]}",
+        "provenance": build_provenance(),
+        "sentinel_context": build_sentinel_context(),
+    }
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    request: FeedbackRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Submit thumbs up/down feedback."""
+    user_id = get_user_id(current_user)
+    result = await db.messages.update_one(
+        {"message_id": request.message_id, "user_id": user_id},
+        {"$set": {"feedback": request.feedback}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    await emit_event("metric", "", f"user:{user_id}", {
+        "type": "feedback", "message_id": request.message_id, "feedback": request.feedback,
+    })
+    return {"message": "Feedback submitted"}

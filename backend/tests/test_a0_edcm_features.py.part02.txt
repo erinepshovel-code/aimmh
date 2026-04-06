@@ -1,0 +1,131 @@
+        
+        assert "response_times" in data
+        assert isinstance(data["response_times"], list)
+        
+        # Verify structure if data exists
+        for rt in data["response_times"]:
+            assert "model" in rt, "Missing model field in response time"
+            assert "avg_ms" in rt, "Missing avg_ms field"
+            assert "count" in rt, "Missing count field"
+        
+        print(f"✓ GET /api/edcm/response-times returned {len(data['response_times'])} models")
+    
+    def test_response_times_requires_auth(self):
+        """Test response-times requires authentication"""
+        fresh_session = requests.Session()
+        response = fresh_session.get(f"{BASE_URL}/api/edcm/response-times")
+        
+        assert response.status_code in [401, 403]
+        print("✓ Response-times endpoint requires auth")
+
+
+class TestEDCMFeedbackStatsEndpoint:
+    """Feedback stats endpoint tests"""
+    
+    def test_get_feedback_stats(self, authenticated_client):
+        """Test GET /api/edcm/feedback-stats returns per-model thumbs up/down"""
+        response = authenticated_client.get(f"{BASE_URL}/api/edcm/feedback-stats")
+        
+        assert response.status_code == 200, f"GET feedback-stats failed: {response.text}"
+        data = response.json()
+        
+        assert "feedback_stats" in data
+        assert isinstance(data["feedback_stats"], list)
+        
+        # Verify structure if data exists
+        for fb in data["feedback_stats"]:
+            assert "model" in fb, "Missing model field"
+            assert "up" in fb, "Missing up count"
+            assert "down" in fb, "Missing down count"
+        
+        print(f"✓ GET /api/edcm/feedback-stats returned {len(data['feedback_stats'])} models")
+    
+    def test_feedback_stats_requires_auth(self):
+        """Test feedback-stats requires authentication"""
+        fresh_session = requests.Session()
+        response = fresh_session.get(f"{BASE_URL}/api/edcm/feedback-stats")
+        
+        assert response.status_code in [401, 403]
+        print("✓ Feedback-stats endpoint requires auth")
+
+
+class TestEDCMDashboardEndpoint:
+    """Dashboard aggregation endpoint tests"""
+    
+    def test_get_dashboard(self, authenticated_client):
+        """Test GET /api/edcm/dashboard returns aggregated data"""
+        response = authenticated_client.get(f"{BASE_URL}/api/edcm/dashboard")
+        
+        assert response.status_code == 200, f"GET dashboard failed: {response.text}"
+        data = response.json()
+        
+        # Verify all required fields present
+        assert "edcm_metrics" in data, "Missing edcm_metrics in dashboard"
+        assert "response_times" in data, "Missing response_times in dashboard"
+        assert "feedback_stats" in data, "Missing feedback_stats in dashboard"
+        assert "total_conversations" in data, "Missing total_conversations in dashboard"
+        assert "total_messages" in data, "Missing total_messages in dashboard"
+        
+        # Verify types
+        assert isinstance(data["edcm_metrics"], list)
+        assert isinstance(data["response_times"], list)
+        assert isinstance(data["feedback_stats"], list)
+        assert isinstance(data["total_conversations"], int)
+        assert isinstance(data["total_messages"], int)
+        
+        print(f"✓ GET /api/edcm/dashboard returned: {len(data['edcm_metrics'])} EDCM metrics, "
+              f"{len(data['response_times'])} response times, {len(data['feedback_stats'])} feedback stats, "
+              f"{data['total_conversations']} convs, {data['total_messages']} msgs")
+    
+    def test_dashboard_requires_auth(self):
+        """Test dashboard requires authentication"""
+        fresh_session = requests.Session()
+        response = fresh_session.get(f"{BASE_URL}/api/edcm/dashboard")
+        
+        assert response.status_code in [401, 403]
+        print("✓ Dashboard endpoint requires auth")
+    
+    def test_dashboard_after_ingest(self, authenticated_client):
+        """Test dashboard reflects ingested EDCM metrics"""
+        # First, ingest some metrics
+        test_conv_id = f"dashboard_test_{uuid.uuid4().hex[:8]}"
+        
+        ingest_payload = {
+            "conversation_id": test_conv_id,
+            "metrics": {
+                "conversation_id": test_conv_id,
+                "constraint_mismatch_density": 0.72,
+                "fixation_coefficient": 0.45,
+                "escalation_gradient": 0.88,
+                "context_drift_index": 0.31,
+                "load_saturation_index": 0.65
+            },
+            "source": "dashboard_test"
+        }
+        
+        ingest_response = authenticated_client.post(
+            f"{BASE_URL}/api/edcm/ingest",
+            json=ingest_payload
+        )
+        assert ingest_response.status_code == 200, f"Ingest failed: {ingest_response.text}"
+        
+        # Now check dashboard includes this data
+        dashboard_response = authenticated_client.get(f"{BASE_URL}/api/edcm/dashboard")
+        assert dashboard_response.status_code == 200
+        data = dashboard_response.json()
+        
+        # There should be at least one EDCM metric
+        assert len(data["edcm_metrics"]) > 0, "Dashboard should have EDCM metrics after ingest"
+        
+        # Check that our test metrics are present (latest first)
+        latest = data["edcm_metrics"][0]
+        if latest.get("conversation_id") == test_conv_id:
+            assert latest.get("constraint_mismatch_density") == 0.72
+            assert latest.get("escalation_gradient") == 0.88
+            print("✓ Dashboard correctly reflects latest ingested metrics")
+        else:
+            print(f"✓ Dashboard has {len(data['edcm_metrics'])} metrics (test metric may not be latest)")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

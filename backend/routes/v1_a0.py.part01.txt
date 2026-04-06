@@ -1,0 +1,320 @@
+"""V1 a0 API — Core multi-model hub endpoints.
+
+Endpoints:
+  POST /v1/a0/prompt          — Fan-out to N models, streaming SSE or collected
+  POST /v1/a0/prompt-single   — Single model call
+  POST /v1/a0/synthesize      — Feed responses into other models
+  POST /v1/a0/batch           — Sequential prompt chains
+  GET  /v1/a0/history         — Thread list
+  GET  /v1/a0/thread/{id}     — Thread messages
+  GET  /v1/a0/export/{id}     — Full export with events
+  POST /v1/a0/feedback        — Thumbs up/down
+  GET  /v1/a0/jobs/{id}       — Poll async job status
+"""
+
+import asyncio
+import json
+import math
+import time
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sse_starlette.sse import EventSourceResponse
+
+from db import db
+from models.v1 import (
+    AsyncJobResponse,
+    BatchRequest,
+    DaisyChainRequest,
+    ExportResponse,
+    FeedbackRequest,
+    JobStatusResponse,
+    MessageOut,
+    ModelResponse,
+    PromptRequest,
+    PromptResponse,
+    PromptSingleRequest,
+    SharedRoomRequest,
+    SynthesizeRequest,
+    ThreadListResponse,
+    ThreadSummary,
+)
+from services.auth import get_current_user, get_user_id
+from services.events import build_provenance, build_sentinel_context, emit_event
+from services.llm import DEFAULT_REGISTRY, generate_response, reconcile_registry_developers
+
+router = APIRouter(prefix="/api/v1/a0", tags=["a0"])
+
+# In-memory async job store (keyed by job_id)
+_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+def _iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _estimate_tokens(text: str) -> int:
+    return max(1, math.ceil(len(text) / 4)) if text else 0
+
+
+async def _get_user_registry(user: dict) -> dict:
+    """Get the user's model registry, falling back to defaults."""
+    uid = get_user_id(user)
+    custom = await db.model_registry.find_one({"user_id": uid}, {"_id": 0})
+    if custom and custom.get("developers"):
+        return reconcile_registry_developers(custom["developers"])[0]
+    return reconcile_registry_developers(DEFAULT_REGISTRY)[0]
+
+
+async def _ensure_thread(thread_id: str, user_id: str, title: str):
+    """Ensure thread document exists (upsert)."""
+    await db.threads.update_one(
+        {"thread_id": thread_id, "user_id": user_id},
+        {
+            "$set": {"updated_at": _iso_now(), "title": title[:80]},
+            "$setOnInsert": {
+                "thread_id": thread_id,
+                "user_id": user_id,
+                "created_at": _iso_now(),
+            },
+        },
+        upsert=True,
+    )
+
+
+async def _persist_message(
+    message_id: str,
+    thread_id: str,
+    user_id: str,
+    role: str,
+    content: str,
+    model: str,
+    response_time_ms: int = 0,
+    streaming: bool = False,
+) -> None:
+    """Upsert a message document. Used for chunk-by-chunk persistence."""
+    await db.messages.update_one(
+        {"message_id": message_id},
+        {
+            "$set": {
+                "content": content,
+                "response_time_ms": response_time_ms,
+                "streaming": streaming,
+                "updated_at": _iso_now(),
+            },
+            "$setOnInsert": {
+                "message_id": message_id,
+                "thread_id": thread_id,
+                "user_id": user_id,
+                "role": role,
+                "model": model,
+                "timestamp": _iso_now(),
+                "feedback": None,
+            },
+        },
+        upsert=True,
+    )
+
+
+async def _run_model(
+    model_id: str,
+    messages_context: List[dict],
+    thread_id: str,
+    user_id: str,
+    user: dict,
+    registry: dict,
+) -> ModelResponse:
+    """Run a single model call, persist chunk-by-chunk, return final response."""
+    message_id = f"msg_{uuid.uuid4().hex[:16]}"
+    t_start = time.time()
+    full_response = ""
+
+    # Create placeholder message immediately
+    await _persist_message(message_id, thread_id, user_id, "assistant", "", model_id, streaming=True)
+
+    async for chunk in generate_response(model_id, messages_context, thread_id, user, registry):
+        full_response += chunk
+        # Persist every ~500 chars to not overwhelm DB
+        if len(full_response) % 500 < len(chunk):
+            await _persist_message(message_id, thread_id, user_id, "assistant", full_response, model_id, streaming=True)
+
+    response_time_ms = int((time.time() - t_start) * 1000)
+
+    # Final persist with streaming=False
+    await _persist_message(message_id, thread_id, user_id, "assistant", full_response, model_id, response_time_ms, streaming=False)
+
+    error = None
+    if full_response.startswith("[ERROR]"):
+        error = full_response
+
+    await emit_event(
+        "turn",
+        thread_id,
+        f"model:{model_id}",
+        {
+            "message_id": message_id,
+            "model": model_id,
+            "role": "assistant",
+            "content_length": len(full_response),
+            "response_time_ms": response_time_ms,
+            "error": error,
+        },
+    )
+
+    return ModelResponse(
+        model=model_id,
+        message_id=message_id,
+        content=full_response,
+        response_time_ms=response_time_ms,
+        error=error,
+    )
+
+
+def _build_context(
+    messages: List[dict],
+    per_model_prompt: str,
+    global_context: str = "",
+    system_override: str = "",
+    role_override: str = "",
+    prompt_modifier: str = "",
+) -> List[dict]:
+    """Build the messages context list for an LLM call."""
+    ctx = []
+
+    # Previous conversation turns
+    for msg in messages[-30:]:
+        ctx.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
+    # Build the current user message with context additions
+    parts = []
+    if global_context:
+        parts.append(f"[GLOBAL CONTEXT]: {global_context}")
+    if role_override:
+        parts.append(f"[ROLE]: {role_override}")
+    if prompt_modifier:
+        parts.append(f"[MODIFIER]: {prompt_modifier}")
+    parts.append(per_model_prompt)
+
+    final_msg = "\n\n".join(parts)
+
+    # Replace last user message or append
+    if ctx and ctx[-1]["role"] == "user":
+        ctx[-1] = {"role": "user", "content": final_msg}
+    else:
+        ctx.append({"role": "user", "content": final_msg})
+
+    return ctx
+
+
+# ---- STREAMING ENDPOINT (primary for UI) ----
+
+@router.post("/prompt/stream")
+async def prompt_stream(
+    request: PromptRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Stream responses from multiple models via SSE."""
+    async def event_gen():
+        user_id = get_user_id(current_user)
+        thread_id = request.thread_id or f"thr_{uuid.uuid4().hex[:16]}"
+        registry = await _get_user_registry(current_user)
+
+        await _ensure_thread(thread_id, user_id, request.message[:80])
+
+        # Persist user message
+        user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+        await _persist_message(user_msg_id, thread_id, user_id, "user", request.message, "user")
+        await emit_event("turn", thread_id, f"user:{user_id}", {
+            "message_id": user_msg_id, "role": "user", "content_length": len(request.message),
+        })
+
+        # Get conversation history
+        history = await db.messages.find(
+            {"thread_id": thread_id, "user_id": user_id},
+            {"_id": 0},
+        ).sort("timestamp", 1).limit(30).to_list(30)
+
+        for model_id in request.models:
+            message_id = f"msg_{uuid.uuid4().hex[:16]}"
+            t_start = time.time()
+
+            # Build per-model context
+            pmc = (request.per_model_context or {}).get(model_id)
+            ctx = _build_context(
+                history,
+                request.message,
+                global_context=request.global_context or "",
+                role_override=pmc.role if pmc and pmc.role else "",
+                prompt_modifier=pmc.prompt_modifier if pmc and pmc.prompt_modifier else "",
+            )
+
+            # Create placeholder
+            await _persist_message(message_id, thread_id, user_id, "assistant", "", model_id, streaming=True)
+
+            yield {"event": "start", "data": json.dumps({"model": model_id, "message_id": message_id, "thread_id": thread_id})}
+
+            full_response = ""
+            async for chunk in generate_response(model_id, ctx, thread_id, current_user, registry):
+                full_response += chunk
+                yield {"event": "chunk", "data": json.dumps({"model": model_id, "message_id": message_id, "content": chunk})}
+                # Persist periodically
+                if len(full_response) % 500 < len(chunk):
+                    await _persist_message(message_id, thread_id, user_id, "assistant", full_response, model_id, streaming=True)
+
+            response_time_ms = int((time.time() - t_start) * 1000)
+            await _persist_message(message_id, thread_id, user_id, "assistant", full_response, model_id, response_time_ms, streaming=False)
+
+            await emit_event("turn", thread_id, f"model:{model_id}", {
+                "message_id": message_id, "model": model_id, "response_time_ms": response_time_ms,
+                "content_length": len(full_response),
+            })
+
+            yield {"event": "complete", "data": json.dumps({"model": model_id, "message_id": message_id, "response_time_ms": response_time_ms})}
+
+        # Update thread
+        await db.threads.update_one(
+            {"thread_id": thread_id, "user_id": user_id},
+            {"$set": {"updated_at": _iso_now()}},
+        )
+
+    return EventSourceResponse(
+        event_gen(),
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache, no-transform",
+        },
+    )
+
+
+# ---- COLLECTED ENDPOINT (for a0 — returns full responses) ----
+
+@router.post("/prompt", response_model=PromptResponse)
+async def prompt_collected(
+    request: PromptRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Fan-out to N models, collect all responses, return as JSON."""
+    user_id = get_user_id(current_user)
+    thread_id = request.thread_id or f"thr_{uuid.uuid4().hex[:16]}"
+    registry = await _get_user_registry(current_user)
+
+    await _ensure_thread(thread_id, user_id, request.message[:80])
+
+    # Persist user message
+    user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+    await _persist_message(user_msg_id, thread_id, user_id, "user", request.message, "user")
+    evt = await emit_event("turn", thread_id, f"user:{user_id}", {
+        "message_id": user_msg_id, "role": "user",
+    })
+
+    # Get history
+    history = await db.messages.find(
+        {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+    ).sort("timestamp", 1).limit(30).to_list(30)
+
+    # If async mode, create job and return immediately
+    if request.async_mode:
+        job_id = f"job_{uuid.uuid4().hex[:12]}"
+        _jobs[job_id] = {"status": "running", "thread_id": thread_id, "responses": [], "event_ids": [evt["event_id"]]}

@@ -1,0 +1,91 @@
+{
+  "summary": "Iteration 26: Post-refactor smoke tests COMPLETE. Backend: 6/6 tests PASSED. Frontend: All pages load correctly without runtime crashes.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "test_report_links": [
+    "/app/backend/tests/test_iteration26_smoke.py",
+    "/app/test_reports/pytest/pytest_iteration26.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "Backend code-splitting using exec() with part files works correctly - all routes load and respond",
+    "Frontend ChatPage.js imports from ChatPageSections.jsx work correctly",
+    "Frontend AimmhHubPage.jsx imports from AimmhHubTabContent.jsx work correctly",
+    "All hub tabs render without blank screen or runtime crash",
+    "Pricing page loads with all package cards and donation section visible"
+  ],
+  
+  "updated_files": [
+    "/app/backend/tests/test_iteration26_smoke.py"
+  ],
+  
+  "success_rate": {
+    "backend": "100% - 6/6 tests passed",
+    "frontend": "100% - All smoke tests passed"
+  },
+  
+  "test_credentials": {
+    "note": "Fresh users registered for each test session via /api/auth/register with username field"
+  },
+  
+  "seed_data_creation": "None required for smoke tests",
+  
+  "retest_needed": false,
+  
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Iteration 26 verified that the large code-splitting refactor did not break functionality. Backend uses exec() with .part01.txt/.part02.txt files for v1_hub.py and auth.py - this pattern works correctly. Frontend components split into ChatPageSections.jsx and AimmhHubTabContent.jsx load without issues. Auth uses 'username' field (not email) for registration.",
+  
+  "tests_executed": {
+    "backend_api_tests": {
+      "status": "PASS (6/6)",
+      "details": {
+        "test_api_health_returns_200": "PASS - Returns status=ok, build=v1.0.2-S9",
+        "test_api_ready_returns_200": "PASS - Returns status=ready, mongo=ok",
+        "test_hub_options_requires_auth": "PASS - Returns 401 for unauthenticated request",
+        "test_hub_instances_requires_auth": "PASS - Returns 401 for unauthenticated request",
+        "test_hub_options_with_auth": "PASS - Returns 200 with patterns and supports",
+        "test_hub_instances_with_auth": "PASS - Returns 200 with instances list"
+      }
+    },
+    "frontend_ui_tests": {
+      "status": "PASS",
+      "details": {
+        "chat_page_load": "PASS - /chat loads splash screen with 'Enter AIMMH' button",
+        "hub_page_tabs": "PASS - All 6 tabs render (Claude.md, Registry, Instances, Rooms & Runs, Response Synthesis, Chat+Synth)",
+        "hub_page_buttons": "PASS - Pricing, Logout, Guide chat buttons all present",
+        "pricing_page_load": "PASS - /pricing loads with data-testid='pricing-v2-page'",
+        "pricing_free_tier": "PASS - Free tier card shows 'Max 3 active agents', 'Max 3 saved personas', 'Max 1 connected BYOK key'",
+        "pricing_package_cards": "PASS - 8 package cards found",
+        "pricing_donation_section": "PASS - Custom donation section present"
+      }
+    }
+  },
+  
+  "features_verified": [
+    "Backend: /api/health returns 200 with status=ok",
+    "Backend: /api/ready returns 200 with status=ready and mongo check",
+    "Backend: /api/v1/hub/options returns 401 for unauthenticated, 200 for authenticated",
+    "Backend: /api/v1/hub/instances returns 401 for unauthenticated, 200 for authenticated",
+    "Frontend: /chat loads without blank screen or runtime crash",
+    "Frontend: AIMMH Hub tabs all render correctly",
+    "Frontend: /pricing loads with package cards and donation section"
+  ],
+  
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "details": "Stripe test-mode behavior exists (not in scope for this smoke run)"
+  }
+}

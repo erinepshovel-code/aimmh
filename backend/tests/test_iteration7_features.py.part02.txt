@@ -1,0 +1,149 @@
+        
+        # Validate summary structure
+        assert "total_paid_usd" in data
+        assert "total_support_usd" in data
+        assert "total_founder_usd" in data
+        assert "total_compute_usd" in data
+        assert "total_core_usd" in data
+        assert "estimated_usage_cost_usd" in data
+        assert "total_estimated_tokens" in data
+        
+        print(f"Payment summary: total_paid=${data['total_paid_usd']}, tokens={data['total_estimated_tokens']}")
+
+
+class TestChatStreamWritesContextAndTelemetry:
+    """Test that chat stream writes context logs and token/cost telemetry"""
+
+    def test_chat_stream_creates_context_log(self, api_client, auth_headers):
+        """Test POST /api/chat/stream creates context log entry"""
+        # Send a chat message
+        payload = {
+            "message": "Test message for context log testing iter7",
+            "models": ["gpt-4o-mini"],
+            "conversation_id": None,
+            "context_mode": "compartmented",
+            "shared_room_mode": "parallel_all",
+            "global_context": "Test global context",
+            "model_roles": {"gpt-4o-mini": "neutral"},
+            "persist_user_message": True
+        }
+        
+        # Stream request - we'll consume it even though we don't need the full response
+        response = api_client.post(
+            f"{BASE_URL}/api/chat/stream",
+            json=payload,
+            headers=auth_headers,
+            stream=True
+        )
+        assert response.status_code == 200, f"Chat stream failed: {response.text}"
+        
+        # Consume the stream
+        for line in response.iter_lines():
+            pass  # Just consume
+        
+        # Wait a bit for DB writes
+        time.sleep(1)
+        
+        # Check context logs
+        context_response = api_client.get(
+            f"{BASE_URL}/api/console/context-logs?limit=5",
+            headers=auth_headers
+        )
+        assert context_response.status_code == 200
+        logs = context_response.json().get("logs", [])
+        
+        # Should have at least one log
+        assert len(logs) > 0, "No context logs found after chat"
+        
+        # Check the most recent log
+        recent = logs[0]
+        assert "message" in recent
+        assert "models" in recent
+        assert "context_mode" in recent
+        print(f"Context log created: {recent.get('id', 'no-id')}")
+
+    def test_chat_stream_records_token_telemetry(self, api_client, auth_headers):
+        """Test that chat stream records token and cost telemetry in messages"""
+        payload = {
+            "message": "Short test for telemetry",
+            "models": ["gpt-4o-mini"],
+            "conversation_id": "test_telemetry_conv",
+            "context_mode": "compartmented",
+            "persist_user_message": True
+        }
+        
+        response = api_client.post(
+            f"{BASE_URL}/api/chat/stream",
+            json=payload,
+            headers=auth_headers,
+            stream=True
+        )
+        assert response.status_code == 200
+        
+        # Consume stream
+        for line in response.iter_lines():
+            pass
+        
+        time.sleep(1)
+        
+        # Check payment summary for updated token count
+        summary_response = api_client.get(
+            f"{BASE_URL}/api/payments/summary",
+            headers=auth_headers
+        )
+        assert summary_response.status_code == 200
+        summary = summary_response.json()
+        
+        # Summary should reflect some usage
+        print(f"Total estimated tokens: {summary['total_estimated_tokens']}")
+        print(f"Estimated usage cost: ${summary['estimated_usage_cost_usd']}")
+
+
+class TestEDCMDashboard:
+    """Test EDCM dashboard endpoint for console Brain tab"""
+
+    def test_get_edcm_dashboard(self, api_client, auth_headers):
+        """Test GET /api/edcm/dashboard returns metrics"""
+        response = api_client.get(f"{BASE_URL}/api/edcm/dashboard", headers=auth_headers)
+        assert response.status_code == 200, f"EDCM dashboard failed: {response.text}"
+        data = response.json()
+        
+        # Should have edcm_metrics array
+        assert "edcm_metrics" in data
+        print(f"EDCM dashboard loaded with {len(data.get('edcm_metrics', []))} metric entries")
+
+
+class TestProtectedRoutesRequireAuth:
+    """Test that console and pricing endpoints require authentication"""
+
+    def test_console_preferences_requires_auth(self, api_client):
+        """Test /api/console/preferences requires auth"""
+        response = api_client.get(f"{BASE_URL}/api/console/preferences")
+        assert response.status_code == 401 or response.status_code == 403, \
+            f"Expected 401/403, got {response.status_code}"
+        print("Console preferences correctly requires auth")
+
+    def test_payments_catalog_requires_auth(self, api_client):
+        """Test /api/payments/catalog requires auth"""
+        response = api_client.get(f"{BASE_URL}/api/payments/catalog")
+        assert response.status_code == 401 or response.status_code == 403, \
+            f"Expected 401/403, got {response.status_code}"
+        print("Payments catalog correctly requires auth")
+
+    def test_checkout_session_requires_auth(self, api_client):
+        """Test /api/payments/checkout/session requires auth"""
+        payload = {
+            "package_id": "core_monthly",
+            "origin_url": "https://example.com"
+        }
+        response = api_client.post(
+            f"{BASE_URL}/api/payments/checkout/session",
+            json=payload
+        )
+        assert response.status_code == 401 or response.status_code == 403, \
+            f"Expected 401/403, got {response.status_code}"
+        print("Checkout session correctly requires auth")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

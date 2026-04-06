@@ -1,0 +1,120 @@
+                "developer_id": target_dev,
+                "api_key": "sk-test-fake-key-12345"
+            })
+            
+            if response.status_code == 403:
+                detail = response.json().get("detail", "")
+                assert "key" in detail.lower() or "1" in detail, f"Expected key limit message, got: {detail}"
+                print(f"PASS: Second key blocked with 403 - {detail}")
+            else:
+                print(f"INFO: Response {response.status_code} - may not have existing key configured")
+        else:
+            # Need to configure first key, then try second
+            if len(unconfigured) >= 2:
+                # Configure first key
+                first_dev = unconfigured[0]["developer_id"]
+                resp1 = self.session.post(f"{BASE_URL}/api/v1/keys", json={
+                    "developer_id": first_dev,
+                    "api_key": "sk-test-first-key-12345"
+                })
+                
+                if resp1.status_code == 200:
+                    # Try to configure second key
+                    second_dev = unconfigured[1]["developer_id"]
+                    resp2 = self.session.post(f"{BASE_URL}/api/v1/keys", json={
+                        "developer_id": second_dev,
+                        "api_key": "sk-test-second-key-12345"
+                    })
+                    
+                    assert resp2.status_code == 403, f"Expected 403 for second key, got {resp2.status_code}: {resp2.text}"
+                    detail = resp2.json().get("detail", "")
+                    print(f"PASS: Second key blocked with 403 - {detail}")
+                    
+                    # Cleanup: remove first key
+                    self.session.delete(f"{BASE_URL}/api/v1/keys/{first_dev}")
+                else:
+                    print(f"INFO: Could not configure first key: {resp1.status_code}")
+            else:
+                pytest.skip("Not enough unconfigured developers to test key limit")
+
+
+class TestBillingTiersConfig:
+    """Test billing tiers configuration"""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+        
+        # Register a fresh user
+        unique_id = str(uuid.uuid4())[:8]
+        self.test_username = f"test_billing_{unique_id}@example.com"
+        
+        register_response = self.session.post(f"{BASE_URL}/api/auth/register", json={
+            "username": self.test_username,
+            "password": "TestPass123!",
+            "name": f"Billing Test {unique_id}"
+        })
+        
+        if register_response.status_code in [200, 201]:
+            data = register_response.json()
+            self.access_token = data.get("access_token")
+        else:
+            login_response = self.session.post(f"{BASE_URL}/api/auth/login", json={
+                "username": self.test_username,
+                "password": "TestPass123!"
+            })
+            if login_response.status_code == 200:
+                data = login_response.json()
+                self.access_token = data.get("access_token")
+        
+        if hasattr(self, 'access_token') and self.access_token:
+            self.session.headers.update({"Authorization": f"Bearer {self.access_token}"})
+        
+        yield
+
+    def test_free_tier_has_correct_limits(self):
+        """Verify free tier limits match expected values"""
+        response = self.session.get(f"{BASE_URL}/api/payments/summary")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        
+        # Free tier expected limits
+        expected = {
+            "current_tier": "free",
+            "max_instances": 3,
+            "max_personas": 3,
+            "max_connected_keys": 1,
+            "max_runs_per_month": 100,
+            "hide_emergent_badge": False
+        }
+        
+        for key, expected_value in expected.items():
+            actual = data.get(key)
+            assert actual == expected_value, f"Expected {key}={expected_value}, got {actual}"
+        
+        print(f"PASS: All free tier limits verified correctly")
+
+    def test_catalog_shows_pro_unlimited_messaging(self):
+        """Test that catalog shows Pro tier with unlimited messaging"""
+        response = self.session.get(f"{BASE_URL}/api/payments/catalog")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        prices = data.get("prices", [])
+        
+        # Find pro packages
+        pro_packages = [p for p in prices if p.get("category") == "pro"]
+        assert len(pro_packages) > 0, "Expected pro packages in catalog"
+        
+        for pkg in pro_packages:
+            features = pkg.get("features", [])
+            features_text = " ".join(features).lower()
+            assert "unlimited" in features_text, f"Expected 'unlimited' in Pro features: {features}"
+        
+        print(f"PASS: Pro packages show unlimited messaging")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

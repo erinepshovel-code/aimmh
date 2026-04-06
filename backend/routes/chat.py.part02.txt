@@ -1,0 +1,320 @@
+    error_text: str,
+    t_start: float,
+    prompt_tokens_est: int,
+) -> Dict[str, Any]:
+    response_time_ms = int((time.time() - t_start) * 1000)
+    completion_tokens_est = _estimate_tokens(error_text)
+    total_tokens_est = prompt_tokens_est + completion_tokens_est
+    estimated_cost_usd = round((total_tokens_est / 1000.0) * _model_rate(model_spec), 6)
+    await db.messages.update_one(
+        {"id": message_id, "user_id": user_id},
+        {
+            "$set": {
+                "conversation_id": conversation_id,
+                "role": "assistant",
+                "content": error_text,
+                "model": model_spec,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "feedback": None,
+                "response_time_ms": response_time_ms,
+                "streaming": False,
+                "prompt_tokens_est": prompt_tokens_est,
+                "completion_tokens_est": completion_tokens_est,
+                "total_tokens_est": total_tokens_est,
+                "estimated_cost_usd": estimated_cost_usd,
+            },
+            "$setOnInsert": {
+                "id": message_id,
+                "user_id": user_id,
+            },
+        },
+        upsert=True,
+    )
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="assistant_stream_error",
+        actor_user_id=user_id,
+        payload={
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "model": model_spec,
+            "error": error_text,
+            "response_time_ms": response_time_ms,
+        },
+    )
+    return {
+        "response_time_ms": response_time_ms,
+        "prompt_tokens_est": prompt_tokens_est,
+        "completion_tokens_est": completion_tokens_est,
+        "total_tokens_est": total_tokens_est,
+        "estimated_cost_usd": estimated_cost_usd,
+    }
+
+
+async def _stream_chat_response(
+    *,
+    current_user: dict,
+    request: ChatRequest,
+    conversation_id: str,
+    user_id: str,
+    model_spec: str,
+    history: List[Dict[str, Any]],
+    normalized_attachments: List[Dict[str, Any]],
+    shared_pairs: Dict[str, List[str]],
+):
+    message_id = str(uuid.uuid4())
+    t_start = time.time()
+
+    per_model_prompt = (request.per_model_messages or {}).get(model_spec) or request.message
+    attachment_context = _build_attachment_context(normalized_attachments, model_spec)
+    if attachment_context:
+        per_model_prompt = f"{per_model_prompt}\n\n[ATTACHMENTS]\n{attachment_context}"
+
+    messages_context = _build_messages_context(
+        request=request,
+        model_spec=model_spec,
+        history=history,
+        per_model_prompt=per_model_prompt,
+        shared_pairs=shared_pairs,
+    )
+
+    prompt_tokens_est = _estimate_tokens(per_model_prompt)
+    full_response = ""
+
+    await _insert_streaming_message(message_id, conversation_id, user_id, model_spec)
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="assistant_stream_started",
+        actor_user_id=user_id,
+        payload={
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "model": model_spec,
+        },
+    )
+
+    stream_iter, setup_error = _resolve_stream_iterator(current_user, model_spec, messages_context, conversation_id)
+    if setup_error:
+        full_response = f"[ERROR] {setup_error}"
+        metrics = await _handle_chat_error(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            message_id=message_id,
+            model_spec=model_spec,
+            error_text=full_response,
+            t_start=t_start,
+            prompt_tokens_est=prompt_tokens_est,
+        )
+        yield {"type": "chunk", "chunk": full_response, "message_id": message_id}
+        yield {
+            "type": "done",
+            "message_id": message_id,
+            "response_time_ms": metrics["response_time_ms"],
+            "prompt_tokens_est": metrics["prompt_tokens_est"],
+            "completion_tokens_est": metrics["completion_tokens_est"],
+            "total_tokens_est": metrics["total_tokens_est"],
+            "estimated_cost_usd": metrics["estimated_cost_usd"],
+        }
+        return
+
+    async for chunk in stream_iter:
+        if not chunk:
+            continue
+        full_response += chunk
+        await db.messages.update_one(
+            {"id": message_id, "user_id": user_id},
+            {"$set": {"content": full_response, "streaming": True}},
+        )
+        yield {"type": "chunk", "chunk": chunk, "message_id": message_id}
+
+    response_time_ms = int((time.time() - t_start) * 1000)
+    completion_tokens_est = _estimate_tokens(full_response)
+    total_tokens_est = prompt_tokens_est + completion_tokens_est
+    estimated_cost_usd = round((total_tokens_est / 1000.0) * _model_rate(model_spec), 6)
+    await db.messages.update_one(
+        {"id": message_id, "user_id": user_id},
+        {
+            "$set": {
+                "content": full_response,
+                "response_time_ms": response_time_ms,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "streaming": False,
+                "prompt_tokens_est": prompt_tokens_est,
+                "completion_tokens_est": completion_tokens_est,
+                "total_tokens_est": total_tokens_est,
+                "estimated_cost_usd": estimated_cost_usd,
+            }
+        },
+    )
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="assistant_stream_completed",
+        actor_user_id=user_id,
+        payload={
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "model": model_spec,
+            "response_time_ms": response_time_ms,
+            "total_tokens_est": total_tokens_est,
+            "estimated_cost_usd": estimated_cost_usd,
+        },
+    )
+
+    yield {
+        "type": "done",
+        "message_id": message_id,
+        "response_time_ms": response_time_ms,
+        "prompt_tokens_est": prompt_tokens_est,
+        "completion_tokens_est": completion_tokens_est,
+        "total_tokens_est": total_tokens_est,
+        "estimated_cost_usd": estimated_cost_usd,
+    }
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Stream responses from multiple AI models"""
+    _validate_chat_request(request)
+
+    async def event_generator():
+        conversation_id = request.conversation_id or str(uuid.uuid4())
+        user_id = get_user_id(current_user)
+        normalized_attachments = _normalize_attachments(request.attachments)
+        shared_pairs = _normalize_shared_pairs(request.shared_pairs, request.models)
+
+        await _ensure_conversation_record(conversation_id, user_id, request)
+        await _create_context_log(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            request=request,
+            shared_pairs=shared_pairs,
+            normalized_attachments=normalized_attachments,
+        )
+        await _persist_base_user_message(
+            request=request,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            normalized_attachments=normalized_attachments,
+        )
+
+        history_limit = request.history_limit if request.history_limit is not None else 30
+        history = await _load_history(conversation_id, user_id, history_limit)
+
+        for model_spec in request.models:
+            try:
+                message_id = str(uuid.uuid4())
+
+                yield {
+                    "event": "start",
+                    "data": json.dumps({"model": model_spec, "message_id": message_id})
+                }
+                stream_result = _stream_chat_response(
+                    current_user=current_user,
+                    request=request,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    model_spec=model_spec,
+                    history=history,
+                    normalized_attachments=normalized_attachments,
+                    shared_pairs=shared_pairs,
+                )
+                async for part in stream_result:
+                    if part["type"] == "chunk":
+                        yield {
+                            "event": "chunk",
+                            "data": json.dumps({
+                                "model": model_spec,
+                                "message_id": part["message_id"],
+                                "content": part["chunk"],
+                            }),
+                        }
+                    elif part["type"] == "done":
+                        message_id = part["message_id"]
+                        yield {
+                            "event": "complete",
+                            "data": json.dumps({
+                                "model": model_spec,
+                                "message_id": message_id,
+                                "response_time_ms": part["response_time_ms"],
+                            }),
+                        }
+            except Exception as e:
+                logger.error(f"Error streaming from {model_spec}: {str(e)}")
+                err_message_id = str(uuid.uuid4())
+                err_text = f"[ERROR] {str(e)}"
+                metrics = await _handle_chat_error(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    message_id=err_message_id,
+                    model_spec=model_spec,
+                    error_text=err_text,
+                    t_start=time.time(),
+                    prompt_tokens_est=0,
+                )
+                yield {
+                    "event": "chunk",
+                    "data": json.dumps({"model": model_spec, "message_id": err_message_id, "content": err_text}),
+                }
+                yield {
+                    "event": "complete",
+                    "data": json.dumps({
+                        "model": model_spec,
+                        "message_id": err_message_id,
+                        "response_time_ms": metrics["response_time_ms"],
+                    }),
+                }
+
+        update_fields = {
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "title": request.message[:50],
+            "context_mode": request.context_mode,
+            "shared_room_mode": request.shared_room_mode
+        }
+        if request.shared_pairs is not None:
+            update_fields["shared_pairs"] = shared_pairs
+        if request.global_context is not None:
+            update_fields["global_context"] = request.global_context
+        if request.model_roles is not None:
+            update_fields["model_roles"] = request.model_roles
+
+        await db.conversations.update_one(
+            {"id": conversation_id, "user_id": user_id},
+            {
+                "$set": update_fields,
+                "$setOnInsert": {
+                    "id": conversation_id,
+                    "user_id": user_id,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+            },
+            upsert=True
+        )
+
+    return EventSourceResponse(event_generator())
+
+
+@router.post("/chat/feedback")
+async def submit_feedback(
+    feedback: MessageFeedback,
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit thumbs up/down feedback for a message"""
+    result = await db.messages.update_one(
+        {"id": feedback.message_id, "user_id": get_user_id(current_user)},
+        {"$set": {"feedback": feedback.feedback}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="message_feedback_submitted",
+        actor_user_id=get_user_id(current_user),
+        payload={"message_id": feedback.message_id, "feedback": feedback.feedback},
+    )
+    return {"message": "Feedback submitted"}
+
+
+@router.get("/conversations", response_model=List[ConversationResponse])

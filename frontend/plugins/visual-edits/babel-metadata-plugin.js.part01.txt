@@ -1,0 +1,320 @@
+// babel-metadata-plugin.js
+// Babel plugin for JSX transformation - adds metadata to all elements
+const path = require("path");
+const fs = require("fs");
+
+// ───────────────────────────────────────────────────────────────────────────────
+// ===== Dynamic composite detection (auto-exclude) =====
+const EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"];
+const PROJECT_ROOT = path.resolve(__dirname, '../..'); // frontend root (../../ from plugins/visual-edits/)
+const SRC_ALIAS = path.resolve(PROJECT_ROOT, "src");
+
+const RESOLVE_CACHE = new Map(); // key: fromFile::source -> absPath | null
+const FILE_AST_CACHE = new Map(); // absPath -> { ast, mtimeMs }
+const PORTAL_COMP_CACHE = new Map(); // key: absPath::exportName -> boolean
+const DYNAMIC_COMP_CACHE = new Map(); // key: absPath::exportName -> boolean
+const BINDING_DYNAMIC_CACHE = new WeakMap(); // node -> boolean
+
+// Cache for cross-file prop source tracking
+// Key: "absoluteFilePath::ComponentName::propName"
+// Value: { sourceInfo, arrayContext, fromFile }
+const PROP_SOURCE_CACHE = new Map();
+
+function resolveImportPath(source, fromFile) {
+  const cacheKey = `${fromFile}::${source}`;
+  if (RESOLVE_CACHE.has(cacheKey)) return RESOLVE_CACHE.get(cacheKey);
+
+  let base;
+  if (source.startsWith("@/")) {
+    base = path.join(SRC_ALIAS, source.slice(2));
+  } else if (source.startsWith("./") || source.startsWith("../")) {
+    base = path.resolve(path.dirname(fromFile), source);
+  } else {
+    // bare specifier (node_modules) — skip analysis
+    RESOLVE_CACHE.set(cacheKey, null);
+    return null;
+  }
+
+  // try direct file
+  for (const ext of EXTENSIONS) {
+    const file = base.endsWith(ext) ? base : base + ext;
+    if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+      RESOLVE_CACHE.set(cacheKey, file);
+      return file;
+    }
+  }
+  // try index.* in directory
+  if (fs.existsSync(base) && fs.statSync(base).isDirectory()) {
+    for (const ext of EXTENSIONS) {
+      const idx = path.join(base, "index" + ext);
+      if (fs.existsSync(idx)) {
+        RESOLVE_CACHE.set(cacheKey, idx);
+        return idx;
+      }
+    }
+  }
+
+  RESOLVE_CACHE.set(cacheKey, null);
+  return null;
+}
+
+/**
+ * Gets the absolute path of an imported component's source file.
+ * Returns null if the component is defined in the same file.
+ */
+function getComponentSourcePath(binding, state) {
+  if (!binding || !binding.path) return null;
+
+  const bindingPath = binding.path;
+  const fileFrom = state.filename || state.file?.opts?.filename || __filename;
+
+  if (bindingPath.isImportSpecifier()) {
+    const from = bindingPath.parent.source.value;
+    return resolveImportPath(from, fileFrom);
+  }
+
+  if (bindingPath.isImportDefaultSpecifier()) {
+    const from = bindingPath.parent.source.value;
+    return resolveImportPath(from, fileFrom);
+  }
+
+  return null; // Same-file binding
+}
+
+function parseFileAst(absPath, parser) {
+  try {
+    const stat = fs.statSync(absPath);
+    const cached = FILE_AST_CACHE.get(absPath);
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.ast;
+
+    const code = fs.readFileSync(absPath, "utf8");
+    const ast = parser.parse(code, {
+      sourceType: "module",
+      plugins: ["jsx", "typescript"],
+    });
+    FILE_AST_CACHE.set(absPath, { ast, mtimeMs: stat.mtimeMs });
+    return ast;
+  } catch (error) {
+    return null;
+  }
+}
+
+function jsxNameOf(openingEl, t) {
+  const n = openingEl?.name;
+  if (t.isJSXIdentifier(n)) return n.name;
+  if (t.isJSXMemberExpression(n)) return n.property.name; // <X.Y>
+  return null;
+}
+
+const PORTAL_SUFFIX_RE =
+  /(Trigger|Portal|Content|Overlay|Viewport|Anchor|Arrow)$/;
+
+function isPortalishName(name, RADIX_ROOTS) {
+  if (!name) return false;
+  return RADIX_ROOTS.has(name) || PORTAL_SUFFIX_RE.test(name);
+}
+
+// Analyze a specific exported component in a file
+function fileExportHasPortals({
+  absPath,
+  exportName, // string or "default"
+  t,
+  traverse,
+  parser,
+  RADIX_ROOTS,
+  depth = 0,
+  maxDepth = 3,
+}) {
+  if (!absPath || depth > maxDepth) return false;
+  const cacheKey = `${absPath}::${exportName}`;
+  if (PORTAL_COMP_CACHE.has(cacheKey)) return PORTAL_COMP_CACHE.get(cacheKey);
+
+  const ast = parseFileAst(absPath, parser);
+  if (!ast) {
+    PORTAL_COMP_CACHE.set(cacheKey, false);
+    return false;
+  }
+
+  // Map local imports -> file paths for recursive checks
+  const importMap = new Map(); // localName -> { absPath, importName }
+  traverse(ast, {
+    ImportDeclaration(p) {
+      const src = p.node.source.value;
+      const target = resolveImportPath(src, absPath);
+      if (!target) return;
+      p.node.specifiers.forEach((s) => {
+        if (t.isImportSpecifier(s)) {
+          importMap.set(s.local.name, {
+            absPath: target,
+            importName: s.imported.name,
+          });
+        } else if (t.isImportDefaultSpecifier(s)) {
+          importMap.set(s.local.name, {
+            absPath: target,
+            importName: "default",
+          });
+        }
+      });
+    },
+  });
+
+  // Find the component declaration for exportName
+  let compPaths = [];
+
+  traverse(ast, {
+    ExportDefaultDeclaration(p) {
+      if (exportName !== "default") return;
+      const decl = p.node.declaration;
+      if (
+        t.isFunctionDeclaration(decl) ||
+        t.isArrowFunctionExpression(decl) ||
+        t.isFunctionExpression(decl)
+      ) {
+        compPaths.push(p.get("declaration"));
+      } else if (t.isIdentifier(decl)) {
+        const bind = p.scope.getBinding(decl.name);
+        if (bind) compPaths.push(bind.path);
+      }
+    },
+    ExportNamedDeclaration(p) {
+      if (exportName === "default") return;
+      if (p.node.declaration) {
+        const d = p.node.declaration;
+        if (t.isFunctionDeclaration(d) && d.id?.name === exportName) {
+          compPaths.push(p.get("declaration"));
+        }
+        if (t.isVariableDeclaration(d)) {
+          d.declarations.forEach((vd, i) => {
+            if (t.isIdentifier(vd.id) && vd.id.name === exportName) {
+              compPaths.push(p.get(`declaration.declarations.${i}.init`));
+            }
+          });
+        }
+      } else {
+        p.node.specifiers.forEach((s) => {
+          if (
+            t.isExportSpecifier(s) &&
+            t.isIdentifier(s.exported) &&
+            s.exported.name === exportName &&
+            t.isIdentifier(s.local)
+          ) {
+            const bind = p.scope.getBinding(s.local.name);
+            if (bind) compPaths.push(bind.path);
+          }
+        });
+      }
+    },
+  });
+
+  if (compPaths.length === 0) {
+    PORTAL_COMP_CACHE.set(cacheKey, false);
+    return false;
+  }
+
+  let found = false;
+
+  // Track visited paths to prevent infinite recursion with circular component dependencies
+  const visitedPaths = new WeakSet();
+
+  function subtreeHasPortals(nodePath) {
+    if (!nodePath || !nodePath.node) return false;
+    if (visitedPaths.has(nodePath.node)) return false;
+    visitedPaths.add(nodePath.node);
+
+    let hit = false;
+    nodePath.traverse({
+      JSXOpeningElement(op) {
+        if (hit) return;
+        const name = jsxNameOf(op.node, t);
+        if (isPortalishName(name, RADIX_ROOTS)) {
+          hit = true;
+          return;
+        }
+        if (/^[A-Z]/.test(name || "")) {
+          // capitalized child: may itself be portalish
+          const binding = op.scope.getBinding(name);
+          if (binding && binding.path) {
+            const childHas = subtreeHasPortals(binding.path);
+            if (childHas) {
+              hit = true;
+              return;
+            }
+          } else if (importMap.has(name)) {
+            const { absPath: childPath, importName } = importMap.get(name);
+            const childHas = fileExportHasPortals({
+              absPath: childPath,
+              exportName: importName,
+              t,
+              traverse,
+              parser,
+              RADIX_ROOTS,
+              depth: depth + 1,
+            });
+            if (childHas) {
+              hit = true;
+              return;
+            }
+          }
+        }
+      },
+    });
+    return hit;
+  }
+
+  for (const pth of compPaths) {
+    if (!pth || !pth.node) continue;
+    if (subtreeHasPortals(pth)) {
+      found = true;
+      break;
+    }
+  }
+
+  PORTAL_COMP_CACHE.set(cacheKey, found);
+  return found;
+}
+
+// Decide at a usage site whether <ElementName /> is a composite that should be excluded
+function usageIsCompositePortal({
+  elementName,
+  jsxPath,
+  state,
+  t,
+  traverse,
+  parser,
+  RADIX_ROOTS,
+}) {
+  // Same-file binding?
+  const binding = jsxPath.scope.getBinding(elementName);
+  if (binding && binding.path) {
+    // Analyze the definition directly
+    let hit = false;
+    binding.path.traverse({
+      JSXOpeningElement(op) {
+        if (hit) return;
+        const name = jsxNameOf(op.node, t);
+        if (isPortalishName(name, RADIX_ROOTS)) {
+          hit = true;
+          return;
+        }
+        if (/^[A-Z]/.test(name || "")) {
+          const innerBinding = op.scope.getBinding(name);
+          if (innerBinding && innerBinding.path) {
+            innerBinding.path.traverse(this.visitors);
+          }
+        }
+      },
+    });
+    if (hit) return true;
+  }
+
+  // Imported binding (named)
+  if (binding && binding.path && binding.path.isImportSpecifier()) {
+    const from = binding.path.parent.source.value;
+    const fileFrom =
+      state.filename ||
+      state.file?.opts?.filename ||
+      state.file?.sourceFileName ||
+      __filename;
+    const absPath = resolveImportPath(from, fileFrom);
+    if (!absPath) return false;
+    const exportName = binding.path.node.imported.name;

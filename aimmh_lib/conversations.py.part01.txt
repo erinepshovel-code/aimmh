@@ -1,0 +1,320 @@
+"""
+conversations.py — Async multi-model conversation orchestration primitives.
+
+All functions are pure async — no FastAPI, MongoDB, auth, or framework deps.
+The only dependency is Python stdlib + asyncio.
+
+The core insight: async is the library's reason for being. fan_out uses
+asyncio.gather for true parallel calls; sequential patterns (daisy_chain,
+roleplay) use await so each step can depend on the last. Callers compose
+these freely without the backend's HTTP/DB overhead.
+
+CallFn contract: async (model_id: str, messages: list[dict]) -> str
+  - messages follows the OpenAI role format: [{"role": "user"|"assistant"|"system", "content": str}]
+  - returns the full response string (adapters handle streaming → complete)
+  - on error, returns a string starting with "[ERROR]"
+
+Slot context design:
+  slot_contexts is a list[Optional[str]] aligned by index with model_ids (or player_models).
+  This allows calling the same model multiple times with different system prompts:
+      model_ids     = ["gpt-4o", "gpt-4o"]
+      slot_contexts = ["You are a critic.", "You are a defender."]
+  ModelResult.slot_idx carries the position back so callers can cross-reference.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import random
+import time
+from dataclasses import dataclass, field
+from typing import Callable, Coroutine, Optional
+
+# ---------------------------------------------------------------------------
+# Public types
+# ---------------------------------------------------------------------------
+
+# async fn(model_id, messages) -> complete response string
+CallFn = Callable[[str, list[dict]], Coroutine[None, None, str]]
+
+
+@dataclass
+class ModelResult:
+    """A single model response within a conversation pattern.
+
+    step_num=-1 is a sentinel for synthesis/DM steps that sit between rounds.
+    Filter helpers:
+        responses only:   [r for r in results if r.step_num >= 0]
+        synthesis/DM:     [r for r in results if r.step_num == -1]
+        by round:         [r for r in results if r.round_num == n]
+        by slot:          [r for r in results if r.slot_idx == i]
+    """
+    model: str
+    content: str
+    response_time_ms: int = 0
+    error: Optional[str] = None
+    round_num: int = 0       # 0-indexed round
+    step_num: int = 0        # 0-indexed step within round; -1 = synthesis/DM narration
+    initiative: int = 0      # initiative roll (roleplay); 0 for non-roleplay patterns
+    role: str = "player"     # "player" | "dm" | "synthesizer" | "council" | "reaction"
+    slot_idx: int = 0        # index into original model_ids / player_models list
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _inject_system(
+    messages: list[dict],
+    slot_idx: int,
+    slot_contexts: Optional[list[Optional[str]]],
+) -> list[dict]:
+    """Prepend {"role": "system", "content": ...} if slot_contexts has an entry at slot_idx."""
+    if not slot_contexts or slot_idx >= len(slot_contexts):
+        return messages
+    sys_str = slot_contexts[slot_idx]
+    if not sys_str:
+        return messages
+    return [{"role": "system", "content": sys_str}] + messages
+
+
+def _trim(history: list[dict], max_history: int) -> list[dict]:
+    """Keep the last max_history messages (pairs = 2 items each)."""
+    return history[-max_history:] if len(history) > max_history else history
+
+
+async def _call(
+    call: CallFn,
+    model_id: str,
+    messages: list[dict],
+    slot_contexts: Optional[list[Optional[str]]],
+    slot_idx: int,
+    round_num: int,
+    step_num: int,
+    role: str = "player",
+    initiative: int = 0,
+) -> ModelResult:
+    """Single timed call with error capture."""
+    msgs = _inject_system(messages, slot_idx, slot_contexts)
+    t = time.monotonic()
+    try:
+        content = await call(model_id, msgs)
+    except Exception as e:
+        content = f"[ERROR] {e}"
+    elapsed_ms = int((time.monotonic() - t) * 1000)
+    return ModelResult(
+        model=model_id,
+        content=content,
+        response_time_ms=elapsed_ms,
+        error=content if content.startswith("[ERROR]") else None,
+        round_num=round_num,
+        step_num=step_num,
+        initiative=initiative,
+        role=role,
+        slot_idx=slot_idx,
+    )
+
+
+# ---------------------------------------------------------------------------
+# fan_out — parallel building block
+# ---------------------------------------------------------------------------
+
+async def fan_out(
+    call: CallFn,
+    model_ids: list[str],
+    messages: list[dict],
+    slot_contexts: Optional[list[Optional[str]]] = None,
+    round_num: int = 0,
+    step_num: int = 0,
+) -> list[ModelResult]:
+    """Call all models in parallel with the same messages.
+
+    This is the async core: asyncio.gather fires all calls concurrently.
+    Returns results in model_ids order. slot_idx = position in model_ids.
+    """
+    return list(await asyncio.gather(*[
+        _call(call, m, messages, slot_contexts, i, round_num, step_num)
+        for i, m in enumerate(model_ids)
+    ]))
+
+
+# ---------------------------------------------------------------------------
+# daisy_chain — sequential A → B → C
+# ---------------------------------------------------------------------------
+
+async def daisy_chain(
+    call: CallFn,
+    model_ids: list[str],
+    prompt: str,
+    rounds: int = 1,
+    slot_contexts: Optional[list[Optional[str]]] = None,
+    include_original_prompt: bool = True,
+    max_history: int = 30,
+) -> list[ModelResult]:
+    """Sequential chain: each model's response becomes the next model's prompt.
+
+    Round 0, step 0: raw prompt → model[0].
+    All subsequent steps:
+        [Chain Round {r+1}, Step {s+1}]
+        Previous response from {prev_model}: {content}
+        Original prompt: {prompt}   ← if include_original_prompt
+
+    History accumulates so each step has full prior context.
+    slot_idx = step position within each round (0 for model[0], 1 for model[1], ...).
+    """
+    all_results: list[ModelResult] = []
+    history: list[dict] = []
+    last_content = prompt
+    last_model = "user"
+
+    for round_num in range(rounds):
+        for step_num, (slot_idx, model_id) in enumerate(enumerate(model_ids)):
+            if round_num == 0 and step_num == 0:
+                prompt_text = prompt
+            else:
+                prompt_text = (
+                    f"[Chain Round {round_num + 1}, Step {step_num + 1}]\n\n"
+                    f"Previous response from {last_model}:\n{last_content}"
+                )
+                if include_original_prompt:
+                    prompt_text += f"\n\nOriginal prompt: {prompt}"
+
+            messages = _trim(history, max_history) + [{"role": "user", "content": prompt_text}]
+            result = await _call(call, model_id, messages, slot_contexts, slot_idx, round_num, step_num)
+            all_results.append(result)
+
+            history.append({"role": "user", "content": prompt_text})
+            history.append({"role": "assistant", "content": result.content})
+            last_content = result.content
+            last_model = model_id
+
+    return all_results
+
+
+# ---------------------------------------------------------------------------
+# room_all — every model sees all others' responses
+# ---------------------------------------------------------------------------
+
+async def room_all(
+    call: CallFn,
+    model_ids: list[str],
+    prompt: str,
+    rounds: int = 1,
+    slot_contexts: Optional[list[Optional[str]]] = None,
+    max_history: int = 30,
+) -> list[ModelResult]:
+    """Shared room: all models respond, then each sees all responses, responds again.
+
+    Round 0: parallel fan_out with raw prompt.
+    Round 1+: each model receives:
+        [ROUND {r+1} — respond after seeing other models' responses]
+        Response from {model_a}: {content}
+        ---
+        Response from {model_b}: {content}
+        Original prompt: {prompt}
+
+    Single shared history (all models in the same room context).
+    """
+    all_results: list[ModelResult] = []
+    shared_history: list[dict] = []
+
+    for round_num in range(rounds):
+        if round_num == 0:
+            user_turn = {"role": "user", "content": prompt}
+            messages = _trim(shared_history, max_history) + [user_turn]
+            round_results = await fan_out(call, model_ids, messages, slot_contexts, round_num=0)
+        else:
+            prev_round = all_results[-(len(model_ids)):]
+            share_text = f"[ROUND {round_num + 1} — respond after seeing other models' responses]\n\n"
+            share_text += "\n\n---\n\n".join(
+                f"Response from {r.model}:\n{r.content}"
+                for r in prev_round if not r.error
+            )
+            share_text += f"\n\nOriginal prompt: {prompt}"
+
+            user_turn = {"role": "user", "content": share_text}
+            messages = _trim(shared_history, max_history) + [user_turn]
+            round_results = list(await asyncio.gather(*[
+                _call(call, m, messages, slot_contexts, i, round_num, step_num=0)
+                for i, m in enumerate(model_ids)
+            ]))
+
+        all_results.extend(round_results)
+
+        # Shared history: one user turn + all assistant responses
+        shared_history.append(user_turn)
+        for r in round_results:
+            shared_history.append({"role": "assistant", "content": r.content})
+
+    return all_results
+
+
+# ---------------------------------------------------------------------------
+# room_synthesized — one synthesizer combines responses, drives next round
+# ---------------------------------------------------------------------------
+
+async def room_synthesized(
+    call: CallFn,
+    model_ids: list[str],
+    prompt: str,
+    synthesis_model: str,
+    rounds: int = 1,
+    synthesis_prompt: str = "Synthesize and analyze these AI responses:",
+    slot_contexts: Optional[list[Optional[str]]] = None,
+    synth_slot_context: Optional[str] = None,
+    max_history: int = 30,
+) -> list[ModelResult]:
+    """All models respond in parallel; one synthesis model combines them.
+
+    Round 0: parallel fan_out.
+    Synthesis (step_num=-1): synthesis_model receives:
+        [ROUND {r+1} SYNTHESIS]
+        {synthesis_prompt}
+        Response from {model_a}: {content}
+        ---
+        Response from {model_b}: {content}
+    Round 1+: models respond to synthesis:
+        [ROUND {r+1} — respond to the synthesis]
+        Synthesis by {synthesis_model}: {synth_content}
+        Original prompt: {prompt}
+
+    synthesis_model results have step_num=-1.
+    Filter: [r for r in results if r.step_num >= 0] → player responses only.
+    synth_slot_context: optional system prompt for the synthesis model specifically.
+    """
+    if not synthesis_model:
+        raise ValueError("synthesis_model is required")
+
+    # Synthesis model gets slot_idx = len(model_ids) (just beyond the player slots)
+    synth_slot_idx = len(model_ids)
+    synth_contexts = (slot_contexts or []) + [synth_slot_context]
+
+    all_results: list[ModelResult] = []
+    shared_history: list[dict] = []
+
+    for round_num in range(rounds):
+        # --- player round ---
+        if round_num == 0:
+            user_turn = {"role": "user", "content": prompt}
+        else:
+            prev_synth = next(
+                (r for r in reversed(all_results) if r.step_num == -1), None
+            )
+            next_prompt = (
+                f"[ROUND {round_num + 1} — respond to the synthesis]\n\n"
+                f"Synthesis by {synthesis_model}:\n{prev_synth.content}\n\n"
+                f"Original prompt: {prompt}"
+            ) if prev_synth else prompt
+            user_turn = {"role": "user", "content": next_prompt}
+
+        messages = _trim(shared_history, max_history) + [user_turn]
+        round_results = list(await asyncio.gather(*[
+            _call(call, m, messages, slot_contexts, i, round_num, step_num=0, role="player")
+            for i, m in enumerate(model_ids)
+        ]))
+        all_results.extend(round_results)
+        shared_history.append(user_turn)
+        for r in round_results:
+            shared_history.append({"role": "assistant", "content": r.content})
+
+        # --- synthesis step ---

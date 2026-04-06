@@ -1,0 +1,320 @@
+
+    if (!itemParam) return null;
+
+    // Analyze the array source
+    let arrayVar = null;
+    let arrayFile = null;
+    let absFile = null;
+    let arrayLine = null;
+    let isEditable = false;
+
+    if (t.isIdentifier(arrayNode)) {
+      arrayVar = arrayNode.name;
+      // Pass skipArrayContext to avoid infinite recursion
+      const arrayInfo = analyzeIdentifier(arrayVar, callExprParent.get("callee.object"), state, { skipArrayContext: true });
+
+      if (arrayInfo) {
+        arrayFile = arrayInfo.file || null;
+        absFile = arrayInfo.absFile || null;
+        arrayLine = arrayInfo.line || null;
+        isEditable = arrayInfo.isEditable && arrayInfo.valueType === "array";
+      }
+    } else if (t.isMemberExpression(arrayNode)) {
+      // Handle cases like data.items.map(...)
+      const memberInfo = analyzeMemberExpression(
+        callExprParent.get("callee.object"),
+        state,
+        { skipArrayContext: true }
+      );
+      if (memberInfo) {
+        arrayVar = memberInfo.varName;
+        arrayFile = memberInfo.file || null;
+        absFile = memberInfo.absFile || null;
+        arrayLine = memberInfo.line || null;
+        // Array within object is more complex, mark as not editable for now
+        isEditable = false;
+      }
+    }
+
+    return {
+      arrayVar,
+      arrayFile,
+      absFile,
+      arrayLine,
+      itemParam,
+      indexParam,
+      isEditable,
+    };
+  }
+
+  /**
+   * Finds info about an exported variable in a file
+   */
+  function findExportedVariableInfo(absPath, exportName) {
+    const parser = require("@babel/parser");
+    const traverse = require("@babel/traverse").default;
+
+    const ast = parseFileAst(absPath, parser);
+    if (!ast) return null;
+
+    let result = null;
+
+    traverse(ast, {
+      // Check export const VARIABLE = value
+      ExportNamedDeclaration(p) {
+        if (result) return;
+
+        if (p.node.declaration && t.isVariableDeclaration(p.node.declaration)) {
+          const decl = p.node.declaration;
+          for (const declarator of decl.declarations) {
+            if (t.isIdentifier(declarator.id) && declarator.id.name === exportName) {
+              const init = declarator.init;
+              let valueType = null;
+              let isEditable = false;
+
+              if (t.isStringLiteral(init) || t.isNumericLiteral(init)) {
+                valueType = "literal";
+                isEditable = true;
+              } else if (t.isArrayExpression(init)) {
+                valueType = "array";
+                isEditable = true;
+              } else if (t.isObjectExpression(init)) {
+                valueType = "object";
+                isEditable = true;
+              }
+
+              result = {
+                line: declarator.loc?.start.line || null,
+                valueType,
+                isEditable,
+              };
+              return;
+            }
+          }
+        }
+
+        // Check export { VARIABLE }
+        if (p.node.specifiers) {
+          for (const spec of p.node.specifiers) {
+            if (t.isExportSpecifier(spec) &&
+                t.isIdentifier(spec.exported) &&
+                spec.exported.name === exportName) {
+              // Need to find the original declaration
+              const localName = t.isIdentifier(spec.local) ? spec.local.name : exportName;
+              const binding = p.scope.getBinding(localName);
+              if (binding && binding.path.isVariableDeclarator()) {
+                const init = binding.path.node.init;
+                let valueType = null;
+                let isEditable = false;
+
+                if (t.isStringLiteral(init) || t.isNumericLiteral(init)) {
+                  valueType = "literal";
+                  isEditable = true;
+                } else if (t.isArrayExpression(init)) {
+                  valueType = "array";
+                  isEditable = true;
+                } else if (t.isObjectExpression(init)) {
+                  valueType = "object";
+                  isEditable = true;
+                }
+
+                result = {
+                  line: binding.path.node.loc?.start.line || null,
+                  valueType,
+                  isEditable,
+                };
+              }
+              return;
+            }
+          }
+        }
+      },
+    });
+
+    return result;
+  }
+
+  /**
+   * Extracts expression source info from JSX children and builds metadata attributes
+   */
+  function getExpressionSourceAttributes(jsxElement, state) {
+    const attrs = [];
+    const children = jsxElement.children || [];
+
+    for (const child of children) {
+      if (t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)) {
+        // We found an expression - analyze it
+        // Note: We need to create a path for the expression, but we only have the node
+        // For now, we'll do basic analysis using the scope from the JSX element
+        const expr = child.expression;
+
+        // Basic classification based on node type
+        if (t.isIdentifier(expr)) {
+          attrs.push({ name: "x-expr-var", value: expr.name });
+        } else if (t.isMemberExpression(expr)) {
+          const propPath = buildPropertyPath(expr);
+          attrs.push({ name: "x-expr-path", value: propPath });
+
+          // Get root object name
+          let root = expr;
+          while (t.isMemberExpression(root.object)) {
+            root = root.object;
+          }
+          if (t.isIdentifier(root.object)) {
+            attrs.push({ name: "x-expr-var", value: root.object.name });
+          }
+        }
+
+        // Only process first expression for now
+        break;
+      }
+    }
+
+    return attrs;
+  }
+
+  // ---------- helpers ----------
+  const getName = (openingEl) => {
+    const n = openingEl?.name;
+    return t.isJSXIdentifier(n) ? n.name : null;
+  };
+
+  const hasProp = (openingEl, name) =>
+    openingEl?.attributes?.some(
+      (a) =>
+        t.isJSXAttribute(a) &&
+        t.isJSXIdentifier(a.name) &&
+        a.name.name === name,
+    );
+
+  const isPortalPrimitive = (name) =>
+    /(Trigger|Portal|Content|Overlay|Viewport|Anchor|Arrow)$/.test(name);
+
+  const RADIX_ROOTS = new Set([
+    "Dialog",
+    "Popover",
+    "Tooltip",
+    "DropdownMenu",
+    "ContextMenu",
+    "AlertDialog",
+    "HoverCard",
+    "Select",
+    "Menubar",
+    "NavigationMenu",
+    "Sheet",
+    "Drawer",
+    "Toast",
+    "Command",
+  ]);
+
+  // direct child of a Trigger / asChild / Slot parent?
+  const isDirectChildOfAsChildOrTrigger = (jsxPath) => {
+    const p = jsxPath.parentPath;
+    if (!p || !p.isJSXElement || !p.isJSXElement()) return false;
+    const open = p.node.openingElement;
+    const name = getName(open) || "";
+    return hasProp(open, "asChild") || /Trigger$/.test(name) || name === "Slot";
+  };
+
+  const alreadyHasXMeta = (openingEl) =>
+    openingEl.attributes?.some(
+      (a) =>
+        t.isJSXAttribute(a) &&
+        t.isJSXIdentifier(a.name) &&
+        a.name.name.startsWith("x-"),
+    );
+
+  // ⬇️ Add { markExcluded } option: when true, include x-excluded="true"
+  const insertMetaAttributes = (openingEl, attrsToAdd) => {
+    if (!openingEl.attributes) openingEl.attributes = [];
+    const spreadIndex = openingEl.attributes.findIndex((attr) =>
+      t.isJSXSpreadAttribute(attr),
+    );
+    if (spreadIndex === -1) {
+      openingEl.attributes.push(...attrsToAdd);
+    } else {
+      openingEl.attributes.splice(spreadIndex, 0, ...attrsToAdd);
+    }
+  };
+
+  const pushMetaAttrs = (
+    openingEl,
+    { normalizedPath, lineNumber, elementName, isDynamic, sourceInfo, arrayContext },
+    { markExcluded = false } = {},
+  ) => {
+    if (alreadyHasXMeta(openingEl)) return;
+    const metaAttrs = [
+      t.jsxAttribute(
+        t.jsxIdentifier("x-file-name"),
+        t.stringLiteral(normalizedPath),
+      ),
+      t.jsxAttribute(
+        t.jsxIdentifier("x-line-number"),
+        t.stringLiteral(String(lineNumber)),
+      ),
+      t.jsxAttribute(
+        t.jsxIdentifier("x-component"),
+        t.stringLiteral(elementName),
+      ),
+      t.jsxAttribute(
+        t.jsxIdentifier("x-id"),
+        t.stringLiteral(`${normalizedPath}_${lineNumber}`),
+      ),
+      t.jsxAttribute(
+        t.jsxIdentifier("x-dynamic"),
+        t.stringLiteral(isDynamic ? "true" : "false"),
+      ),
+    ];
+    if (markExcluded) {
+      metaAttrs.push(
+        t.jsxAttribute(t.jsxIdentifier("x-excluded"), t.stringLiteral("true")),
+      );
+    }
+
+    // Add source tracking attributes if available
+    if (sourceInfo) {
+      // x-source-type: static-local | static-imported | prop | state | computed | external
+      if (sourceInfo.type) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-source-type"), t.stringLiteral(sourceInfo.type))
+        );
+      }
+
+      // x-source-var: the variable name
+      if (sourceInfo.varName) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-source-var"), t.stringLiteral(sourceInfo.varName))
+        );
+      }
+
+      // x-source-file: for imports, the import path
+      if (sourceInfo.file) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-source-file"), t.stringLiteral(sourceInfo.file))
+        );
+      }
+
+      // x-source-file-abs: absolute path for relative imports (needed by backend)
+      if (sourceInfo.absFile) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-source-file-abs"), t.stringLiteral(sourceInfo.absFile))
+        );
+      }
+
+      // x-source-line: line number in source file
+      if (sourceInfo.line) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-source-line"), t.stringLiteral(String(sourceInfo.line)))
+        );
+      }
+
+      // x-source-path: for object property access (e.g., "name" or "address.city")
+      if (sourceInfo.path) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-source-path"), t.stringLiteral(sourceInfo.path))
+        );
+      }
+
+      // x-source-editable: whether this dynamic content can be edited
+      metaAttrs.push(
+        t.jsxAttribute(

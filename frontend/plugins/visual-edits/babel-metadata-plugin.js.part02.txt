@@ -1,0 +1,320 @@
+    return fileExportHasPortals({
+      absPath,
+      exportName,
+      t,
+      traverse,
+      parser,
+      RADIX_ROOTS,
+    });
+  }
+
+  // Imported binding (default)
+  if (binding && binding.path && binding.path.isImportDefaultSpecifier()) {
+    const from = binding.path.parent.source.value;
+    const fileFrom =
+      state.filename ||
+      state.file?.opts?.filename ||
+      state.file?.sourceFileName ||
+      __filename;
+    const absPath = resolveImportPath(from, fileFrom);
+    if (!absPath) return false;
+    return fileExportHasPortals({
+      absPath,
+      exportName: "default",
+      t,
+      traverse,
+      parser,
+      RADIX_ROOTS,
+    });
+  }
+
+  return false;
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Babel plugin for JSX transformation - adds metadata to all elements
+const babelMetadataPlugin = ({ types: t }) => {
+  const fileNameCache = new Map();
+
+  const ARRAY_METHODS = new Set([
+    "map",
+    "forEach",
+    "filter",
+    "reduce",
+    "reduceRight",
+    "flatMap",
+    "find",
+    "findIndex",
+    "some",
+    "every",
+  ]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Expression Source Analysis - Track where dynamic content comes from
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Analyzes an expression to determine its source type and traceability
+   * @param {NodePath} exprPath - The expression path to analyze
+   * @param {Object} state - Babel state with filename info
+   * @returns {Object} Source info: { type, varName, file, line, path, isEditable }
+   */
+  function analyzeExpression(exprPath, state) {
+    if (!exprPath || !exprPath.node) return null;
+
+    const node = exprPath.node;
+
+    // Handle Identifier (simple variable reference like {name})
+    if (t.isIdentifier(node)) {
+      return analyzeIdentifier(node.name, exprPath, state);
+    }
+
+    // Handle MemberExpression (like item.name or obj.prop.value)
+    if (t.isMemberExpression(node)) {
+      return analyzeMemberExpression(exprPath, state);
+    }
+
+    // Handle CallExpression (like formatDate(item.date))
+    if (t.isCallExpression(node)) {
+      return { type: "computed", isEditable: false };
+    }
+
+    // Handle TemplateLiteral (like `Hello ${name}`)
+    if (t.isTemplateLiteral(node)) {
+      return { type: "template", isEditable: false };
+    }
+
+    // Handle ConditionalExpression (like condition ? a : b)
+    if (t.isConditionalExpression(node)) {
+      return { type: "computed", isEditable: false };
+    }
+
+    // Handle LogicalExpression (like a && b)
+    if (t.isLogicalExpression(node)) {
+      return { type: "computed", isEditable: false };
+    }
+
+    // Handle BinaryExpression (like a + b)
+    if (t.isBinaryExpression(node)) {
+      return { type: "computed", isEditable: false };
+    }
+
+    return { type: "unknown", isEditable: false };
+  }
+
+  /**
+   * Analyzes an identifier to determine its binding source
+   * @param {string} name - The identifier name
+   * @param {NodePath} exprPath - The expression path
+   * @param {Object} state - Babel state
+   * @param {Object} options - Options
+   * @param {boolean} options.skipArrayContext - Skip array iteration context check to avoid recursion
+   */
+  function analyzeIdentifier(name, exprPath, state, options = {}) {
+    const { skipArrayContext = false } = options;
+
+    const binding = exprPath.scope.getBinding(name);
+    if (!binding) {
+      return { type: "external", varName: name, isEditable: false };
+    }
+
+    const bindingPath = binding.path;
+
+    // Check if this identifier is an array iteration item parameter
+    // (e.g., `review` in `reviews.map((review) => ...)`)
+    // Skip this check when called from getArrayIterationContext to avoid infinite recursion
+    if (!skipArrayContext) {
+      const arrayContext = getArrayIterationContext(exprPath, state);
+      if (arrayContext && arrayContext.itemParam === name) {
+        return {
+          type: "static-imported",
+          varName: arrayContext.arrayVar,
+          file: arrayContext.arrayFile,
+          absFile: arrayContext.absFile,
+          line: arrayContext.arrayLine,
+          isEditable: arrayContext.isEditable,
+          valueType: "array-item",
+          arrayContext: arrayContext,
+        };
+      }
+    }
+
+    // Check for props (function parameters)
+    if (bindingPath.isIdentifier() && bindingPath.parentPath.isFunctionDeclaration()) {
+      // Try to trace the prop back to its source in the same file
+      const componentName = getContainingComponentName(exprPath);
+      const tracedSource = tracePropToSource(name, componentName, exprPath, state);
+
+      if (tracedSource && tracedSource.isEditable) {
+        return {
+          type: "prop",
+          varName: tracedSource.varName, // Use traced source's variable name (e.g., "reviews" not "review")
+          propName: name, // Keep original prop name for reference
+          tracedFrom: tracedSource,
+          file: tracedSource.file,
+          absFile: tracedSource.absFile,
+          line: tracedSource.line,
+          path: tracedSource.path,
+          isEditable: true,
+          arrayContext: tracedSource.arrayContext,
+        };
+      }
+
+      return { type: "prop", varName: name, isEditable: false };
+    }
+
+    // Check if it's a destructured prop from function params
+    if (bindingPath.isObjectPattern() ||
+        (bindingPath.parentPath && bindingPath.parentPath.isObjectPattern())) {
+      const funcParent = bindingPath.findParent(p =>
+        p.isFunctionDeclaration() || p.isArrowFunctionExpression() || p.isFunctionExpression()
+      );
+      if (funcParent && funcParent.node.params.some(param => {
+        if (t.isIdentifier(param)) return false;
+        if (t.isObjectPattern(param)) return true;
+        return false;
+      })) {
+        // Try to trace the prop back to its source in the same file
+        const componentName = getContainingComponentName(exprPath);
+        const tracedSource = tracePropToSource(name, componentName, exprPath, state);
+
+        if (tracedSource && tracedSource.isEditable) {
+          return {
+            type: "prop",
+            varName: tracedSource.varName, // Use traced source's variable name (e.g., "reviews" not "review")
+            propName: name, // Keep original prop name for reference
+            tracedFrom: tracedSource,
+            file: tracedSource.file,
+            absFile: tracedSource.absFile,
+            line: tracedSource.line,
+            path: tracedSource.path,
+            isEditable: true,
+            arrayContext: tracedSource.arrayContext,
+          };
+        }
+
+        return { type: "prop", varName: name, isEditable: false };
+      }
+    }
+
+    // Check for useState
+    if (bindingPath.isVariableDeclarator()) {
+      const init = bindingPath.node.init;
+      if (t.isCallExpression(init) && t.isIdentifier(init.callee)) {
+        const calleeName = init.callee.name;
+        if (calleeName === "useState" || calleeName === "useReducer" ||
+            calleeName === "useContext" || calleeName === "useMemo" ||
+            calleeName === "useCallback") {
+          return { type: "state", varName: name, isEditable: false };
+        }
+      }
+    }
+
+    // Check for imports
+    if (bindingPath.isImportSpecifier() || bindingPath.isImportDefaultSpecifier()) {
+      const importDecl = bindingPath.parentPath.node;
+      const source = importDecl.source.value;
+
+      // Only track @/ and ./ imports as potentially editable
+      if (source.startsWith("@/") || source.startsWith("./") || source.startsWith("../")) {
+        const fileFrom = state.filename || state.file?.opts?.filename || __filename;
+        const absPath = resolveImportPath(source, fileFrom);
+
+        if (absPath) {
+          // Get the original export name
+          let exportName = name;
+          if (bindingPath.isImportSpecifier() && t.isIdentifier(bindingPath.node.imported)) {
+            exportName = bindingPath.node.imported.name;
+          }
+
+          // Try to find the variable declaration in the imported file
+          const varInfo = findExportedVariableInfo(absPath, exportName);
+
+          return {
+            type: "static-imported",
+            varName: exportName,
+            file: source,
+            absFile: absPath,
+            line: varInfo?.line || null,
+            isEditable: varInfo?.isEditable || false,
+            valueType: varInfo?.valueType || null,
+          };
+        }
+      }
+
+      return { type: "external", varName: name, isEditable: false };
+    }
+
+    // Check for local const declarations
+    if (bindingPath.isVariableDeclarator()) {
+      const parent = bindingPath.parentPath;
+      if (parent.isVariableDeclaration() && parent.node.kind === "const") {
+        const init = bindingPath.node.init;
+
+        // Get the current file path for local variables
+        const currentFile = state.filename || state.file?.opts?.filename || null;
+
+        // Check if it's a simple editable value
+        if (t.isStringLiteral(init) || t.isNumericLiteral(init)) {
+          return {
+            type: "static-local",
+            varName: name,
+            absFile: currentFile,
+            line: bindingPath.node.loc?.start.line || null,
+            isEditable: true,
+            valueType: "literal",
+          };
+        }
+
+        if (t.isArrayExpression(init)) {
+          return {
+            type: "static-local",
+            varName: name,
+            absFile: currentFile,
+            line: bindingPath.node.loc?.start.line || null,
+            isEditable: true,
+            valueType: "array",
+          };
+        }
+
+        if (t.isObjectExpression(init)) {
+          return {
+            type: "static-local",
+            varName: name,
+            absFile: currentFile,
+            line: bindingPath.node.loc?.start.line || null,
+            isEditable: true,
+            valueType: "object",
+          };
+        }
+      }
+    }
+
+    return { type: "unknown", varName: name, isEditable: false };
+  }
+
+  /**
+   * Analyzes a member expression like item.name or obj.prop.value
+   */
+  function analyzeMemberExpression(exprPath, state, options = {}) {
+    const node = exprPath.node;
+
+    // Build the property path (e.g., "name" or "address.city")
+    const propPath = buildPropertyPath(node);
+
+    // Get the root object
+    let root = node;
+    while (t.isMemberExpression(root.object)) {
+      root = root.object;
+    }
+
+    const rootObj = root.object;
+
+    if (t.isIdentifier(rootObj)) {
+      const rootName = rootObj.name;
+
+      // Check if we're inside an array iteration (like .map())
+      // Skip if we're already analyzing the array source to prevent infinite recursion
+      const arrayContext = options.skipArrayContext
+        ? null
+        : getArrayIterationContext(exprPath, state);

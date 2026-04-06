@@ -1,0 +1,320 @@
+
+        async def _run_async():
+            for model_id in request.models:
+                pmc = (request.per_model_context or {}).get(model_id)
+                ctx = _build_context(history, request.message, request.global_context or "",
+                                     pmc.role if pmc and pmc.role else "",
+                                     pmc.prompt_modifier if pmc and pmc.prompt_modifier else "")
+                resp = await _run_model(model_id, ctx, thread_id, user_id, current_user, registry)
+                _jobs[job_id]["responses"].append(resp.model_dump())
+            _jobs[job_id]["status"] = "completed"
+
+        asyncio.create_task(_run_async())
+        return PromptResponse(
+            thread_id=thread_id,
+            responses=[],
+            event_ids=[evt["event_id"]],
+            provenance=build_provenance(),
+            sentinel_context=build_sentinel_context(),
+        )
+
+    # Synchronous: run all models concurrently
+    tasks = []
+    for model_id in request.models:
+        pmc = (request.per_model_context or {}).get(model_id)
+        ctx = _build_context(history, request.message, request.global_context or "",
+                             pmc.role if pmc and pmc.role else "",
+                             pmc.prompt_modifier if pmc and pmc.prompt_modifier else "")
+        tasks.append(_run_model(model_id, ctx, thread_id, user_id, current_user, registry))
+
+    responses = await asyncio.gather(*tasks)
+
+    return PromptResponse(
+        thread_id=thread_id,
+        responses=list(responses),
+        event_ids=[evt["event_id"]],
+        provenance=build_provenance(),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+@router.post("/prompt-single", response_model=PromptResponse)
+async def prompt_single(
+    request: PromptSingleRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Single model call."""
+    user_id = get_user_id(current_user)
+    thread_id = request.thread_id or f"thr_{uuid.uuid4().hex[:16]}"
+    registry = await _get_user_registry(current_user)
+
+    await _ensure_thread(thread_id, user_id, request.message[:80])
+
+    user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+    await _persist_message(user_msg_id, thread_id, user_id, "user", request.message, "user")
+
+    history = await db.messages.find(
+        {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+    ).sort("timestamp", 1).limit(30).to_list(30)
+
+    ctx = _build_context(history, request.message, request.global_context or "",
+                         system_override=request.system_message or "")
+    resp = await _run_model(request.model, ctx, thread_id, user_id, current_user, registry)
+
+    return PromptResponse(
+        thread_id=thread_id,
+        responses=[resp],
+        provenance=build_provenance(model=request.model),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+@router.post("/synthesize", response_model=PromptResponse)
+async def synthesize(
+    request: SynthesizeRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Feed one or more model responses into other models as a new prompt."""
+    user_id = get_user_id(current_user)
+    registry = await _get_user_registry(current_user)
+
+    # Fetch source messages
+    source_msgs = []
+    for mid in request.source_message_ids:
+        msg = await db.messages.find_one({"message_id": mid, "user_id": user_id}, {"_id": 0})
+        if msg:
+            source_msgs.append(msg)
+
+    if not source_msgs:
+        raise HTTPException(status_code=404, detail="No source messages found")
+
+    # Build synthesis prompt
+    response_texts = []
+    for msg in source_msgs:
+        model_name = msg.get("model", "unknown")
+        response_texts.append(f"Response from {model_name}:\n{msg.get('content', '')}")
+
+    combined = f"{request.synthesis_prompt}\n\n" + "\n\n---\n\n".join(response_texts)
+
+    thread_id = request.thread_id or source_msgs[0].get("thread_id", f"thr_{uuid.uuid4().hex[:16]}")
+    await _ensure_thread(thread_id, user_id, f"Synthesis: {request.synthesis_prompt[:60]}")
+
+    # Persist synthesis prompt as user message
+    user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+    await _persist_message(user_msg_id, thread_id, user_id, "user", combined, "synthesis")
+    await emit_event("turn", thread_id, f"user:{user_id}", {
+        "message_id": user_msg_id, "role": "user", "type": "synthesis",
+        "source_ids": request.source_message_ids,
+    })
+
+    history = await db.messages.find(
+        {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+    ).sort("timestamp", 1).limit(30).to_list(30)
+
+    tasks = []
+    for model_id in request.target_models:
+        ctx = _build_context(history, combined)
+        tasks.append(_run_model(model_id, ctx, thread_id, user_id, current_user, registry))
+
+    responses = await asyncio.gather(*tasks)
+
+    return PromptResponse(
+        thread_id=thread_id,
+        responses=list(responses),
+        provenance=build_provenance(),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+@router.post("/batch", response_model=PromptResponse)
+async def batch_chain(
+    request: BatchRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Sequential prompt chains — same room, individual rooms, or combos."""
+    user_id = get_user_id(current_user)
+    thread_id = request.thread_id or f"thr_{uuid.uuid4().hex[:16]}"
+    registry = await _get_user_registry(current_user)
+
+    await _ensure_thread(thread_id, user_id, f"Batch: {request.steps[0].message[:60]}" if request.steps else "Batch")
+
+    all_responses: List[ModelResponse] = []
+    prev_responses: Dict[str, str] = {}  # model -> last response content
+
+    for step_idx, step in enumerate(request.steps):
+        # Build message with optional previous responses
+        msg = step.message
+        if step.feed_responses_to_next and prev_responses:
+            feed_text = "\n\n---\n\n".join(
+                f"Previous response from {m}:\n{c}" for m, c in prev_responses.items()
+            )
+            msg = f"{msg}\n\n[PREVIOUS RESPONSES]\n{feed_text}"
+
+        # Persist step's user message
+        user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+        await _persist_message(user_msg_id, thread_id, user_id, "user", msg, "batch")
+
+        history = await db.messages.find(
+            {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+        ).sort("timestamp", 1).limit(30).to_list(30)
+
+        step_responses = []
+        for model_id in step.models:
+            pmc = (step.per_model_context or {}).get(model_id)
+            ctx = _build_context(history, msg, role_override=pmc.role if pmc and pmc.role else "",
+                                 prompt_modifier=pmc.prompt_modifier if pmc and pmc.prompt_modifier else "")
+            resp = await _run_model(model_id, ctx, thread_id, user_id, current_user, registry)
+            step_responses.append(resp)
+            prev_responses[model_id] = resp.content
+
+        all_responses.extend(step_responses)
+
+    return PromptResponse(
+        thread_id=thread_id,
+        responses=all_responses,
+        provenance=build_provenance(),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+@router.post("/shared-room", response_model=PromptResponse)
+async def shared_room(
+    request: SharedRoomRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Shared room: models respond, then see each other's responses for N rounds.
+
+    mode="all": each model gets every other model's response
+    mode="synthesized": responses are synthesized first, then shared
+    """
+    user_id = get_user_id(current_user)
+    thread_id = request.thread_id or f"thr_{uuid.uuid4().hex[:16]}"
+    registry = await _get_user_registry(current_user)
+
+    await _ensure_thread(thread_id, user_id, f"Shared Room: {request.message[:60]}")
+
+    # Persist initial user message
+    user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+    await _persist_message(user_msg_id, thread_id, user_id, "user", request.message, "user")
+    await emit_event("turn", thread_id, f"user:{user_id}", {
+        "message_id": user_msg_id, "role": "user", "type": "shared_room",
+        "mode": request.mode, "rounds": request.rounds,
+    })
+
+    all_responses: List[ModelResponse] = []
+
+    for round_num in range(request.rounds):
+        if round_num == 0:
+            # First round: normal fan-out
+            tasks = []
+            for model_id in request.models:
+                pmc = (request.per_model_context or {}).get(model_id)
+                history = await db.messages.find(
+                    {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+                ).sort("timestamp", 1).limit(30).to_list(30)
+                ctx = _build_context(
+                    history, request.message,
+                    global_context=request.global_context or "",
+                    role_override=pmc.role if pmc and pmc.role else "",
+                    prompt_modifier=pmc.prompt_modifier if pmc and pmc.prompt_modifier else "",
+                )
+                tasks.append(_run_model(model_id, ctx, thread_id, user_id, current_user, registry))
+            round_responses = await asyncio.gather(*tasks)
+            all_responses.extend(round_responses)
+        else:
+            # Subsequent rounds: share previous round's responses
+            prev_round = all_responses[-(len(request.models)):]
+
+            if request.mode == "synthesized" and request.synthesis_model:
+                # Synthesize first, then share synthesis
+                synth_input = "\n\n---\n\n".join(
+                    f"Response from {r.model}:\n{r.content}" for r in prev_round if not r.error
+                )
+                synth_prompt = f"[ROUND {round_num} SYNTHESIS]\nSynthesize these model responses:\n\n{synth_input}"
+                synth_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+                await _persist_message(synth_msg_id, thread_id, user_id, "user", synth_prompt, "synthesis")
+
+                synth_history = await db.messages.find(
+                    {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+                ).sort("timestamp", 1).limit(30).to_list(30)
+                synth_ctx = _build_context(synth_history, synth_prompt, global_context=request.global_context or "")
+                synth_resp = await _run_model(request.synthesis_model, synth_ctx, thread_id, user_id, current_user, registry)
+                all_responses.append(synth_resp)
+
+                # Now share synthesis with all models
+                share_text = f"[ROUND {round_num + 1} — respond to the synthesis]\n\nSynthesis by {request.synthesis_model}:\n{synth_resp.content}\n\nOriginal prompt: {request.message}"
+            else:
+                # Share all responses directly
+                share_text = f"[ROUND {round_num + 1} — respond after seeing other models' responses]\n\n"
+                share_text += "\n\n---\n\n".join(
+                    f"Response from {r.model}:\n{r.content}" for r in prev_round if not r.error
+                )
+                share_text += f"\n\nOriginal prompt: {request.message}"
+
+            share_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+            await _persist_message(share_msg_id, thread_id, user_id, "user", share_text, "shared_room")
+
+            tasks = []
+            for model_id in request.models:
+                pmc = (request.per_model_context or {}).get(model_id)
+                history = await db.messages.find(
+                    {"thread_id": thread_id, "user_id": user_id}, {"_id": 0},
+                ).sort("timestamp", 1).limit(30).to_list(30)
+                ctx = _build_context(
+                    history, share_text,
+                    global_context=request.global_context or "",
+                    role_override=pmc.role if pmc and pmc.role else "",
+                    prompt_modifier=pmc.prompt_modifier if pmc and pmc.prompt_modifier else "",
+                )
+                tasks.append(_run_model(model_id, ctx, thread_id, user_id, current_user, registry))
+            round_responses = await asyncio.gather(*tasks)
+            all_responses.extend(round_responses)
+
+    return PromptResponse(
+        thread_id=thread_id,
+        responses=all_responses,
+        provenance=build_provenance(),
+        sentinel_context=build_sentinel_context(),
+    )
+
+
+@router.post("/daisy-chain", response_model=PromptResponse)
+async def daisy_chain(
+    request: DaisyChainRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Daisy chain: model[0] → model[1] → ... → model[n] for N rounds.
+
+    Each model's response becomes the next model's prompt.
+    A round = each model gives one response.
+    """
+    user_id = get_user_id(current_user)
+    thread_id = request.thread_id or f"thr_{uuid.uuid4().hex[:16]}"
+    registry = await _get_user_registry(current_user)
+
+    await _ensure_thread(thread_id, user_id, f"Daisy Chain: {request.message[:60]}")
+
+    # Persist initial user message
+    user_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+    await _persist_message(user_msg_id, thread_id, user_id, "user", request.message, "user")
+    await emit_event("turn", thread_id, f"user:{user_id}", {
+        "message_id": user_msg_id, "role": "user", "type": "daisy_chain",
+        "rounds": request.rounds, "chain": request.models,
+    })
+
+    all_responses: List[ModelResponse] = []
+    last_response_content = request.message
+
+    for round_num in range(request.rounds):
+        for model_idx, model_id in enumerate(request.models):
+            pmc = (request.per_model_context or {}).get(model_id)
+
+            if round_num == 0 and model_idx == 0:
+                prompt_text = request.message
+            else:
+                prev_model = all_responses[-1].model if all_responses else "user"
+                prompt_text = f"[Chain Round {round_num + 1}, Step {model_idx + 1}]\n\nPrevious response from {prev_model}:\n{last_response_content}\n\nOriginal prompt: {request.message}"
+
+            chain_msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+            await _persist_message(chain_msg_id, thread_id, user_id, "user", prompt_text, "daisy_chain")
+

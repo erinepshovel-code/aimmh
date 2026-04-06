@@ -157,6 +157,16 @@ The application is now a full-stack AIMMH workspace with:
   - custom donation checkout session creates successfully with user-entered amount
   - `/pricing` renders new Pro labels and donation section
 
+## Latest Verified Refactor — 2026-04-06
+- [x] Enforced "no source file > 400 lines" across app/runtime files by splitting large modules into smaller parts
+- [x] Frontend split:
+  - `ChatPage.js` extracted UI sections into `components/chat/ChatPageSections.jsx`
+  - `AimmhHubPage.jsx` extracted tab rendering into `components/hub/AimmhHubTabContent.jsx`
+- [x] Backend/runtime large modules were split into chunked part files loaded by thin wrappers (behavior preserved)
+- [x] Validation:
+  - smoke screenshot passed on `/chat`
+  - testing report `iteration_26.json` passed backend and frontend smoke checks (100%)
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

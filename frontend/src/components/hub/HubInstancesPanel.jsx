@@ -87,10 +87,10 @@ export function HubInstancesPanel({
         setUpgradeModal({
           open: true,
           title: 'Instance limit reached',
-          description: 'Free tier supports up to 3 active agents. Upgrade to Pro to create more.',
+          description: 'Free tier supports up to 3 active instances. Upgrade to Pro to create more.',
           currentCount: activeInstanceCount,
           maxAllowed: maxInstances,
-          contextLabel: 'Active agents',
+          contextLabel: 'Active instances',
         });
         return;
       }
@@ -124,7 +124,7 @@ export function HubInstancesPanel({
           description: error.message || 'Your free-tier limit has been reached. Upgrade to continue.',
           currentCount: isPersonaLimit ? activePersonaCount : activeInstanceCount,
           maxAllowed: isPersonaLimit ? maxPersonas : maxInstances,
-          contextLabel: isPersonaLimit ? 'Saved personas' : 'Active agents',
+          contextLabel: isPersonaLimit ? 'Saved personas' : 'Active instances',
         });
       }
     }

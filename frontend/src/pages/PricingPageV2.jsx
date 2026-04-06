@@ -29,12 +29,12 @@ const FALLBACK_CATALOG = [
   {
     package_id: 'pro_monthly', name: 'Pro — $31 / month', amount: 31.0, currency: 'usd', billing_type: 'monthly',
     category: 'pro', description: 'Unlimited AIMMH access with advanced synthesis and priority support.',
-    features: ['Unlimited agents and personas', 'Unlimited runs', 'Unlimited connected keys', 'Advanced synthesis', 'Priority support'],
+    features: ['Unlimited instances and personas', 'Unlimited runs', 'Unlimited connected keys', 'Advanced synthesis', 'Priority support'],
   },
   {
     package_id: 'pro_yearly', name: 'Pro — $313 / year', amount: 313.0, currency: 'usd', billing_type: 'yearly',
     category: 'pro', description: 'Yearly Pro access at a discount.',
-    features: ['Unlimited agents and personas', 'Unlimited runs', 'Unlimited connected keys', 'Advanced synthesis', 'Priority support'],
+    features: ['Unlimited instances and personas', 'Unlimited runs', 'Unlimited connected keys', 'Advanced synthesis', 'Priority support'],
   },
   {
     package_id: 'team_monthly', name: 'Team — $49 / month (3 seats)', amount: 49.0, currency: 'usd', billing_type: 'monthly',
@@ -205,7 +205,7 @@ export default function PricingPageV2() {
           {summary && (
             <div className="mt-5 flex flex-wrap gap-2 text-xs" data-testid="pricing-v2-summary-chips">
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-current-tier-chip">Current tier: {summary.current_tier}</span>
-              <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-instances-chip">Agents: {summary.max_instances === null ? 'Unlimited' : summary.max_instances}</span>
+              <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-instances-chip">Instances: {summary.max_instances === null ? 'Unlimited' : summary.max_instances}</span>
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-personas-chip">Personas: {summary.max_personas === null ? 'Unlimited' : summary.max_personas}</span>
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-keys-chip">Connected keys: {summary.max_connected_keys === null ? 'Unlimited' : summary.max_connected_keys}</span>
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-runs-chip">Runs / month: {summary.max_runs_per_month === null ? 'Unlimited' : summary.max_runs_per_month}</span>
@@ -219,7 +219,7 @@ export default function PricingPageV2() {
             <div className="text-xs uppercase tracking-[0.22em] text-zinc-500">Free</div>
             <div className="mt-2 text-3xl font-semibold text-zinc-50">$0</div>
             <ul className="mt-4 space-y-2 text-sm text-zinc-300">
-              <li>• Max 3 active agents</li>
+              <li>• Max 3 active instances</li>
               <li>• Max 3 saved personas</li>
               <li>• Max 1 connected BYOK key</li>
               <li>• Light batch + monthly usage limits</li>
@@ -282,7 +282,7 @@ export default function PricingPageV2() {
               <div className="flex items-center gap-2 text-zinc-100"><Users size={16} /> Perk summary</div>
               <ul className="mt-4 space-y-2 text-sm text-zinc-300" data-testid="pricing-v2-perk-summary-list">
                 <li>• Supporter: remove badge, higher usage limits, Hall of Makers access</li>
-                <li>• Pro: unlimited agents, personas, runs, and connected keys</li>
+                <li>• Pro: unlimited instances, personas, runs, and connected keys</li>
                 <li>• Team: Pro + seat-aware billing foundation for teams</li>
                 <li>• Paid tiers hide the Made with Emergent badge automatically</li>
               </ul>

@@ -55,7 +55,7 @@ DEFAULT_REGISTRY = {
             {"model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash"},
             {"model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro"},
             {"model_id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash"},
-            {"model_id": "gemini-2.5-flash-lite", "display_name": "Gemini 2.5 Flash Lite"},
+            {"model_id": "gemini-2.0-flash-lite", "display_name": "Gemini 2.0 Flash Lite"},
         ],
     },
     "xai": {

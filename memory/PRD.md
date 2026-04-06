@@ -166,6 +166,10 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Validation:
   - smoke screenshot passed on `/chat`
   - testing report `iteration_26.json` passed backend and frontend smoke checks (100%)
+- [x] Added CI guard for max file length:
+  - script: `/app/scripts/check_max_lines.py`
+  - workflow: `/.github/workflows/line-length-guard.yml`
+  - enforces max 400 lines on checked source files
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview

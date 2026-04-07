@@ -5,10 +5,16 @@ import { hubApi } from '../../lib/hubApi';
 import { paymentsApi } from '../../lib/paymentsApi';
 import { UpgradeToProModal } from '../ui/UpgradeToProModal';
 
-function SourceSelector({ title, selected, onToggle, sourceOptions, testIdPrefix }) {
+function SourceSelector({ title, selected, onToggle, onSelectAll, onClearAll, sourceOptions, testIdPrefix }) {
   return (
     <div className="space-y-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`${testIdPrefix}-selector`}>
-      <div className="text-xs font-medium text-zinc-300">{title}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-medium text-zinc-300">{title}</div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onSelectAll} className="rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300" data-testid={`${testIdPrefix}-select-all-button`}>Select all</button>
+          <button type="button" onClick={onClearAll} className="rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-400" data-testid={`${testIdPrefix}-clear-all-button`}>Clear</button>
+        </div>
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {sourceOptions.map((option) => {
           const checked = selected.some((item) => item.source_type === option.source_type && item.source_id === option.source_id);
@@ -24,12 +30,13 @@ function SourceSelector({ title, selected, onToggle, sourceOptions, testIdPrefix
     </div>
   );
 }
-
 function toggleSource(list, option) {
   const exists = list.some((item) => item.source_type === option.source_type && item.source_id === option.source_id);
   return exists ? list.filter((item) => !(item.source_type === option.source_type && item.source_id === option.source_id)) : [...list, { source_type: option.source_type, source_id: option.source_id }];
 }
-
+function allSources(sourceOptions) {
+  return sourceOptions.map((option) => ({ source_type: option.source_type, source_id: option.source_id }));
+}
 function StageCard({ index, stage, sourceOptions, instanceOptions, patternOptions, onChange, onRemove }) {
   const isRoleplay = stage.pattern === 'roleplay';
   const isSynthRoom = stage.pattern === 'room_synthesized';
@@ -104,18 +111,41 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, patternOption
 
       {isRoleplay ? (
         <div className="mt-4 space-y-3">
-          <SourceSelector title="Player participants" selected={stage.player_participants} sourceOptions={sourceOptions} onToggle={(option) => onChange({ ...stage, player_participants: toggleSource(stage.player_participants, option) })} testIdPrefix={`${stageId}-player-participants`} />
+          <SourceSelector
+            title="Player participants"
+            selected={stage.player_participants}
+            sourceOptions={sourceOptions}
+            onToggle={(option) => onChange({ ...stage, player_participants: toggleSource(stage.player_participants, option) })}
+            onSelectAll={() => onChange({ ...stage, player_participants: allSources(sourceOptions) })}
+            onClearAll={() => onChange({ ...stage, player_participants: [] })}
+            testIdPrefix={`${stageId}-player-participants`}
+          />
           <div className="grid gap-3 lg:grid-cols-2">
+            <select
+              value={stage.dm_group_id ? 'group' : stage.dm_instance_id ? 'instance' : 'auto'}
+              onChange={(e) => {
+                const mode = e.target.value;
+                if (mode === 'instance') onChange({ ...stage, dm_group_id: '' });
+                else if (mode === 'group') onChange({ ...stage, dm_instance_id: '' });
+                else onChange({ ...stage, dm_instance_id: '', dm_group_id: '' });
+              }}
+              data-testid={`${stageId}-dm-gm-mode-select`}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 lg:col-span-2"
+            >
+              <option value="auto">DM/GM host: Auto from participants</option>
+              <option value="instance">DM/GM host: Fixed instance</option>
+              <option value="group">DM/GM host: Rotation group</option>
+            </select>
             <select value={stage.dm_instance_id} onChange={(e) => onChange({ ...stage, dm_instance_id: e.target.value, dm_group_id: '' })}
               data-testid={`${stageId}-dm-instance-select`}
               className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
-              <option value="">Fixed DM instance (optional)</option>
+              <option value="">Fixed DM/GM instance (optional)</option>
               {instanceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             <select value={stage.dm_group_id} onChange={(e) => onChange({ ...stage, dm_group_id: e.target.value, dm_instance_id: '' })}
               data-testid={`${stageId}-dm-group-select`}
               className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
-              <option value="">DM rotation group (optional)</option>
+              <option value="">DM/GM rotation group (optional)</option>
               {sourceOptions.filter((option) => option.source_type === 'group').map((option) => <option key={option.source_id} value={option.source_id}>{option.label}</option>)}
             </select>
             <input type="number" min={10} max={2000} value={stage.action_word_limit ?? ''} onChange={updateNumericField('action_word_limit')} onBlur={normalizeNumericField('action_word_limit', 120, 10, 2000)}
@@ -130,7 +160,15 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, patternOption
         </div>
       ) : (
         <div className="mt-4 space-y-3">
-          <SourceSelector title="Participants" selected={stage.participants} sourceOptions={sourceOptions} onToggle={(option) => onChange({ ...stage, participants: toggleSource(stage.participants, option) })} testIdPrefix={`${stageId}-participants`} />
+          <SourceSelector
+            title="Participants"
+            selected={stage.participants}
+            sourceOptions={sourceOptions}
+            onToggle={(option) => onChange({ ...stage, participants: toggleSource(stage.participants, option) })}
+            onSelectAll={() => onChange({ ...stage, participants: allSources(sourceOptions) })}
+            onClearAll={() => onChange({ ...stage, participants: [] })}
+            testIdPrefix={`${stageId}-participants`}
+          />
           {isSynthRoom && (
             <div className="grid gap-3 lg:grid-cols-2">
               <select value={stage.synthesis_instance_id} onChange={(e) => onChange({ ...stage, synthesis_instance_id: e.target.value, synthesis_group_id: '' })}
@@ -170,6 +208,15 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
       ? PATTERN_OPTIONS.filter((option) => option.value === 'roleplay')
       : PATTERN_OPTIONS.filter((option) => option.value !== 'roleplay')
   ), [runMode]);
+  const defaultStage = React.useMemo(() => {
+    const base = createEmptyStage();
+    if (runMode === 'roleplay') {
+      return { ...base, pattern: 'roleplay', player_participants: allSources(sourceOptions) };
+    }
+    return { ...base, pattern: 'fan_out', participants: allSources(sourceOptions) };
+  }, [runMode, sourceOptions]);
+
+  const stageFromRunMode = React.useCallback(() => ({ ...defaultStage }), [defaultStage]);
 
   React.useEffect(() => {
     setStages((prev) => prev.map((stage) => {
@@ -191,12 +238,12 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
         if (!active) return;
         setLabel(state?.payload?.label || '');
         setPrompt(state?.payload?.prompt || '');
-        setStages(Array.isArray(state?.payload?.stages) && state.payload.stages.length > 0 ? state.payload.stages : [createEmptyStage()]);
+        setStages(Array.isArray(state?.payload?.stages) && state.payload.stages.length > 0 ? state.payload.stages : [stageFromRunMode()]);
       } catch {
         if (!active) return;
         setLabel('');
         setPrompt('');
-        setStages([createEmptyStage()]);
+        setStages([stageFromRunMode()]);
       } finally {
         if (active) setDraftLoaded(true);
       }
@@ -248,7 +295,7 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
       setShowStageLimitModal(true);
       return;
     }
-    setStages((prev) => [...prev, createEmptyStage()]);
+    setStages((prev) => [...prev, stageFromRunMode()]);
   };
 
   const submit = async (event) => {
@@ -280,7 +327,7 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
       });
       setLabel('');
       setPrompt('');
-      setStages([runMode === 'roleplay' ? { ...createEmptyStage(), pattern: 'roleplay' } : createEmptyStage()]);
+      setStages([stageFromRunMode()]);
       hubApi.deleteState(runDraftKey).catch(() => {});
     } catch (error) {
       if (String(error?.message || '').toLowerCase().includes('persona stages')) {

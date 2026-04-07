@@ -200,6 +200,21 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Stability fix after testing report `iteration_27.json`:
   - resolved React maximum update depth issue in synthesis/tab navigation effects
 
+## Latest Bug Fix Pass — 2026-04-07 (post-user validation)
+- [x] Run-builder usability fixes after user feedback:
+  - added **Select all** + **Clear** controls for Batch participants
+  - added **Select all** + **Clear** controls for Roleplay player participants
+  - added explicit **DM/GM host mode** selector for roleplay (`auto`, `fixed instance`, `rotation group`)
+  - relabeled DM fields to DM/GM for clarity
+- [x] Better out-of-box execution defaults:
+  - batch stage defaults to selecting all available sources
+  - roleplay stage defaults to selecting all available player participants
+  - chat recipients now auto-select active instances when none are selected
+- [x] Backend execution verified with fresh account:
+  - batch run executes successfully
+  - roleplay run executes successfully
+  - direct chat prompt executes successfully
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

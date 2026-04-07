@@ -62,6 +62,14 @@ export function HubMultiChatPanel({
   }, [chatDraftKey, draftLoaded, prompt, selectedInstanceIds]);
 
   React.useEffect(() => {
+    if (activeInstances.length === 0) return;
+    setSelectedInstanceIds((prev) => {
+      if (prev.length > 0) return prev.filter((id) => activeInstances.some((item) => item.instance_id === id));
+      return activeInstances.map((item) => item.instance_id);
+    });
+  }, [activeInstances]);
+
+  React.useEffect(() => {
     if (prompts.length === 0) {
       setPromptIndex(0);
       return;

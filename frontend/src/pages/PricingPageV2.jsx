@@ -209,6 +209,9 @@ export default function PricingPageV2() {
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-personas-chip">Personas: {summary.max_personas === null ? 'Unlimited' : summary.max_personas}</span>
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-keys-chip">Connected keys: {summary.max_connected_keys === null ? 'Unlimited' : summary.max_connected_keys}</span>
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-max-runs-chip">Runs / month: {summary.max_runs_per_month === null ? 'Unlimited' : summary.max_runs_per_month}</span>
+              <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-daily-chats-chip">Chats / 24h: {summary.daily_chats_per_24h === null || summary.daily_chats_per_24h === undefined ? 'Unlimited' : summary.daily_chats_per_24h}</span>
+              <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-daily-batch-runs-chip">Batch runs / 24h: {summary.daily_batch_runs_per_24h === null || summary.daily_batch_runs_per_24h === undefined ? 'Unlimited' : summary.daily_batch_runs_per_24h}</span>
+              <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-daily-roleplay-runs-chip">Roleplay runs / 24h: {summary.daily_roleplay_runs_per_24h === null || summary.daily_roleplay_runs_per_24h === undefined ? 'Unlimited' : summary.daily_roleplay_runs_per_24h}</span>
               <span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-300" data-testid="pricing-v2-hide-badge-chip">Hide badge: {summary.hide_emergent_badge ? 'Yes' : 'No'}</span>
             </div>
           )}
@@ -219,10 +222,11 @@ export default function PricingPageV2() {
             <div className="text-xs uppercase tracking-[0.22em] text-zinc-500">Free</div>
             <div className="mt-2 text-3xl font-semibold text-zinc-50">$0</div>
             <ul className="mt-4 space-y-2 text-sm text-zinc-300">
-              <li>• Max 3 active instances</li>
+              <li>• Max 5 active instances</li>
               <li>• Max 3 saved personas</li>
               <li>• Max 1 connected BYOK key</li>
-              <li>• Light batch + monthly usage limits</li>
+              <li>• 25 chats per 24h</li>
+              <li>• 5 batch runs + 2 roleplay runs per 24h</li>
               <li>• Made with Emergent badge remains visible</li>
             </ul>
           </article>

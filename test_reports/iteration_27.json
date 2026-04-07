@@ -1,0 +1,117 @@
+{
+  "summary": "Iteration 27: UX/Logic Changes Testing - Backend 13/13 PASSED, Frontend tabs and features verified with one critical bug found",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AimmhHubPage/HubSynthesisPanel",
+        "issue": "React 'Maximum update depth exceeded' error in console when navigating tabs - indicates infinite loop in useEffect",
+        "selector": "N/A - console error",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "test_report_links": [
+    "/app/backend/tests/test_iteration27_ux_quotas.py",
+    "/app/test_reports/pytest/pytest_iteration27.xml"
+  ],
+  
+  "action_items": [
+    "FIX: React 'Maximum update depth exceeded' error - likely in AimmhHubPage.jsx useEffect dependencies (lines 200, 227 per eslint warnings)",
+    "NOTE: Route is /chat not /hub - /hub returns blank page (no route defined)"
+  ],
+  
+  "critical_code_review_comments": [
+    "React useEffect dependency warnings in AimmhHubPage.jsx (lines 200, 227) - CLAUDE_MD_CONTEXT is outer scope value causing unnecessary re-renders",
+    "RegistryManager.jsx line 67 has missing dependency 'fetchRegistry' in useEffect"
+  ],
+  
+  "updated_files": [
+    "/app/backend/tests/test_iteration27_ux_quotas.py"
+  ],
+  
+  "success_rate": {
+    "backend": "100% - 13/13 tests passed",
+    "frontend": "95% - All tabs render, one console error"
+  },
+  
+  "test_credentials": {
+    "note": "Fresh users registered for each test session via /api/auth/register with username field, returns access_token"
+  },
+  
+  "seed_data_creation": "None required",
+  
+  "retest_needed": true,
+  
+  "should_main_agent_self_test": true,
+  
+  "context_for_next_testing_agent": "Route is /chat not /hub. Auth returns access_token not token. React infinite loop error in console needs investigation in AimmhHubPage.jsx useEffect hooks.",
+  
+  "tests_executed": {
+    "backend_api_tests": {
+      "status": "PASS (13/13)",
+      "details": {
+        "test_health_check": "PASS - Returns status=ok",
+        "test_payments_summary_requires_auth": "PASS - Returns 401 for unauthenticated",
+        "test_payments_summary_free_tier_limits": "PASS - max_instances=5, daily_chats=25, daily_batch=5, daily_roleplay=2",
+        "test_guest_access_with_x_guest_id": "PASS - Guest access works",
+        "test_hub_instances_list_guest": "PASS - Guest can list instances",
+        "test_batch_run_disallows_roleplay_stage": "PASS - Returns 422 for batch run with roleplay stage",
+        "test_roleplay_run_requires_roleplay_stage": "PASS - Returns 422 for roleplay run without roleplay stage",
+        "test_welcome_model_metadata_flag": "PASS - Instance with welcome_model metadata created",
+        "test_runs_list_endpoint": "PASS - Returns runs list",
+        "test_chat_prompts_list_endpoint": "PASS - Returns prompts list",
+        "test_syntheses_list_endpoint": "PASS - Returns batches list",
+        "test_instances_list": "PASS - Returns instances list",
+        "test_instances_include_archived_param": "PASS - include_archived parameter works"
+      }
+    },
+    "frontend_ui_tests": {
+      "status": "PASS with warnings",
+      "details": {
+        "hub_page_load": "PASS - /chat loads with splash screen",
+        "splash_screen_dismiss": "PASS - 'Enter AIMMH' button dismisses splash",
+        "all_7_tabs_present": "PASS - Claude.md, Registry, Instances, Batch Runs, Roleplay Runs, Chat, Synthesis",
+        "pricing_button": "PASS - Pricing button present",
+        "create_account_cta": "PASS - Create account button shows confirmation dialog for guests",
+        "sign_in_button": "PASS - Sign in button present",
+        "guide_chat_toggle": "PASS - Guide chat toggle button present",
+        "chat_tab_content": "PASS - Multi-chat panel, recipient list, prompt carousel, send button all present",
+        "synthesis_tab_content": "PASS - Synthesis queue, run controls, instruction input, history section all present",
+        "batch_runs_tab": "PASS - Pipeline builder for non-roleplay batch pipelines",
+        "roleplay_runs_tab": "PASS - Pipeline builder for roleplay sequences (DM/player style)",
+        "registry_tab": "PASS - Registry tree with OpenAI, Anthropic, Google providers"
+      }
+    }
+  },
+  
+  "features_verified": [
+    "Backend: /api/payments/summary returns free max_instances=5 and daily limits (25 chats, 5 batch, 2 roleplay)",
+    "Backend: /api/v1/hub/runs enforces batch vs roleplay validation (422 for invalid combinations)",
+    "Backend: Guest access works with X-Guest-Id header",
+    "Frontend: Hub has 7 dedicated tabs including Batch Runs and Roleplay Runs",
+    "Frontend: Chat tab shows prompt carousel with lock-to-stack behavior (max 3)",
+    "Frontend: Chat tab has 'Send to synthesis' action on responses",
+    "Frontend: Synthesis tab shows queue from Chat, supports remove and checkbox selection",
+    "Frontend: Synthesis history default is session-only with save option for authenticated users",
+    "Frontend: Create account CTA shows confirmation dialog before navigation",
+    "Frontend: Registry tab shows all providers with non-archived instances"
+  ],
+  
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "details": "Stripe test-mode behavior (not in scope)"
+  },
+  
+  "pricing_page_verification": {
+    "free_tier_limits_displayed": "Max 5 active instances, Max 3 saved personas, Max 1 connected BYOK key, 25 chats per 24h, 5 batch runs + 2 roleplay runs per 24h"
+  }
+}

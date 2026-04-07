@@ -67,9 +67,37 @@ async def unarchive_group(group_id: str, current_user: dict = Depends(get_curren
 
 
 @router.post("/runs", response_model=HubRunDetailResponse)
-async def create_hub_run(req: HubRunRequest, current_user: dict = Depends(get_current_user)):
+async def create_hub_run(req: HubRunRequest, request: Request, current_user: dict = Depends(get_current_user)):
     user_id = get_user_id(current_user)
     billing_profile = await get_user_billing_profile(user_id)
+    run_mode = _resolved_run_mode(req)
+
+    if run_mode == "batch" and any(stage.pattern == "roleplay" for stage in req.stages):
+        raise HTTPException(status_code=422, detail="Batch runs cannot include roleplay stages. Use the Roleplay tab.")
+    if run_mode == "roleplay" and not any(stage.pattern == "roleplay" for stage in req.stages):
+        raise HTTPException(status_code=422, detail="Roleplay runs require at least one roleplay stage.")
+
+    daily_batch_runs = billing_profile.get("daily_batch_runs_per_24h")
+    daily_roleplay_runs = billing_profile.get("daily_roleplay_runs_per_24h")
+    if run_mode == "roleplay":
+        await consume_non_paying_daily_quota(
+            current_user=current_user,
+            billing_profile=billing_profile,
+            request=request,
+            action="roleplay_runs_24h",
+            limit=daily_roleplay_runs,
+            error_message="Free tier allows 2 roleplay runs per 24 hours. Upgrade or wait for reset.",
+        )
+    else:
+        await consume_non_paying_daily_quota(
+            current_user=current_user,
+            billing_profile=billing_profile,
+            request=request,
+            action="batch_runs_24h",
+            limit=daily_batch_runs,
+            error_message="Free tier allows 5 batch runs per 24 hours. Upgrade or wait for reset.",
+        )
+
     max_runs = billing_profile.get("max_runs_per_month")
     if max_runs is not None:
         run_count = await db[HUB_RUN_COLLECTION].count_documents({"user_id": user_id, "created_at": {"$gte": current_month_start_iso()}})
@@ -81,7 +109,7 @@ async def create_hub_run(req: HubRunRequest, current_user: dict = Depends(get_cu
             status_code=403,
             detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} persona stages per run. Upgrade to continue.",
         )
-    return await execute_hub_run(current_user, req)
+    return await execute_hub_run(current_user, HubRunRequest(**{**req.model_dump(), "run_mode": run_mode}))
 
 
 @router.get("/runs", response_model=HubRunListResponse)
@@ -159,9 +187,17 @@ async def get_chat_synthesis_detail(synthesis_batch_id: str, current_user: dict 
 
 
 @router.post("/chat/prompts", response_model=HubChatPromptOut)
-async def create_chat_prompt(req: HubChatPromptRequest, current_user: dict = Depends(get_current_user)):
+async def create_chat_prompt(req: HubChatPromptRequest, request: Request, current_user: dict = Depends(get_current_user)):
     user_id = get_user_id(current_user)
     billing_profile = await get_user_billing_profile(user_id)
+    await consume_non_paying_daily_quota(
+        current_user=current_user,
+        billing_profile=billing_profile,
+        request=request,
+        action="chat_prompts_24h",
+        limit=billing_profile.get("daily_chats_per_24h"),
+        error_message="Free tier allows 25 chats per 24 hours. Upgrade or wait for reset.",
+    )
     max_batch_size = billing_profile.get("max_batch_size")
     if max_batch_size is not None and len(req.instance_ids) > int(max_batch_size):
         raise HTTPException(

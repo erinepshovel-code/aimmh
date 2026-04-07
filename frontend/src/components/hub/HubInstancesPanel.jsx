@@ -98,7 +98,7 @@ export function HubInstancesPanel({
         setUpgradeModal({
           open: true,
           title: 'Instance limit reached',
-          description: 'Free tier supports up to 3 active instances. Upgrade to Pro to create more.',
+          description: `Free tier supports up to ${maxInstances} active instances. Upgrade to Pro to create more.`,
           currentCount: activeInstanceCount,
           maxAllowed: maxInstances,
           contextLabel: 'Active instances',
@@ -109,7 +109,7 @@ export function HubInstancesPanel({
         setUpgradeModal({
           open: true,
           title: 'Persona limit reached',
-          description: 'Free tier supports up to 3 saved personas. Upgrade to Pro for unlimited personas.',
+          description: `Free tier supports up to ${maxPersonas} saved personas. Upgrade to Pro for unlimited personas.`,
           currentCount: activePersonaCount,
           maxAllowed: maxPersonas,
           contextLabel: 'Saved personas',

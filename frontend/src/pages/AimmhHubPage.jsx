@@ -2,11 +2,6 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { HubGroupsPanel } from '../components/hub/HubGroupsPanel';
-import { HubInstancesPanel } from '../components/hub/HubInstancesPanel';
-import { HubMultiChatPanel } from '../components/hub/HubMultiChatPanel';
-import { HubResponsesPanel } from '../components/hub/HubResponsesPanel';
-import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
 import { HubSplashScreen } from '../components/hub/HubSplashScreen';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
 import { ClaudeWelcomePanel } from '../components/hub/ClaudeWelcomePanel';
@@ -14,17 +9,16 @@ import { AimmhHubTabContent } from '../components/hub/AimmhHubTabContent';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
 import { CLAUDE_MD_CONTEXT } from '../lib/claudeContext';
 import { hubApi } from '../lib/hubApi';
-import { KeyManager } from '../components/settings/KeyManager';
-import { RegistryManager } from '../components/settings/RegistryManager';
 import { useAuth } from '../contexts/AuthContext';
 
 const TABS = [
   { id: 'claude', label: 'Claude.md' },
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
-  { id: 'runs', label: 'Rooms & Runs' },
-  { id: 'responses', label: 'Response Synthesis' },
-  { id: 'chat', label: 'Chat+Synth' },
+  { id: 'batch-runs', label: 'Batch Runs' },
+  { id: 'roleplay-runs', label: 'Roleplay Runs' },
+  { id: 'chat', label: 'Chat' },
+  { id: 'synthesis', label: 'Synthesis' },
 ];
 const FIRST_VISIT_KEY = 'aimmh-first-visit-complete-v1';
 
@@ -41,9 +35,9 @@ export default function AimmhHubPage() {
   const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
   const [chatBusyKey, setChatBusyKey] = React.useState('');
   const [synthesisBasket, setSynthesisBasket] = React.useState([]);
-  const [queueLoaded, setQueueLoaded] = React.useState(false);
-  const [synthesisInstanceIds, setSynthesisInstanceIds] = React.useState([]);
   const [synthesisBatches, setSynthesisBatches] = React.useState([]);
+  const [sessionSynthesisBatches, setSessionSynthesisBatches] = React.useState([]);
+  const [includeSavedSynthesisHistory, setIncludeSavedSynthesisHistory] = React.useState(false);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
 
   const refreshChatPrompts = React.useCallback(async () => {
@@ -108,34 +102,6 @@ export default function AimmhHubPage() {
     return () => window.clearTimeout(timer);
   }, [dismissSplash, firstVisit]);
 
-  React.useEffect(() => {
-    let active = true;
-    const loadQueue = async () => {
-      try {
-        const state = await hubApi.getState('synthesis-queue-global');
-        if (!active) return;
-        setSynthesisBasket(Array.isArray(state?.payload?.items) ? state.payload.items : []);
-      } catch {
-        if (!active) return;
-        setSynthesisBasket([]);
-      } finally {
-        if (active) setQueueLoaded(true);
-      }
-    };
-    loadQueue();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (!queueLoaded) return;
-    const timer = window.setTimeout(() => {
-      hubApi.setState('synthesis-queue-global', { items: synthesisBasket }).catch(() => {});
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [queueLoaded, synthesisBasket]);
-
   const sendChatPrompt = React.useCallback(async (payload) => {
     try {
       setChatBusyKey('send-chat-prompt');
@@ -155,10 +121,14 @@ export default function AimmhHubPage() {
     }
   }, [refreshChatPrompts, workspace]);
 
-  const toggleSynthesisBlock = React.useCallback((block) => {
-    setSynthesisBasket((prev) => prev.some((item) => item.source_id === block.source_id)
-      ? prev.filter((item) => item.source_id !== block.source_id)
-      : [...prev, block]);
+  const addSynthesisBlock = React.useCallback((block) => {
+    setSynthesisBasket((prev) => (prev.some((item) => item.source_id === block.source_id)
+      ? prev
+      : [...prev, block]));
+  }, []);
+
+  const removeSynthesisBlock = React.useCallback((sourceId) => {
+    setSynthesisBasket((prev) => prev.filter((item) => item.source_id !== sourceId));
   }, []);
 
   const runSynthesis = React.useCallback(async (payload) => {
@@ -166,9 +136,13 @@ export default function AimmhHubPage() {
       setSynthesisBusy(true);
       const detail = await hubApi.createSynthesis(payload);
       toast.success('Synthesis complete');
-      const nextBatches = await refreshSyntheses();
-      if (!nextBatches.find((item) => item.synthesis_batch_id === detail.synthesis_batch_id)) {
-        setSynthesisBatches((prev) => [detail, ...prev]);
+      if (payload.save_history && isAuthenticated) {
+        const nextBatches = await refreshSyntheses();
+        if (!nextBatches.find((item) => item.synthesis_batch_id === detail.synthesis_batch_id)) {
+          setSynthesisBatches((prev) => [detail, ...prev]);
+        }
+      } else {
+        setSessionSynthesisBatches((prev) => [detail, ...prev]);
       }
       setSynthesisBasket([]);
       await workspace.refreshCore();
@@ -179,7 +153,11 @@ export default function AimmhHubPage() {
     } finally {
       setSynthesisBusy(false);
     }
-  }, [refreshSyntheses, workspace]);
+  }, [isAuthenticated, refreshSyntheses, workspace]);
+
+  const synthesisHistory = (isAuthenticated && includeSavedSynthesisHistory)
+    ? [...sessionSynthesisBatches, ...synthesisBatches]
+    : sessionSynthesisBatches;
 
   const instanceOptions = workspace.instances
     .filter((item) => !item.archived)
@@ -278,6 +256,21 @@ export default function AimmhHubPage() {
               >
                 Pricing
               </button>
+              {!isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shouldCreate = window.confirm(
+                      'Guest sessions are IP-rate-limited and cross-session history is not preserved. Create an account now?',
+                    );
+                    if (shouldCreate) navigate('/auth');
+                  }}
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 transition hover:bg-emerald-500/20"
+                  data-testid="hub-create-account-button"
+                >
+                  Create account
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {
@@ -325,12 +318,14 @@ export default function AimmhHubPage() {
               chatBusyKey={chatBusyKey}
               sendChatPrompt={sendChatPrompt}
               synthesisBasket={synthesisBasket}
-              toggleSynthesisBlock={toggleSynthesisBlock}
-              synthesisInstanceIds={synthesisInstanceIds}
-              setSynthesisInstanceIds={setSynthesisInstanceIds}
+              addSynthesisBlock={addSynthesisBlock}
+              removeSynthesisBlock={removeSynthesisBlock}
               runSynthesis={runSynthesis}
               synthesisBusy={synthesisBusy}
-              synthesisBatches={synthesisBatches}
+              synthesisHistory={synthesisHistory}
+              isAuthenticated={isAuthenticated}
+              includeSavedSynthesisHistory={includeSavedSynthesisHistory}
+              setIncludeSavedSynthesisHistory={setIncludeSavedSynthesisHistory}
               welcomeInstance={welcomeInstance}
             />
           </div>

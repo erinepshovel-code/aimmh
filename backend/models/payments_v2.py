@@ -56,6 +56,9 @@ class PaymentSummaryResponseV2(BaseModel):
     hosted_requests_per_month: Optional[int] = None
     max_connected_keys: Optional[int] = None
     max_batch_size: Optional[int] = None
+    daily_chats_per_24h: Optional[int] = None
+    daily_batch_runs_per_24h: Optional[int] = None
+    daily_roleplay_runs_per_24h: Optional[int] = None
     queue_priority: Optional[str] = None
     total_paid_usd: float
     total_supporter_usd: float

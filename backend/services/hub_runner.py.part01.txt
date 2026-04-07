@@ -253,12 +253,14 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
     user_id = get_user_id(current_user)
     run_id = make_id("hrun")
     now = iso_now()
+    run_mode = req.run_mode or ("roleplay" if any(stage.pattern == "roleplay" for stage in req.stages) else "batch")
 
     run_doc = {
         "run_id": run_id,
         "user_id": user_id,
         "label": req.label,
         "prompt": req.prompt,
+        "run_mode": run_mode,
         "status": "running",
         "archived": False,
         "archived_at": None,

@@ -2,7 +2,7 @@ import React from 'react';
 import { HubGroupsPanel } from './HubGroupsPanel';
 import { HubInstancesPanel } from './HubInstancesPanel';
 import { HubMultiChatPanel } from './HubMultiChatPanel';
-import { HubResponsesPanel } from './HubResponsesPanel';
+import { HubSynthesisPanel } from './HubSynthesisPanel';
 import { HubRunsWorkspace } from './HubRunsWorkspace';
 import { ClaudeWelcomePanel } from './ClaudeWelcomePanel';
 import { RegistryManager } from '../settings/RegistryManager';
@@ -17,12 +17,14 @@ export function AimmhHubTabContent({
   chatBusyKey,
   sendChatPrompt,
   synthesisBasket,
-  toggleSynthesisBlock,
-  synthesisInstanceIds,
-  setSynthesisInstanceIds,
+  addSynthesisBlock,
+  removeSynthesisBlock,
   runSynthesis,
   synthesisBusy,
-  synthesisBatches,
+  synthesisHistory,
+  isAuthenticated,
+  includeSavedSynthesisHistory,
+  setIncludeSavedSynthesisHistory,
   welcomeInstance,
 }) {
   switch (activeTab) {
@@ -60,14 +62,15 @@ export function AimmhHubTabContent({
           />
         </div>
       );
-    case 'runs':
+    case 'batch-runs':
       return (
         <HubRunsWorkspace
+          runMode="batch"
           sourceOptions={workspace.sourceOptions}
           instanceOptions={instanceOptions}
           onRun={workspace.createRun}
           busyKey={workspace.busyKey}
-          runs={workspace.runs}
+          runs={workspace.runs.filter((run) => run.run_mode ? run.run_mode === 'batch' : !(run.stage_summaries || []).some((item) => item.pattern === 'roleplay'))}
           selectedRunId={workspace.selectedRunId}
           setSelectedRunId={workspace.setSelectedRunId}
           includeArchivedRuns={workspace.includeArchivedRuns}
@@ -76,18 +79,35 @@ export function AimmhHubTabContent({
           onDeleteArchivedRun={workspace.deleteArchivedRun}
         />
       );
-    case 'responses':
+    case 'roleplay-runs':
       return (
-        <HubResponsesPanel
-          runs={workspace.runs}
-          selectedRun={workspace.selectedRun}
+        <HubRunsWorkspace
+          runMode="roleplay"
+          sourceOptions={workspace.sourceOptions}
+          instanceOptions={instanceOptions}
+          onRun={workspace.createRun}
+          busyKey={workspace.busyKey}
+          runs={workspace.runs.filter((run) => run.run_mode ? run.run_mode === 'roleplay' : (run.stage_summaries || []).some((item) => item.pattern === 'roleplay'))}
           selectedRunId={workspace.selectedRunId}
           setSelectedRunId={workspace.setSelectedRunId}
-          prompts={chatPrompts}
-          selectedPromptId={selectedChatPromptId}
-          setSelectedPromptId={setSelectedChatPromptId}
+          includeArchivedRuns={workspace.includeArchivedRuns}
+          setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
+          onToggleRunArchive={workspace.toggleRunArchive}
+          onDeleteArchivedRun={workspace.deleteArchivedRun}
+        />
+      );
+    case 'synthesis':
+      return (
+        <HubSynthesisPanel
+          instances={workspace.instances}
           synthesisBasket={synthesisBasket}
-          onToggleSynthesisBlock={toggleSynthesisBlock}
+          onRemoveFromSynthesis={removeSynthesisBlock}
+          onRunSynthesis={runSynthesis}
+          synthesisBusy={synthesisBusy}
+          synthesisHistory={synthesisHistory}
+          isAuthenticated={isAuthenticated}
+          includeSavedSynthesisHistory={includeSavedSynthesisHistory}
+          setIncludeSavedSynthesisHistory={setIncludeSavedSynthesisHistory}
         />
       );
     case 'chat':
@@ -100,13 +120,7 @@ export function AimmhHubTabContent({
           setSelectedPromptId={setSelectedChatPromptId}
           onSendPrompt={sendChatPrompt}
           busyKey={chatBusyKey}
-          synthesisBasket={synthesisBasket}
-          onToggleSynthesisBlock={toggleSynthesisBlock}
-          synthesisInstanceIds={synthesisInstanceIds}
-          setSynthesisInstanceIds={setSynthesisInstanceIds}
-          onRunSynthesis={runSynthesis}
-          synthesisBusy={synthesisBusy}
-          synthesisBatches={synthesisBatches}
+          onAddSynthesisBlock={addSynthesisBlock}
         />
       );
   }

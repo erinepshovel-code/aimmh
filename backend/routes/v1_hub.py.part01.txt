@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from db import db
 from models.hub import (
@@ -24,7 +24,7 @@ from models.hub import (
 from models.hub_chat import HubChatPromptListResponse, HubChatPromptOut, HubChatPromptRequest
 from models.hub_synthesis import HubSynthesisBatchListResponse, HubSynthesisBatchOut, HubSynthesisRequest
 from services.auth import get_current_user, get_user_id
-from services.billing_tiers import current_month_start_iso, get_user_billing_profile
+from services.billing_tiers import consume_non_paying_daily_quota, current_month_start_iso, get_user_billing_profile
 from services.hub_chat import get_chat_prompt, list_chat_prompts, send_chat_prompt
 from services.hub_synthesis import create_synthesis_batch, get_synthesis_batch, list_synthesis_batches
 from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
@@ -84,6 +84,13 @@ def _instance_quota_query(user_id: str, model_id: str | None = None) -> Dict[str
     if model_id:
         query["model_id"] = model_id
     return query
+
+
+def _resolved_run_mode(req: HubRunRequest) -> str:
+    if req.run_mode in {"batch", "roleplay"}:
+        return req.run_mode
+    has_roleplay = any(stage.pattern == "roleplay" for stage in req.stages)
+    return "roleplay" if has_roleplay else "batch"
 
 
 def _connections_payload() -> HubConnectionsResponse:

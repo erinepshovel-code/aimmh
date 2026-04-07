@@ -3,6 +3,7 @@ import { Archive, Layers3, MessageSquareText, RotateCcw, Trash2 } from 'lucide-r
 import { HubRunBuilder } from './HubRunBuilder';
 
 export function HubRunsWorkspace({
+  runMode = 'batch',
   sourceOptions,
   instanceOptions,
   onRun,
@@ -15,14 +16,19 @@ export function HubRunsWorkspace({
   onToggleRunArchive,
   onDeleteArchivedRun,
 }) {
+  const runModeLabel = runMode === 'roleplay' ? 'Roleplay Runs' : 'Batch Runs';
+  const runModeHint = runMode === 'roleplay'
+    ? 'Roleplay runs are DM/player style orchestration with dedicated quota and history.'
+    : 'Batch runs are structured multi-stage pipelines for analysis and synthesis.';
+
   return (
     <div className="space-y-4" data-testid="hub-runs-workspace">
-      <HubRunBuilder sourceOptions={sourceOptions} instanceOptions={instanceOptions} onRun={onRun} busyKey={busyKey} />
+      <HubRunBuilder runMode={runMode} sourceOptions={sourceOptions} instanceOptions={instanceOptions} onRun={onRun} busyKey={busyKey} />
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="hub-run-inventory-section">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-zinc-100"><Layers3 size={16} /> <h2 className="text-base font-semibold">Run inventory</h2></div>
-            <p className="mt-1 text-xs text-zinc-500">Rooms, run orders, prompt chains, and saved results stay visible here for quick mobile switching.</p>
+            <div className="flex items-center gap-2 text-zinc-100"><Layers3 size={16} /> <h2 className="text-base font-semibold">{runModeLabel} inventory</h2></div>
+            <p className="mt-1 text-xs text-zinc-500">{runModeHint}</p>
           </div>
           <label className="flex items-center gap-2 text-xs text-zinc-400">
             <input type="checkbox" checked={includeArchivedRuns} onChange={(event) => setIncludeArchivedRuns(event.target.checked)} data-testid="show-archived-runs-checkbox" /> Show archived

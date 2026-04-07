@@ -38,6 +38,7 @@ def _build_synthesis_prompt(selected_blocks: List[SynthesisSourceBlock], instruc
 
 async def create_synthesis_batch(current_user: dict, req: HubSynthesisRequest) -> HubSynthesisBatchOut:
     user_id = get_user_id(current_user)
+    should_save_history = bool(req.save_history)
     instances = []
     for instance_id in req.synthesis_instance_ids:
         instance = await get_instance(user_id, instance_id, include_archived=False)
@@ -60,43 +61,46 @@ async def create_synthesis_batch(current_user: dict, req: HubSynthesisRequest) -
     outputs: List[HubSynthesisOutput] = []
     for index, raw in enumerate(raw_results):
         instance = instances[index]
-        await ensure_thread(
-            instance["thread_id"],
-            user_id,
-            title=req.label or "Synthesis",
-            extra={
-                "hub_instance_id": instance["instance_id"],
-                "hub_instance_name": instance.get("name"),
-                "hub_model_id": instance.get("model_id"),
-                "hub_archived": instance.get("archived", False),
-            },
-        )
-        await persist_message(
-            thread_id=instance["thread_id"],
-            user_id=user_id,
-            role="user",
-            content=synthesis_prompt,
-            model="hub_user",
-            extra={
-                "hub_synthesis_batch_id": batch_id,
-                "hub_instance_id": instance["instance_id"],
-                "hub_role": "synthesis_input",
-            },
-        )
-        persisted = await persist_message(
-            thread_id=instance["thread_id"],
-            user_id=user_id,
-            role="assistant",
-            content=raw.content,
-            model=raw.model,
-            extra={
-                "hub_synthesis_batch_id": batch_id,
-                "hub_instance_id": instance["instance_id"],
-                "hub_role": "synthesis_output",
-                "response_time_ms": raw.response_time_ms,
-                "error": raw.error,
-            },
-        )
+        persisted_message_id = None
+        if should_save_history:
+            await ensure_thread(
+                instance["thread_id"],
+                user_id,
+                title=req.label or "Synthesis",
+                extra={
+                    "hub_instance_id": instance["instance_id"],
+                    "hub_instance_name": instance.get("name"),
+                    "hub_model_id": instance.get("model_id"),
+                    "hub_archived": instance.get("archived", False),
+                },
+            )
+            await persist_message(
+                thread_id=instance["thread_id"],
+                user_id=user_id,
+                role="user",
+                content=synthesis_prompt,
+                model="hub_user",
+                extra={
+                    "hub_synthesis_batch_id": batch_id,
+                    "hub_instance_id": instance["instance_id"],
+                    "hub_role": "synthesis_input",
+                },
+            )
+            persisted = await persist_message(
+                thread_id=instance["thread_id"],
+                user_id=user_id,
+                role="assistant",
+                content=raw.content,
+                model=raw.model,
+                extra={
+                    "hub_synthesis_batch_id": batch_id,
+                    "hub_instance_id": instance["instance_id"],
+                    "hub_role": "synthesis_output",
+                    "response_time_ms": raw.response_time_ms,
+                    "error": raw.error,
+                },
+            )
+            persisted_message_id = persisted["message_id"]
         outputs.append(HubSynthesisOutput(
             synthesis_batch_id=batch_id,
             synthesis_instance_id=instance["instance_id"],
@@ -104,7 +108,7 @@ async def create_synthesis_batch(current_user: dict, req: HubSynthesisRequest) -
             model=raw.model,
             thread_id=instance["thread_id"],
             content=raw.content,
-            message_id=persisted["message_id"],
+            message_id=persisted_message_id,
             response_time_ms=raw.response_time_ms,
             error=raw.error,
             created_at=iso_now(),
@@ -123,7 +127,8 @@ async def create_synthesis_batch(current_user: dict, req: HubSynthesisRequest) -
         "created_at": now,
         "updated_at": now,
     }
-    await db[HUB_SYNTHESIS_BATCH_COLLECTION].insert_one(doc)
+    if should_save_history:
+        await db[HUB_SYNTHESIS_BATCH_COLLECTION].insert_one(doc)
     return HubSynthesisBatchOut(**doc)
 
 

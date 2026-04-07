@@ -20,6 +20,7 @@ class HubSynthesisRequest(BaseModel):
     selected_blocks: List[SynthesisSourceBlock] = Field(min_length=1)
     instruction: Optional[str] = Field(default=None, max_length=4000)
     label: Optional[str] = Field(default=None, max_length=120)
+    save_history: bool = False
 
 
 class HubSynthesisOutput(BaseModel):

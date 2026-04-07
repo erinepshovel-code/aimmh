@@ -1,7 +1,6 @@
 import React from 'react';
-import { CheckCheck, Loader2, MessageSquareShare, Send, Sparkles } from 'lucide-react';
+import { CheckCheck, ChevronLeft, ChevronRight, Loader2, Lock, MessageSquareShare, Send, Sparkles, Unlock } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
-import { ChatResponseComparator } from './ChatResponseComparator';
 import { hubApi } from '../../lib/hubApi';
 
 export function HubMultiChatPanel({
@@ -11,21 +10,16 @@ export function HubMultiChatPanel({
   setSelectedPromptId,
   onSendPrompt,
   busyKey,
-  synthesisBasket,
-  onToggleSynthesisBlock,
-  synthesisInstanceIds,
-  setSynthesisInstanceIds,
-  onRunSynthesis,
-  synthesisBusy,
-  synthesisBatches,
+  onAddSynthesisBlock,
 }) {
   const [prompt, setPrompt] = React.useState('');
   const [selectedInstanceIds, setSelectedInstanceIds] = React.useState([]);
-  const [instruction, setInstruction] = React.useState('Compare, reconcile, and refine the selected responses into a useful synthesis.');
   const [draftLoaded, setDraftLoaded] = React.useState(false);
+  const [promptIndex, setPromptIndex] = React.useState(0);
+  const [lockedByPrompt, setLockedByPrompt] = React.useState({});
+  const [cursorByPrompt, setCursorByPrompt] = React.useState({});
 
   const activeInstances = instances.filter((item) => !item.archived);
-  const selectedPrompt = prompts.find((item) => item.prompt_id === selectedPromptId) || prompts[0] || null;
   const chatDraftKey = React.useMemo(() => `chat-draft:${selectedPromptId || 'new'}`, [selectedPromptId]);
 
   React.useEffect(() => {
@@ -42,12 +36,10 @@ export function HubMultiChatPanel({
         const state = await hubApi.getState(chatDraftKey);
         if (!active) return;
         setPrompt(state?.payload?.prompt || '');
-        setInstruction(state?.payload?.instruction || 'Compare, reconcile, and refine the selected responses into a useful synthesis.');
         setSelectedInstanceIds(Array.isArray(state?.payload?.selectedInstanceIds) ? state.payload.selectedInstanceIds : []);
       } catch {
         if (!active) return;
         setPrompt('');
-        setInstruction('Compare, reconcile, and refine the selected responses into a useful synthesis.');
       } finally {
         if (active) setDraftLoaded(true);
       }
@@ -63,19 +55,29 @@ export function HubMultiChatPanel({
     const timer = window.setTimeout(() => {
       hubApi.setState(chatDraftKey, {
         prompt,
-        instruction,
         selectedInstanceIds,
       }).catch(() => {});
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [chatDraftKey, draftLoaded, instruction, prompt, selectedInstanceIds]);
+  }, [chatDraftKey, draftLoaded, prompt, selectedInstanceIds]);
+
+  React.useEffect(() => {
+    if (prompts.length === 0) {
+      setPromptIndex(0);
+      return;
+    }
+    const foundIndex = prompts.findIndex((item) => item.prompt_id === selectedPromptId);
+    if (foundIndex >= 0) {
+      setPromptIndex(foundIndex);
+      return;
+    }
+    const safeIndex = Math.min(promptIndex, prompts.length - 1);
+    setPromptIndex(safeIndex);
+    setSelectedPromptId(prompts[safeIndex].prompt_id);
+  }, [promptIndex, prompts, selectedPromptId, setSelectedPromptId]);
 
   const toggleInstance = (instanceId) => {
     setSelectedInstanceIds((prev) => prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId]);
-  };
-
-  const toggleSynthesisInstance = (instanceId) => {
-    setSynthesisInstanceIds((prev) => prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId]);
   };
 
   const allRecipientsSelected = activeInstances.length > 0 && selectedInstanceIds.length === activeInstances.length;
@@ -93,15 +95,74 @@ export function HubMultiChatPanel({
     setSelectedPromptId(detail.prompt_id);
   };
 
-  const submitSynthesis = async () => {
-    if (synthesisBasket.length === 0 || synthesisInstanceIds.length === 0) return;
-    await onRunSynthesis({
-      synthesis_instance_ids: synthesisInstanceIds,
-      selected_blocks: synthesisBasket,
-      instruction,
-      label: 'Chat synthesis',
+  const selectedPrompt = prompts[promptIndex] || null;
+  const responses = selectedPrompt?.responses || [];
+  const lockedIds = selectedPrompt ? (lockedByPrompt[selectedPrompt.prompt_id] || []) : [];
+  const unlockedResponses = responses.filter((item) => {
+    const responseId = item.message_id || `${selectedPrompt.prompt_id}-${item.instance_id}`;
+    return !lockedIds.includes(responseId);
+  });
+  const activeCursor = selectedPrompt ? (cursorByPrompt[selectedPrompt.prompt_id] || 0) : 0;
+  const activeResponse = unlockedResponses.length > 0 ? unlockedResponses[Math.min(activeCursor, unlockedResponses.length - 1)] : null;
+
+  const toBlock = React.useCallback((promptItem, responseItem) => ({
+    source_type: 'chat_prompt_response',
+    source_id: responseItem.message_id || `${promptItem.prompt_id}-${responseItem.instance_id}`,
+    source_label: `Prompt ${promptItem.prompt_id} · ${responseItem.instance_name || responseItem.model}`,
+    instance_id: responseItem.instance_id,
+    instance_name: responseItem.instance_name,
+    model: responseItem.model,
+    content: responseItem.content,
+  }), []);
+
+  const lockCurrentAndAdvance = () => {
+    if (!selectedPrompt || !activeResponse) return;
+    const promptId = selectedPrompt.prompt_id;
+    const responseId = activeResponse.message_id || `${promptId}-${activeResponse.instance_id}`;
+    setLockedByPrompt((prev) => {
+      const existing = prev[promptId] || [];
+      const withoutDupes = [...existing.filter((id) => id !== responseId), responseId];
+      const capped = withoutDupes.length > 3 ? withoutDupes.slice(withoutDupes.length - 3) : withoutDupes;
+      return { ...prev, [promptId]: capped };
     });
+    setCursorByPrompt((prev) => ({ ...prev, [promptId]: 0 }));
   };
+
+  const unlockResponse = (promptId, responseId) => {
+    setLockedByPrompt((prev) => ({ ...prev, [promptId]: (prev[promptId] || []).filter((id) => id !== responseId) }));
+  };
+
+  const nextPrompt = () => {
+    if (prompts.length === 0) return;
+    const nextIndex = (promptIndex + 1) % prompts.length;
+    setPromptIndex(nextIndex);
+    setSelectedPromptId(prompts[nextIndex].prompt_id);
+  };
+
+  const prevPrompt = () => {
+    if (prompts.length === 0) return;
+    const prevIndex = (promptIndex - 1 + prompts.length) % prompts.length;
+    setPromptIndex(prevIndex);
+    setSelectedPromptId(prompts[prevIndex].prompt_id);
+  };
+
+  const nextResponse = () => {
+    if (!selectedPrompt || unlockedResponses.length === 0) return;
+    const promptId = selectedPrompt.prompt_id;
+    const nextCursor = (activeCursor + 1) % unlockedResponses.length;
+    setCursorByPrompt((prev) => ({ ...prev, [promptId]: nextCursor }));
+  };
+
+  const prevResponse = () => {
+    if (!selectedPrompt || unlockedResponses.length === 0) return;
+    const promptId = selectedPrompt.prompt_id;
+    const nextCursor = (activeCursor - 1 + unlockedResponses.length) % unlockedResponses.length;
+    setCursorByPrompt((prev) => ({ ...prev, [promptId]: nextCursor }));
+  };
+
+  const lockedResponses = selectedPrompt
+    ? responses.filter((item) => lockedIds.includes(item.message_id || `${selectedPrompt.prompt_id}-${item.instance_id}`))
+    : [];
 
   return (
     <div className="space-y-4" data-testid="hub-multi-chat-panel">
@@ -134,103 +195,80 @@ export function HubMultiChatPanel({
         </form>
       </section>
 
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="hub-synthesis-workspace">
-        <div className="flex items-center gap-2 text-zinc-100"><Sparkles size={16} /> <h2 className="text-base font-semibold">Synthesis workspace</h2></div>
-        <p className="mt-1 text-xs text-zinc-500">Queue response blocks from chat or the Responses tab, choose one or more synthesis model instances, then synthesize selected content.</p>
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4" data-testid="synthesis-basket-list">
-            <div className="text-xs font-medium text-zinc-300">Queued response blocks ({synthesisBasket.length})</div>
-            {synthesisBasket.length === 0 ? <div className="text-sm text-zinc-500">No response blocks queued yet.</div> : synthesisBasket.map((block) => (
-              <div key={block.source_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`synthesis-basket-item-${block.source_id}`}>
-                <div className="text-xs text-zinc-500">{block.source_label || block.instance_name || block.model}</div>
-                <div className="mt-1 text-sm text-zinc-200">{block.content.slice(0, 180)}{block.content.length > 180 ? '…' : ''}</div>
-              </div>
-            ))}
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="chat-prompt-carousel-section">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-base font-semibold text-zinc-100">Prompt carousel</div>
+            <div className="text-xs text-zinc-500">One prompt visible at a time. Lock up to three responses.</div>
           </div>
-          <div className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4" data-testid="synthesis-model-list">
-            <div className="text-xs font-medium text-zinc-300">Synthesis models ({synthesisInstanceIds.length} selected)</div>
-            <div className="space-y-2">
-              {activeInstances.length === 0 ? <div className="text-sm text-zinc-500">Create instances first.</div> : activeInstances.map((instance) => (
-                <label key={instance.instance_id} className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-xs ${synthesisInstanceIds.includes(instance.instance_id) ? 'border-violet-500/30 bg-violet-500/10 text-violet-200' : 'border-zinc-800 bg-zinc-900/60 text-zinc-300'}`} data-testid={`synthesis-model-option-${instance.instance_id}`}>
-                  <input type="checkbox" checked={synthesisInstanceIds.includes(instance.instance_id)} onChange={() => toggleSynthesisInstance(instance.instance_id)} className="mt-0.5" data-testid={`synthesis-model-checkbox-${instance.instance_id}`} aria-label={`synthesis model ${instance.name}`} />
-                  <span>{instance.name} · {instance.model_id}</span>
-                </label>
-              ))}
-            </div>
-            {synthesisInstanceIds.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-[11px] text-violet-200">
-                {activeInstances.filter((instance) => synthesisInstanceIds.includes(instance.instance_id)).map((instance) => (
-                  <span key={instance.instance_id} className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-1" data-testid={`synthesis-selected-model-chip-${instance.instance_id}`}>
-                    {instance.name}
-                  </span>
-                ))}
-              </div>
-            )}
-            <textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={5} placeholder="Synthesis instruction"
-              data-testid="synthesis-instruction-textarea"
-              className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-violet-500/50" />
-            <button type="button" onClick={submitSynthesis} disabled={synthesisBasket.length === 0 || synthesisInstanceIds.length === 0 || synthesisBusy} className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-60" data-testid="synthesis-submit-button">
-              <span className="flex items-center gap-2">{synthesisBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Synthesize selected responses</span>
-            </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={prevPrompt} className="rounded-xl border border-zinc-800 px-2 py-1 text-xs text-zinc-300" data-testid="chat-prompt-carousel-prev-button"><span className="flex items-center gap-1"><ChevronLeft size={12} /> Prev</span></button>
+            <div className="text-xs text-zinc-500" data-testid="chat-prompt-carousel-index">{prompts.length === 0 ? 0 : promptIndex + 1}/{prompts.length}</div>
+            <button type="button" onClick={nextPrompt} className="rounded-xl border border-zinc-800 px-2 py-1 text-xs text-zinc-300" data-testid="chat-prompt-carousel-next-button"><span className="flex items-center gap-1">Next <ChevronRight size={12} /></span></button>
           </div>
         </div>
-      </section>
 
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="prompt-indexed-responses-section">
-        <div className="text-base font-semibold text-zinc-100">Prompt-indexed responses</div>
-        <p className="mt-1 text-xs text-zinc-500">Every response is grouped by prompt batch and instance. Queue blocks for synthesis with one tap.</p>
-        <div className="mt-4 space-y-3">
-          {prompts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No direct chat prompts yet.</div>
-          ) : prompts.map((promptItem) => (
-            <button key={promptItem.prompt_id} type="button" onClick={() => setSelectedPromptId(promptItem.prompt_id)} className={`w-full rounded-2xl border p-4 text-left transition ${selectedPromptId === promptItem.prompt_id ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700'}`} data-testid={`prompt-batch-button-${promptItem.prompt_id}`}>
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Prompt batch</div>
-              <div className="mt-2 text-sm text-zinc-100">{promptItem.prompt}</div>
-              <div className="mt-3 text-xs text-zinc-500">{promptItem.responses?.length || 0} responses · {promptItem.instance_names?.join(', ')}</div>
-            </button>
-          ))}
-        </div>
-      </section>
+        {!selectedPrompt ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No direct chat prompts yet.</div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <article className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4" data-testid={`chat-prompt-card-${selectedPrompt.prompt_id}`}>
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Prompt</div>
+              <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{selectedPrompt.prompt}</div>
+              <div className="mt-2 text-xs text-zinc-500">{responses.length} responses</div>
+            </article>
 
-      {selectedPrompt && (
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="selected-prompt-section">
-          <div className="text-sm font-semibold text-zinc-100">Selected prompt</div>
-          <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-300">{selectedPrompt.prompt}</div>
-          <div className="mt-4">
-            <ChatResponseComparator
-              promptId={selectedPrompt.prompt_id}
-              responses={selectedPrompt.responses || []}
-              synthesisBasket={synthesisBasket}
-              onToggleSynthesisBlock={onToggleSynthesisBlock}
-            />
-          </div>
-        </section>
-      )}
-
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="recent-syntheses-section">
-        <div className="text-base font-semibold text-zinc-100">Recent syntheses</div>
-        <div className="mt-4 space-y-3">
-          {synthesisBatches.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No synthesis batches yet.</div>
-          ) : synthesisBatches.map((batch) => (
-            <article key={batch.synthesis_batch_id} className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4" data-testid={`synthesis-batch-${batch.synthesis_batch_id}`}>
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Synthesis batch</div>
-              <div className="mt-2 text-sm text-zinc-200">{batch.label || batch.synthesis_batch_id}</div>
-              <div className="mt-2 text-xs text-zinc-500">{batch.synthesis_instance_names?.join(', ')}</div>
-              <div className="mt-4 space-y-3">
-                {(batch.outputs || []).map((output) => (
-                  <div key={output.message_id || `${batch.synthesis_batch_id}-${output.synthesis_instance_id}`} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid={`synthesis-output-${output.message_id || `${batch.synthesis_batch_id}-${output.synthesis_instance_id}`}`}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-sm font-medium text-zinc-100">{output.synthesis_instance_name}</div>
-                      <span className="rounded-full border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-400">{output.model}</span>
+            <div className="space-y-3" data-testid="chat-locked-responses-stack">
+              {lockedResponses.map((item, index) => {
+                const responseId = item.message_id || `${selectedPrompt.prompt_id}-${item.instance_id}`;
+                return (
+                  <article key={responseId} className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3" data-testid={`chat-locked-response-${responseId}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs text-amber-200">Locked #{index + 1} · {item.instance_name} · {item.model}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => onAddSynthesisBlock(toBlock(selectedPrompt, item))} className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-xs text-violet-200" data-testid={`chat-send-to-synthesis-locked-${responseId}`}>
+                          <span className="flex items-center gap-1"><Sparkles size={11} /> Send to synthesis</span>
+                        </button>
+                        <button type="button" onClick={() => unlockResponse(selectedPrompt.prompt_id, responseId)} className="rounded-xl border border-zinc-700 px-2 py-1 text-xs text-zinc-300" data-testid={`chat-unlock-response-${responseId}`}>
+                          <span className="flex items-center gap-1"><Unlock size={11} /> Unlock</span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-3"><ResponseMarkdown content={output.content} fontScale={1} /></div>
+                    <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-zinc-800 bg-zinc-900/60 p-3"><ResponseMarkdown content={item.content} fontScale={1} /></div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <article className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4" data-testid="chat-active-response-card">
+              {!activeResponse ? (
+                <div className="text-sm text-zinc-500">All responses are locked. Unlock one to continue viewing.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Visible response</div>
+                      <div className="mt-1 text-sm text-zinc-100">{activeResponse.instance_name} · {activeResponse.model}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => onAddSynthesisBlock(toBlock(selectedPrompt, activeResponse))} className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-xs text-violet-200" data-testid="chat-send-to-synthesis-active-button">
+                        <span className="flex items-center gap-1"><Sparkles size={11} /> Send to synthesis</span>
+                      </button>
+                      <button type="button" onClick={lockCurrentAndAdvance} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-200" data-testid="chat-lock-and-next-button">
+                        <span className="flex items-center gap-1"><Lock size={11} /> Lock + next</span>
+                      </button>
+                    </div>
                   </div>
-                ))}
+                  <div className="mt-3 max-h-[48vh] overflow-auto rounded-xl border border-zinc-800 bg-zinc-900/60 p-3"><ResponseMarkdown content={activeResponse.content} fontScale={1} /></div>
+                </>
+              )}
+              <div className="mt-3 flex items-center gap-2">
+                <button type="button" onClick={prevResponse} className="rounded-xl border border-zinc-800 px-2 py-1 text-xs text-zinc-300" data-testid="chat-response-prev-button"><span className="flex items-center gap-1"><ChevronLeft size={12} /> Prev response</span></button>
+                <button type="button" onClick={nextResponse} className="rounded-xl border border-zinc-800 px-2 py-1 text-xs text-zinc-300" data-testid="chat-response-next-button"><span className="flex items-center gap-1">Next response <ChevronRight size={12} /></span></button>
               </div>
             </article>
-          ))}
-        </div>
+          </div>
+        )}
       </section>
     </div>
   );

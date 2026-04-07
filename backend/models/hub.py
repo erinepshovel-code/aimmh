@@ -125,6 +125,7 @@ class HubRunRequest(BaseModel):
     label: Optional[str] = Field(default=None, max_length=120)
     stages: List[HubStageRequest] = Field(min_length=1)
     persist_instance_threads: bool = True
+    run_mode: Optional[Literal["batch", "roleplay"]] = None
 
 
 class HubRunResult(BaseModel):
@@ -163,6 +164,7 @@ class HubRunOut(BaseModel):
     run_id: str
     label: Optional[str] = None
     prompt: str
+    run_mode: Optional[Literal["batch", "roleplay"]] = None
     status: str
     archived: bool = False
     archived_at: Optional[str] = None

@@ -30,7 +30,7 @@ function toggleSource(list, option) {
   return exists ? list.filter((item) => !(item.source_type === option.source_type && item.source_id === option.source_id)) : [...list, { source_type: option.source_type, source_id: option.source_id }];
 }
 
-function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onRemove }) {
+function StageCard({ index, stage, sourceOptions, instanceOptions, patternOptions, onChange, onRemove }) {
   const isRoleplay = stage.pattern === 'roleplay';
   const isSynthRoom = stage.pattern === 'room_synthesized';
   const stageId = `run-stage-${index + 1}`;
@@ -72,7 +72,7 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
         <select value={stage.pattern} onChange={(e) => onChange({ ...createEmptyStage(), ...stage, pattern: e.target.value })}
           data-testid={`${stageId}-pattern-select`}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50">
-          {PATTERN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {patternOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <select value={stage.input_mode} onChange={(e) => onChange({ ...stage, input_mode: e.target.value })}
           data-testid={`${stageId}-input-mode-select`}
@@ -156,7 +156,7 @@ function StageCard({ index, stage, sourceOptions, instanceOptions, onChange, onR
   );
 }
 
-export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }) {
+export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOptions, onRun, busyKey }) {
   const [label, setLabel] = React.useState('');
   const [prompt, setPrompt] = React.useState('');
   const [stages, setStages] = React.useState([createEmptyStage()]);
@@ -165,6 +165,23 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
   const [showStageLimitModal, setShowStageLimitModal] = React.useState(false);
   const runDraftKey = 'run-builder-draft:new';
   const maxPersonaStages = typeof billingSummary?.max_personas === 'number' ? billingSummary.max_personas : null;
+  const patternOptions = React.useMemo(() => (
+    runMode === 'roleplay'
+      ? PATTERN_OPTIONS.filter((option) => option.value === 'roleplay')
+      : PATTERN_OPTIONS.filter((option) => option.value !== 'roleplay')
+  ), [runMode]);
+
+  React.useEffect(() => {
+    setStages((prev) => prev.map((stage) => {
+      if (runMode === 'roleplay' && stage.pattern !== 'roleplay') {
+        return { ...createEmptyStage(), ...stage, pattern: 'roleplay' };
+      }
+      if (runMode === 'batch' && stage.pattern === 'roleplay') {
+        return { ...createEmptyStage(), ...stage, pattern: 'fan_out' };
+      }
+      return stage;
+    }));
+  }, [runMode]);
 
   React.useEffect(() => {
     let active = true;
@@ -246,6 +263,7 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
       await onRun({
         label: label || null,
         prompt,
+        run_mode: runMode,
         persist_instance_threads: true,
         stages: stages.map((stage) => ({
           ...stage,
@@ -262,7 +280,7 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
       });
       setLabel('');
       setPrompt('');
-      setStages([createEmptyStage()]);
+      setStages([runMode === 'roleplay' ? { ...createEmptyStage(), pattern: 'roleplay' } : createEmptyStage()]);
       hubApi.deleteState(runDraftKey).catch(() => {});
     } catch (error) {
       if (String(error?.message || '').toLowerCase().includes('persona stages')) {
@@ -275,7 +293,7 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="hub-run-builder">
       <div>
         <h2 className="text-base font-semibold text-zinc-100">Pipeline builder</h2>
-        <p className="text-xs text-zinc-500">Compose nested groups and isolated instances into aimmh-lib stage pipelines.</p>
+        <p className="text-xs text-zinc-500">{runMode === 'roleplay' ? 'Build roleplay sequences only (DM/player style).' : 'Compose non-roleplay batch pipelines.'}</p>
       </div>
 
       <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-zinc-300" data-testid="hub-run-builder-guide">
@@ -298,7 +316,7 @@ export function HubRunBuilder({ sourceOptions, instanceOptions, onRun, busyKey }
 
         <div className="space-y-4">
           {stages.map((stage, index) => (
-            <StageCard key={`${index}-${stage.pattern}`} index={index} stage={stage} sourceOptions={sourceOptions} instanceOptions={instanceOptions}
+            <StageCard key={`${index}-${stage.pattern}`} index={index} stage={stage} sourceOptions={sourceOptions} instanceOptions={instanceOptions} patternOptions={patternOptions}
               onChange={(nextStage) => updateStage(index, nextStage)} onRemove={() => removeStage(index)} />
           ))}
         </div>

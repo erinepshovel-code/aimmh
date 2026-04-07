@@ -171,6 +171,35 @@ The application is now a full-stack AIMMH workspace with:
   - workflow: `/.github/workflows/line-length-guard.yml`
   - enforces max 400 lines on checked source files
 
+## Latest Verified Feature Expansion — 2026-04-07
+- [x] Free-tier quota updates for non-paying users:
+  - max instances increased to **5**
+  - **25 chats / 24h**
+  - **5 batch runs / 24h**
+  - **2 roleplay runs / 24h**
+- [x] Guest quota enforcement by **IP address** for non-paying usage controls
+- [x] Batch vs Roleplay workflow split:
+  - dedicated tabs: `Batch Runs`, `Roleplay Runs`
+  - backend run-mode validation (batch disallows roleplay stages; roleplay requires roleplay stage)
+- [x] Chat tab redesigned to prompt/response carousel flow:
+  - one prompt visible at a time
+  - one response visible at a time
+  - lock current response and advance; max 3 locked responses (4th displaces oldest)
+  - per-response **Send to synthesis** action
+- [x] Synthesis tab now owns synthesis workflow:
+  - only queued responses appear
+  - remove buttons + checkbox selection for synthesis run
+  - session-only history by default
+  - authenticated users can opt to save history and opt to view saved cross-session history
+- [x] Registry/instance pricing alignment updates:
+  - wording standardized to **instances**
+  - pricing copy updated for new free-tier daily quotas
+- [x] Guide model / quota corrections:
+  - welcome guide instances (`metadata.welcome_model=true`) are quota-exempt for instance counting
+  - welcome guide excluded from persona quota counting as well
+- [x] Stability fix after testing report `iteration_27.json`:
+  - resolved React maximum update depth issue in synthesis/tab navigation effects
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

@@ -18,14 +18,23 @@ export function HubSynthesisPanel({
   const [instruction, setInstruction] = React.useState('Synthesize and analyze selected responses into a cohesive answer.');
   const [saveHistory, setSaveHistory] = React.useState(false);
 
-  const activeInstances = instances.filter((item) => !item.archived);
+  const activeInstances = React.useMemo(
+    () => instances.filter((item) => !item.archived),
+    [instances],
+  );
 
   React.useEffect(() => {
-    setSelectedBlockIds((prev) => prev.filter((id) => synthesisBasket.some((block) => block.source_id === id)));
+    setSelectedBlockIds((prev) => {
+      const next = prev.filter((id) => synthesisBasket.some((block) => block.source_id === id));
+      return next.length === prev.length && next.every((id, idx) => id === prev[idx]) ? prev : next;
+    });
   }, [synthesisBasket]);
 
   React.useEffect(() => {
-    setSynthesisInstanceIds((prev) => prev.filter((id) => activeInstances.some((instance) => instance.instance_id === id)));
+    setSynthesisInstanceIds((prev) => {
+      const next = prev.filter((id) => activeInstances.some((instance) => instance.instance_id === id));
+      return next.length === prev.length && next.every((id, idx) => id === prev[idx]) ? prev : next;
+    });
   }, [activeInstances]);
 
   const toggleBlock = (sourceId) => {

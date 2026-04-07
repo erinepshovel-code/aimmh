@@ -197,7 +197,7 @@ export default function AimmhHubPage() {
       }
     };
     repairWelcomeModel();
-  }, [CLAUDE_MD_CONTEXT, curatedWelcomeModelIds, welcomeInstance, welcomeModelValid, welcomeProvisioning, workspace]);
+  }, [curatedWelcomeModelIds, welcomeInstance, welcomeModelValid, welcomeProvisioning, workspace.refreshCore, workspace.updateInstance]);
 
   React.useEffect(() => {
     if (!firstVisit || workspace.loading || welcomeInstance || welcomeProvisioning) return;
@@ -224,7 +224,7 @@ export default function AimmhHubPage() {
       }
     };
     seedWelcomeModel();
-  }, [CLAUDE_MD_CONTEXT, curatedWelcomeModelIds, firstVisit, welcomeInstance, welcomeProvisioning, workspace]);
+  }, [curatedWelcomeModelIds, firstVisit, welcomeInstance, welcomeProvisioning, workspace.createInstance, workspace.refreshCore]);
 
   if (workspace.loading) {
     return (

@@ -215,6 +215,29 @@ The application is now a full-stack AIMMH workspace with:
   - roleplay run executes successfully
   - direct chat prompt executes successfully
 
+## Latest UX Upgrade — 2026-04-08
+- [x] Added collapsible menus across major work areas:
+  - Chat: Direct chat + Prompt carousel sections collapsible
+  - Synthesis: Queue + Controls + History sections collapsible
+  - Batch/Roleplay: Builder + Inventory sections collapsible
+- [x] Added run response viewing via drawer/modal from run inventory cards
+  - action button: `View responses`
+  - drawer test id: `run-responses-drawer`
+- [x] Synthesis queue scrolling improved:
+  - queue region now scrolls as queued-item list (`overflow-y-auto`, max-height)
+  - removed cramped inner-only text scrolling behavior
+- [x] Added mobile gesture system on chat carousel surface:
+  - 1-finger swipe: previous/next response
+  - 2-finger swipe: previous/next prompt
+  - 3-finger swipe: previous/next hub tab
+  - 1-finger double tap: lock current response + advance
+  - 2-finger double tap: toggle pinch font-mode
+  - pinch/spread in font-mode changes response font scale
+  - font scale persists via localStorage key `aimmh-chat-font-scale`
+- [x] External verification: testing report `iteration_28.json`
+  - backend: 8/8 pass
+  - frontend: all requested features pass (including collapses, queue scroll region, gesture controls presence, drawer component)
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

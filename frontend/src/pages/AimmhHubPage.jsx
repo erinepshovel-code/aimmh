@@ -159,6 +159,14 @@ export default function AimmhHubPage() {
     ? [...sessionSynthesisBatches, ...synthesisBatches]
     : sessionSynthesisBatches;
 
+  const handleSwipeTab = React.useCallback((direction) => {
+    const currentIndex = TABS.findIndex((item) => item.id === activeTab);
+    if (currentIndex < 0) return;
+    const delta = direction === 'next' ? 1 : -1;
+    const nextIndex = (currentIndex + delta + TABS.length) % TABS.length;
+    setActiveTab(TABS[nextIndex].id);
+  }, [activeTab]);
+
   const instanceOptions = workspace.instances
     .filter((item) => !item.archived)
     .map((item) => ({ value: item.instance_id, label: `${item.name} · ${item.model_id}` }));
@@ -326,6 +334,7 @@ export default function AimmhHubPage() {
               isAuthenticated={isAuthenticated}
               includeSavedSynthesisHistory={includeSavedSynthesisHistory}
               setIncludeSavedSynthesisHistory={setIncludeSavedSynthesisHistory}
+              onSwipeTab={handleSwipeTab}
               welcomeInstance={welcomeInstance}
             />
           </div>

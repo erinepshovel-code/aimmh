@@ -1,6 +1,8 @@
 import React from 'react';
-import { Archive, Layers3, MessageSquareText, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Eye, Layers3, MessageSquareText, RotateCcw, Trash2, X } from 'lucide-react';
 import { HubRunBuilder } from './HubRunBuilder';
+import { ResponseMarkdown } from './ResponseMarkdown';
+import { CollapsibleSection } from './CollapsibleSection';
 
 export function HubRunsWorkspace({
   runMode = 'batch',
@@ -15,26 +17,44 @@ export function HubRunsWorkspace({
   setIncludeArchivedRuns,
   onToggleRunArchive,
   onDeleteArchivedRun,
+  selectedRun,
 }) {
   const runModeLabel = runMode === 'roleplay' ? 'Roleplay Runs' : 'Batch Runs';
   const runModeHint = runMode === 'roleplay'
     ? 'Roleplay runs are DM/player style orchestration with dedicated quota and history.'
     : 'Batch runs are structured multi-stage pipelines for analysis and synthesis.';
+  const [showResponseDrawer, setShowResponseDrawer] = React.useState(false);
+
+  const openResponses = (runId) => {
+    setSelectedRunId(runId);
+    setShowResponseDrawer(true);
+  };
 
   return (
     <div className="space-y-4" data-testid="hub-runs-workspace">
-      <HubRunBuilder runMode={runMode} sourceOptions={sourceOptions} instanceOptions={instanceOptions} onRun={onRun} busyKey={busyKey} />
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="hub-run-inventory-section">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-zinc-100"><Layers3 size={16} /> <h2 className="text-base font-semibold">{runModeLabel} inventory</h2></div>
-            <p className="mt-1 text-xs text-zinc-500">{runModeHint}</p>
-          </div>
-          <label className="flex items-center gap-2 text-xs text-zinc-400">
+      <CollapsibleSection
+        title={`${runModeLabel} builder`}
+        subtitle="Configure and execute runs."
+        icon={Layers3}
+        defaultOpen={false}
+        testId="hub-run-builder-collapsible"
+      >
+        <HubRunBuilder runMode={runMode} sourceOptions={sourceOptions} instanceOptions={instanceOptions} onRun={onRun} busyKey={busyKey} />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title={`${runModeLabel} inventory`}
+        subtitle={runModeHint}
+        icon={Layers3}
+        defaultOpen={false}
+        testId="hub-run-inventory-section"
+        headerRight={(
+          <label className="flex items-center gap-2 text-xs text-zinc-400" data-testid="show-archived-runs-toggle-label">
             <input type="checkbox" checked={includeArchivedRuns} onChange={(event) => setIncludeArchivedRuns(event.target.checked)} data-testid="show-archived-runs-checkbox" /> Show archived
           </label>
-        </div>
-        <div className="mt-4 space-y-3">
+        )}
+      >
+        <div className="space-y-3">
           {runs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No runs yet. Build a room, define prompt order, then execute a pipeline.</div>
           ) : runs.map((run) => (
@@ -55,6 +75,9 @@ export function HubRunsWorkspace({
                 <div className="mt-3 flex items-center gap-2 text-xs text-zinc-400"><MessageSquareText size={12} /> {run.prompt}</div>
               </button>
               <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => openResponses(run.run_id)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-700 hover:text-white" data-testid={`view-run-responses-button-${run.run_id}`}>
+                  <span className="flex items-center gap-2"><Eye size={13} /> View responses</span>
+                </button>
                 <button type="button" onClick={() => onToggleRunArchive(run)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-700 hover:text-white" data-testid={`toggle-run-archive-button-${run.run_id}`}>
                   <span className="flex items-center gap-2">{run.archived ? <RotateCcw size={13} /> : <Archive size={13} />} {run.archived ? 'Restore' : 'Archive'}</span>
                 </button>
@@ -67,7 +90,33 @@ export function HubRunsWorkspace({
             </article>
           ))}
         </div>
-      </section>
+      </CollapsibleSection>
+
+      {showResponseDrawer && (
+        <div className="fixed inset-0 z-[130] flex bg-black/70" data-testid="run-responses-drawer-overlay">
+          <button type="button" className="flex-1" onClick={() => setShowResponseDrawer(false)} data-testid="run-responses-drawer-backdrop" />
+          <aside className="h-full w-full max-w-2xl overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4" data-testid="run-responses-drawer">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-base font-semibold text-zinc-100">Run responses</div>
+                <div className="text-xs text-zinc-500">{selectedRun?.label || selectedRun?.run_id || 'No run selected'}</div>
+              </div>
+              <button type="button" onClick={() => setShowResponseDrawer(false)} className="rounded-xl border border-zinc-700 p-2 text-zinc-300" data-testid="run-responses-drawer-close-button"><X size={14} /></button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {!selectedRun?.results?.length ? (
+                <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No run responses available yet.</div>
+              ) : selectedRun.results.map((result) => (
+                <article key={result.run_step_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`run-response-item-${result.run_step_id}`}>
+                  <div className="text-xs text-zinc-400">Stage {result.stage_index + 1} · {result.pattern} · {result.instance_name || result.model}</div>
+                  <div className="mt-2 text-sm text-zinc-100"><ResponseMarkdown content={result.content} fontScale={1} /></div>
+                </article>
+              ))}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

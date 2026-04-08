@@ -1,6 +1,7 @@
 import React from 'react';
 import { Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
+import { CollapsibleSection } from './CollapsibleSection';
 
 export function HubSynthesisPanel({
   instances,
@@ -60,11 +61,14 @@ export function HubSynthesisPanel({
 
   return (
     <div className="space-y-4" data-testid="hub-synthesis-panel">
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="synthesis-queue-section">
-        <div className="flex items-center gap-2 text-zinc-100"><Sparkles size={16} /> <h2 className="text-base font-semibold">Synthesis queue</h2></div>
-        <p className="mt-1 text-xs text-zinc-500">Only responses sent from Chat appear here. Select exact blocks and run synthesis.</p>
-
-        <div className="mt-4 space-y-3">
+      <CollapsibleSection
+        title="Synthesis queue"
+        subtitle="Only responses sent from Chat appear here."
+        icon={Sparkles}
+        defaultOpen={false}
+        testId="synthesis-queue-section"
+      >
+        <div className="max-h-[58vh] space-y-3 overflow-y-auto pr-1" data-testid="synthesis-queue-scroll-region">
           {synthesisBasket.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500" data-testid="synthesis-empty-queue">No queued responses yet.</div>
           ) : synthesisBasket.map((block) => (
@@ -92,15 +96,21 @@ export function HubSynthesisPanel({
                   <span className="flex items-center gap-1"><Trash2 size={11} /> Remove</span>
                 </button>
               </div>
-              <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-sm">
+              <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-sm">
                 <ResponseMarkdown content={block.content} fontScale={1} />
               </div>
             </article>
           ))}
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="synthesis-run-controls">
+      <CollapsibleSection
+        title="Synthesis run controls"
+        subtitle="Pick synthesis instances and instructions."
+        icon={Sparkles}
+        defaultOpen={false}
+        testId="synthesis-run-controls"
+      >
         <div className="text-xs font-medium text-zinc-300">Synthesis models ({synthesisInstanceIds.length} selected)</div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {activeInstances.length === 0 ? <div className="text-sm text-zinc-500">Create instances first.</div> : activeInstances.map((instance) => (
@@ -152,10 +162,15 @@ export function HubSynthesisPanel({
         >
           <span className="flex items-center gap-2">{synthesisBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Synthesize selected</span>
         </button>
-      </section>
+      </CollapsibleSection>
 
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="synthesis-history-section">
-        <div className="text-base font-semibold text-zinc-100">Synthesis history</div>
+      <CollapsibleSection
+        title="Synthesis history"
+        subtitle="Session-first history with optional saved history visibility."
+        icon={Sparkles}
+        defaultOpen={false}
+        testId="synthesis-history-section"
+      >
         <div className="mt-3 space-y-3">
           {synthesisHistory.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No synthesis history yet for this session.</div>
@@ -174,7 +189,7 @@ export function HubSynthesisPanel({
             </article>
           ))}
         </div>
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }

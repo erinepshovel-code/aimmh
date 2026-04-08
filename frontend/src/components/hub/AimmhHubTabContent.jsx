@@ -25,6 +25,7 @@ export function AimmhHubTabContent({
   isAuthenticated,
   includeSavedSynthesisHistory,
   setIncludeSavedSynthesisHistory,
+  onSwipeTab,
   welcomeInstance,
 }) {
   switch (activeTab) {
@@ -72,6 +73,7 @@ export function AimmhHubTabContent({
           busyKey={workspace.busyKey}
           runs={workspace.runs.filter((run) => run.run_mode ? run.run_mode === 'batch' : !(run.stage_summaries || []).some((item) => item.pattern === 'roleplay'))}
           selectedRunId={workspace.selectedRunId}
+          selectedRun={workspace.selectedRun}
           setSelectedRunId={workspace.setSelectedRunId}
           includeArchivedRuns={workspace.includeArchivedRuns}
           setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
@@ -89,6 +91,7 @@ export function AimmhHubTabContent({
           busyKey={workspace.busyKey}
           runs={workspace.runs.filter((run) => run.run_mode ? run.run_mode === 'roleplay' : (run.stage_summaries || []).some((item) => item.pattern === 'roleplay'))}
           selectedRunId={workspace.selectedRunId}
+          selectedRun={workspace.selectedRun}
           setSelectedRunId={workspace.setSelectedRunId}
           includeArchivedRuns={workspace.includeArchivedRuns}
           setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
@@ -121,6 +124,7 @@ export function AimmhHubTabContent({
           onSendPrompt={sendChatPrompt}
           busyKey={chatBusyKey}
           onAddSynthesisBlock={addSynthesisBlock}
+          onSwipeTab={onSwipeTab}
         />
       );
   }

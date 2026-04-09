@@ -6,6 +6,7 @@ export function ClaudeWelcomePanel({ welcomeInstance, prompts, onSendPrompt, bus
   const [prompt, setPrompt] = React.useState('');
   const [latestPromptId, setLatestPromptId] = React.useState('');
   const [popoutOpen, setPopoutOpen] = React.useState(false);
+  const [isSending, setIsSending] = React.useState(false);
 
   const latestPrompt = React.useMemo(() => {
     if (latestPromptId) {
@@ -18,10 +19,15 @@ export function ClaudeWelcomePanel({ welcomeInstance, prompts, onSendPrompt, bus
 
   const sendPrompt = async (event) => {
     event.preventDefault();
-    if (!prompt.trim() || !welcomeInstance) return;
-    const result = await onSendPrompt({ prompt, instance_ids: [welcomeInstance.instance_id] });
-    setLatestPromptId(result.prompt_id);
-    setPrompt('');
+    if (!prompt.trim() || !welcomeInstance || isSending || busyKey === 'chat-send-prompt') return;
+    try {
+      setIsSending(true);
+      const result = await onSendPrompt({ prompt, instance_ids: [welcomeInstance.instance_id] });
+      setLatestPromptId(result.prompt_id);
+      setPrompt('');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -39,6 +45,7 @@ export function ClaudeWelcomePanel({ welcomeInstance, prompts, onSendPrompt, bus
         <textarea
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
+          disabled={isSending || busyKey === 'chat-send-prompt'}
           rows={4}
           placeholder="Ask the welcome model..."
           className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-emerald-500/50"
@@ -47,11 +54,11 @@ export function ClaudeWelcomePanel({ welcomeInstance, prompts, onSendPrompt, bus
         <div className="mt-3 flex justify-end">
           <button
             type="submit"
-            disabled={!welcomeInstance || busyKey === 'chat-send-prompt' || !prompt.trim()}
+            disabled={!welcomeInstance || isSending || busyKey === 'chat-send-prompt' || !prompt.trim()}
             className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
             data-testid="claude-md-chat-send-button"
           >
-            <span className="flex items-center gap-2"><Send size={14} /> Ask guide</span>
+            <span className="flex items-center gap-2"><Send size={14} /> {isSending || busyKey === 'chat-send-prompt' ? 'Sending…' : 'Ask guide'}</span>
           </button>
         </div>
       </form>

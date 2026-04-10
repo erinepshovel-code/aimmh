@@ -233,7 +233,9 @@
           if (!localName) return;
 
           // Search for usages of this component
-          importPath.parentPath.parentPath.traverse({
+          const programPath = importPath.findParent((p) => p && p.isProgram && p.isProgram());
+          if (!programPath || !programPath.traverse) return;
+          programPath.traverse({
             JSXOpeningElement(jsxPath) {
               if (result) return;
 

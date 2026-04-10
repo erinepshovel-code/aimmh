@@ -25,7 +25,9 @@ export function AimmhHubTabContent({
   isAuthenticated,
   includeSavedSynthesisHistory,
   setIncludeSavedSynthesisHistory,
-  onSwipeTab,
+  persistSynthesisQueue,
+  setPersistSynthesisQueue,
+  queuePersistenceScope,
   welcomeInstance,
 }) {
   switch (activeTab) {
@@ -111,6 +113,9 @@ export function AimmhHubTabContent({
           isAuthenticated={isAuthenticated}
           includeSavedSynthesisHistory={includeSavedSynthesisHistory}
           setIncludeSavedSynthesisHistory={setIncludeSavedSynthesisHistory}
+          persistSynthesisQueue={persistSynthesisQueue}
+          setPersistSynthesisQueue={setPersistSynthesisQueue}
+          queuePersistenceScope={queuePersistenceScope}
         />
       );
     case 'chat':
@@ -124,7 +129,7 @@ export function AimmhHubTabContent({
           onSendPrompt={sendChatPrompt}
           busyKey={chatBusyKey}
           onAddSynthesisBlock={addSynthesisBlock}
-          onSwipeTab={onSwipeTab}
+          modelRegistry={workspace.models}
         />
       );
   }

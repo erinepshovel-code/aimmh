@@ -1,8 +1,19 @@
 import React from 'react';
 import { Archive, Eye, Layers3, MessageSquareText, RotateCcw, Trash2, X } from 'lucide-react';
 import { HubRunBuilder } from './HubRunBuilder';
-import { ResponseMarkdown } from './ResponseMarkdown';
-import { CollapsibleSection } from './CollapsibleSection';
+
+function InlineCollapsible({ title, subtitle, icon: Icon, defaultOpen = false, testId, children }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid={testId}>
+      <button type="button" onClick={() => setOpen((prev) => !prev)} className="w-full text-left" data-testid={`${testId}-toggle`}>
+        <div className="flex items-center gap-2 text-zinc-100">{Icon ? <Icon size={16} /> : null}<h2 className="text-base font-semibold">{title}</h2></div>
+        {subtitle ? <p className="mt-1 text-xs text-zinc-500">{subtitle}</p> : null}
+      </button>
+      {open ? <div className="mt-4">{children}</div> : null}
+    </section>
+  );
+}
 
 export function HubRunsWorkspace({
   runMode = 'batch',
@@ -32,7 +43,7 @@ export function HubRunsWorkspace({
 
   return (
     <div className="space-y-4" data-testid="hub-runs-workspace">
-      <CollapsibleSection
+      <InlineCollapsible
         title={`${runModeLabel} builder`}
         subtitle="Configure and execute runs."
         icon={Layers3}
@@ -40,20 +51,20 @@ export function HubRunsWorkspace({
         testId="hub-run-builder-collapsible"
       >
         <HubRunBuilder runMode={runMode} sourceOptions={sourceOptions} instanceOptions={instanceOptions} onRun={onRun} busyKey={busyKey} />
-      </CollapsibleSection>
+      </InlineCollapsible>
 
-      <CollapsibleSection
+      <InlineCollapsible
         title={`${runModeLabel} inventory`}
         subtitle={runModeHint}
         icon={Layers3}
         defaultOpen={false}
         testId="hub-run-inventory-section"
-        headerRight={(
+      >
+        <div className="mb-3">
           <label className="flex items-center gap-2 text-xs text-zinc-400" data-testid="show-archived-runs-toggle-label">
             <input type="checkbox" checked={includeArchivedRuns} onChange={(event) => setIncludeArchivedRuns(event.target.checked)} data-testid="show-archived-runs-checkbox" /> Show archived
           </label>
-        )}
-      >
+        </div>
         <div className="space-y-3">
           {runs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No runs yet. Build a room, define prompt order, then execute a pipeline.</div>
@@ -90,7 +101,7 @@ export function HubRunsWorkspace({
             </article>
           ))}
         </div>
-      </CollapsibleSection>
+      </InlineCollapsible>
 
       {showResponseDrawer && (
         <div className="fixed inset-0 z-[130] flex bg-black/70" data-testid="run-responses-drawer-overlay">
@@ -105,12 +116,26 @@ export function HubRunsWorkspace({
             </div>
 
             <div className="mt-4 space-y-3">
+              {selectedRun?.stage_summaries?.length ? (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid="run-responses-drawer-stage-descriptions">
+                  <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Batch job descriptions</div>
+                  <div className="mt-2 space-y-2">
+                    {selectedRun.stage_summaries.map((summary) => (
+                      <div key={`${selectedRun.run_id}-stage-${summary.stage_index}`} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 text-xs text-zinc-300" data-testid={`run-stage-description-${summary.stage_index}`}>
+                        <div className="text-zinc-200">Stage {summary.stage_index + 1} · {summary.stage_name || summary.pattern}</div>
+                        <div className="mt-1 text-zinc-400">{summary.prompt_used}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {!selectedRun?.results?.length ? (
                 <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No run responses available yet.</div>
               ) : selectedRun.results.map((result) => (
                 <article key={result.run_step_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid={`run-response-item-${result.run_step_id}`}>
                   <div className="text-xs text-zinc-400">Stage {result.stage_index + 1} · {result.pattern} · {result.instance_name || result.model}</div>
-                  <div className="mt-2 text-sm text-zinc-100"><ResponseMarkdown content={result.content} fontScale={1} /></div>
+                  <pre className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{result.content}</pre>
                 </article>
               ))}
             </div>

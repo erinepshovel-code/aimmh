@@ -11,6 +11,8 @@ import { CLAUDE_MD_CONTEXT } from '../lib/claudeContext';
 import { hubApi } from '../lib/hubApi';
 import { useAuth } from '../contexts/AuthContext';
 
+const SYNTHESIS_QUEUE_LOCAL_KEY = 'aimmh-synthesis-queue-local';
+
 const TABS = [
   { id: 'claude', label: 'Claude.md' },
   { id: 'registry', label: 'Registry' },
@@ -24,7 +26,7 @@ const FIRST_VISIT_KEY = 'aimmh-first-visit-complete-v1';
 
 export default function AimmhHubPage() {
   const navigate = useNavigate();
-  const { logout, isAuthenticated } = useAuth();
+  const { logout, isAuthenticated, user } = useAuth();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
@@ -39,6 +41,13 @@ export default function AimmhHubPage() {
   const [sessionSynthesisBatches, setSessionSynthesisBatches] = React.useState([]);
   const [includeSavedSynthesisHistory, setIncludeSavedSynthesisHistory] = React.useState(false);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
+  const [persistSynthesisQueue, setPersistSynthesisQueue] = React.useState(false);
+
+  const queuePersistenceScope = React.useMemo(() => {
+    if (!isAuthenticated) return 'session';
+    if (['supporter', 'pro', 'team'].includes(user?.subscription_tier || 'free')) return 'cloud';
+    return 'local';
+  }, [isAuthenticated, user?.subscription_tier]);
 
   const refreshChatPrompts = React.useCallback(async () => {
     try {
@@ -70,6 +79,48 @@ export default function AimmhHubPage() {
     refreshChatPrompts();
     refreshSyntheses();
   }, [refreshChatPrompts, refreshSyntheses]);
+
+  React.useEffect(() => {
+    let active = true;
+    const loadQueue = async () => {
+      if (!persistSynthesisQueue) return;
+      try {
+        if (queuePersistenceScope === 'local') {
+          const raw = window.localStorage.getItem(SYNTHESIS_QUEUE_LOCAL_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          if (active) setSynthesisBasket(Array.isArray(parsed) ? parsed : []);
+          return;
+        }
+        if (queuePersistenceScope === 'cloud') {
+          const state = await hubApi.getState('synthesis-queue-global');
+          if (active) setSynthesisBasket(Array.isArray(state?.payload?.items) ? state.payload.items : []);
+        }
+      } catch {
+        if (active) setSynthesisBasket([]);
+      }
+    };
+    loadQueue();
+    return () => {
+      active = false;
+    };
+  }, [persistSynthesisQueue, queuePersistenceScope]);
+
+  React.useEffect(() => {
+    if (!persistSynthesisQueue) return;
+    const timer = window.setTimeout(() => {
+      if (queuePersistenceScope === 'local') {
+        try {
+          window.localStorage.setItem(SYNTHESIS_QUEUE_LOCAL_KEY, JSON.stringify(synthesisBasket));
+        } catch {
+          // noop
+        }
+      }
+      if (queuePersistenceScope === 'cloud') {
+        hubApi.setState('synthesis-queue-global', { items: synthesisBasket }).catch(() => {});
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [persistSynthesisQueue, queuePersistenceScope, synthesisBasket]);
 
   React.useEffect(() => {
     try {
@@ -158,14 +209,6 @@ export default function AimmhHubPage() {
   const synthesisHistory = (isAuthenticated && includeSavedSynthesisHistory)
     ? [...sessionSynthesisBatches, ...synthesisBatches]
     : sessionSynthesisBatches;
-
-  const handleSwipeTab = React.useCallback((direction) => {
-    const currentIndex = TABS.findIndex((item) => item.id === activeTab);
-    if (currentIndex < 0) return;
-    const delta = direction === 'next' ? 1 : -1;
-    const nextIndex = (currentIndex + delta + TABS.length) % TABS.length;
-    setActiveTab(TABS[nextIndex].id);
-  }, [activeTab]);
 
   const instanceOptions = workspace.instances
     .filter((item) => !item.archived)
@@ -334,7 +377,9 @@ export default function AimmhHubPage() {
               isAuthenticated={isAuthenticated}
               includeSavedSynthesisHistory={includeSavedSynthesisHistory}
               setIncludeSavedSynthesisHistory={setIncludeSavedSynthesisHistory}
-              onSwipeTab={handleSwipeTab}
+              persistSynthesisQueue={persistSynthesisQueue}
+              setPersistSynthesisQueue={setPersistSynthesisQueue}
+              queuePersistenceScope={queuePersistenceScope}
               welcomeInstance={welcomeInstance}
             />
           </div>

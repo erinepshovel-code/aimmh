@@ -238,6 +238,25 @@ The application is now a full-stack AIMMH workspace with:
   - backend: 8/8 pass
   - frontend: all requested features pass (including collapses, queue scroll region, gesture controls presence, drawer component)
 
+## Latest Stability + UX Pass — 2026-04-10
+- [x] Disabled gesture controls temporarily in Chat prompt carousel (per user request)
+- [x] Added manual font controls in Chat (`A-` / `A+`) with persisted scale indicator
+- [x] Added Chat-to-many enhancements:
+  - single-room mode toggle (send prompts to all active instances)
+  - comparison mode toggle (`Carousel`, `Columns`, `Stack`)
+  - token displays per chat, per developer, per instance
+- [x] Added backend token fields in chat responses:
+  - `developer_id`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `tokens_estimated`
+- [x] Added synthesis queue persistence policy controls:
+  - guest: session-only
+  - logged-in free: local browser persistence
+  - paid account: cloud persistence
+- [x] Updated synthesis layout to left/right split (instance metadata left, response right) in queue and history
+- [x] Added batch job descriptions in run response drawer for selected run (stage prompt descriptions)
+- [x] Roleplay/batch/chat backend execution re-verified (all successful)
+- [x] Backend auth hardening:
+  - register username validation now enforced server-side (`3-32`, `[a-zA-Z0-9_-]`)
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

@@ -40,7 +40,7 @@ export function HelpReadmePanel({ welcomeInstance, prompts, onSendPrompt, busyKe
 
   const askHelpModel = async (event) => {
     event.preventDefault();
-    if (!welcomeInstance || !question.trim() || sending || busyKey === 'chat-send-prompt') return;
+    if (!welcomeInstance?.instance_id || !question.trim() || sending || busyKey === 'chat-send-prompt') return;
     setSending(true);
     try {
       const { payload, md } = await refreshRegistry(false);
@@ -103,7 +103,7 @@ export function HelpReadmePanel({ welcomeInstance, prompts, onSendPrompt, busyKe
 
           <button
             type="submit"
-            disabled={!welcomeInstance || !question.trim() || sending || busyKey === 'chat-send-prompt'}
+            disabled={!welcomeInstance?.instance_id || !question.trim() || sending || busyKey === 'chat-send-prompt'}
             className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
             data-testid="help-readme-ask-button"
           >

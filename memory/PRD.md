@@ -257,6 +257,29 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Backend auth hardening:
   - register username validation now enforced server-side (`3-32`, `[a-zA-Z0-9_-]`)
 
+## Latest Readme System Replacement — 2026-04-13
+- [x] Replaced old static readme/guide schema with dynamic help-model-driven README flow
+  - Hub tab renamed to **Help** (replaces prior Claude.md style surface)
+  - New panel: `HelpReadmePanel.jsx` with ask flow + preview + sync controls
+- [x] Built Python dynamic registry module:
+  - `backend/services/registry.py` scans backend/frontend/app modules
+  - Extracts module/function docs and computes code vs commented line metrics
+  - Supports begin/end metrics marker sync for modules
+- [x] Added API surface for dynamic README:
+  - `GET /api/v1/readme/registry`
+  - `POST /api/v1/readme/registry/sync`
+- [x] Added frontend README assembler:
+  - `frontend/src/lib/readme.ts` assembles coherent README markdown from registry payload
+  - Markdown is rendered and included in help-model prompt context
+- [x] Implemented module rule enforcement pipeline:
+  - updated `scripts/check_max_lines.py` to enforce
+    - begin/end metrics markers
+    - <=400 **code** lines (comments excluded)
+    - first/last marker lines excluded from code counting
+  - synced markers across scoped app modules (`backend`, `frontend/src`, `frontend/plugins`, `aimmh_lib`)
+- [x] Addressed testing-agent issue for fresh-session help ask timing:
+  - ask button now requires a valid `welcomeInstance.instance_id`
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

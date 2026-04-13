@@ -1,3 +1,4 @@
+// "lines of code":"377","lines of commented":"0"
 import React from 'react';
 import { ArrowDownToLine, Plus, Trash2, Workflow } from 'lucide-react';
 import { createEmptyStage, INPUT_MODE_OPTIONS, PATTERN_OPTIONS } from './hubConfig';
@@ -398,3 +399,4 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
     </section>
   );
 }
+// "lines of code":"377","lines of commented":"0"

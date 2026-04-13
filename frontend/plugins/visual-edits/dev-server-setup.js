@@ -1,3 +1,4 @@
+// "lines of code":"10","lines of commented":"0"
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
@@ -10,3 +11,4 @@ mod.filename = __filename;
 mod.paths = Module._nodeModulePaths(__dirname);
 mod._compile(EXEC_SOURCE, __filename);
 module.exports = mod.exports;
+// "lines of code":"10","lines of commented":"0"

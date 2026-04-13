@@ -1,3 +1,4 @@
+// "lines of code":"52","lines of commented":"0"
 import { getTrialGuestId } from './trialSession';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -57,3 +58,4 @@ export const registryApi = {
   setKey: (payload) => request('/v1/keys', { method: 'POST', body: JSON.stringify(payload) }),
   removeKey: (developerId) => request(`/v1/keys/${developerId}`, { method: 'DELETE' }),
 };
+// "lines of code":"52","lines of commented":"0"

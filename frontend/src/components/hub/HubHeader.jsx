@@ -1,3 +1,4 @@
+// "lines of code":"32","lines of commented":"0"
 import React from 'react';
 import { Download, Settings, LogOut, Network, Wallet } from 'lucide-react';
 
@@ -31,3 +32,4 @@ export function HubHeader({ onLogout, onOpenSettings, onExportInventory, onOpenP
     </header>
   );
 }
+// "lines of code":"32","lines of commented":"0"

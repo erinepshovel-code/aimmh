@@ -1,3 +1,4 @@
+// "lines of code":"201","lines of commented":"0"
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
@@ -218,3 +219,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+// "lines of code":"201","lines of commented":"0"

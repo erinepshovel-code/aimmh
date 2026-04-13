@@ -1,3 +1,4 @@
+// "lines of code":"180","lines of commented":"0"
 import * as React from "react"
 import * as MenubarPrimitive from "@radix-ui/react-menubar"
 import { Check, ChevronRight, Circle } from "lucide-react"
@@ -196,3 +197,4 @@ export {
   MenubarSub,
   MenubarShortcut,
 }
+// "lines of code":"180","lines of commented":"0"

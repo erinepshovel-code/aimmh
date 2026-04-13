@@ -1,3 +1,4 @@
+// "lines of code":"19","lines of commented":"0"
 import * as React from "react"
 import * as SwitchPrimitives from "@radix-ui/react-switch"
 
@@ -20,3 +21,4 @@ const Switch = React.forwardRef(({ className, ...props }, ref) => (
 Switch.displayName = SwitchPrimitives.Root.displayName
 
 export { Switch }
+// "lines of code":"19","lines of commented":"0"

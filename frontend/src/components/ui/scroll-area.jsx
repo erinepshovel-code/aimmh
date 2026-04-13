@@ -1,3 +1,4 @@
+// "lines of code":"34","lines of commented":"0"
 import * as React from "react"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
@@ -36,3 +37,4 @@ const ScrollBar = React.forwardRef(({ className, orientation = "vertical", ...pr
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
 
 export { ScrollArea, ScrollBar }
+// "lines of code":"34","lines of commented":"0"

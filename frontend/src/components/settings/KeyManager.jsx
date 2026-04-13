@@ -1,3 +1,4 @@
+// "lines of code":"153","lines of commented":"0"
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Key, Shield, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -163,3 +164,4 @@ export function KeyManager({ compact = false }) {
     </section>
   );
 }
+// "lines of code":"153","lines of commented":"0"

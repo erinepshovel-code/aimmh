@@ -1,3 +1,4 @@
+// "lines of code":"72","lines of commented":"0"
 import React from 'react';
 import { Archive, CheckCircle2, Copy, RotateCcw, Share2, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
@@ -74,3 +75,4 @@ export function ResponsePane({
     </article>
   );
 }
+// "lines of code":"72","lines of commented":"0"

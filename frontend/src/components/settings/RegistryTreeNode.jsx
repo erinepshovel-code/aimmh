@@ -1,3 +1,4 @@
+// "lines of code":"193","lines of commented":"0"
 import React from 'react';
 import { CheckCircle2, Copy, Loader2, ShieldCheck, Trash2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -197,3 +198,4 @@ export function RegistryTreeNode({
     </details>
   );
 }
+// "lines of code":"193","lines of commented":"0"

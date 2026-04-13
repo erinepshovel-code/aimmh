@@ -1,3 +1,4 @@
+// "lines of code":"87","lines of commented":"0"
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -91,3 +92,4 @@ function App() {
 }
 
 export default App;
+// "lines of code":"87","lines of commented":"0"

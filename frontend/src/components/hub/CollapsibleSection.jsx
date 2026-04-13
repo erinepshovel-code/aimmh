@@ -1,3 +1,4 @@
+// "lines of code":"36","lines of commented":"0"
 import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -37,3 +38,4 @@ export function CollapsibleSection({
     </section>
   );
 }
+// "lines of code":"36","lines of commented":"0"

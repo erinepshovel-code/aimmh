@@ -1,3 +1,4 @@
+// "lines of code":"54","lines of commented":"0"
 import React from 'react';
 
 const TAB_GUIDE_MAP = {
@@ -55,3 +56,4 @@ export function AiVisitorGuidePanel({ activeTab }) {
     </section>
   );
 }
+// "lines of code":"54","lines of commented":"0"

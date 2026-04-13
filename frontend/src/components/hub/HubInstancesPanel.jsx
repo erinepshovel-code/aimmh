@@ -1,3 +1,4 @@
+// "lines of code":"373","lines of commented":"1"
 import React, { useMemo, useState } from 'react';
 import { Archive, CheckCheck, Clock3, Edit3, Plus, RotateCcw, ScrollText, Trash2 } from 'lucide-react';
 import { ROLE_PRESET_OPTIONS } from './hubConfig';
@@ -391,3 +392,4 @@ export function HubInstancesPanel({
     </section>
   );
 }
+// "lines of code":"373","lines of commented":"1"

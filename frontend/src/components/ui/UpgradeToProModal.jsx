@@ -1,3 +1,4 @@
+// "lines of code":"48","lines of commented":"0"
 import React from 'react';
 import { Crown, Sparkles } from 'lucide-react';
 
@@ -48,3 +49,4 @@ export function UpgradeToProModal({
     </div>
   );
 }
+// "lines of code":"48","lines of commented":"0"

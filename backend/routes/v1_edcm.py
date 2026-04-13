@@ -1,3 +1,4 @@
+# "lines of code":"72","lines of commented":"6"
 """V1 EDCM endpoints — Energy-Dissonance Circuit Model."""
 
 import uuid
@@ -91,3 +92,4 @@ async def get_alerts(
         "metric_summary": {k: v["value"] for k, v in report["metrics"].items()},
         "provenance": build_provenance(model="edcm"),
     }
+# "lines of code":"72","lines of commented":"6"

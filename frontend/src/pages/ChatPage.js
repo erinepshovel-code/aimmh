@@ -1,3 +1,4 @@
+// "lines of code":"256","lines of commented":"3"
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -282,3 +283,4 @@ export default function ChatPage() {
     </div>
   );
 }
+// "lines of code":"256","lines of commented":"3"

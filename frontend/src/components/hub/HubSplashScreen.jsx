@@ -1,3 +1,4 @@
+// "lines of code":"24","lines of commented":"0"
 import React from 'react';
 
 export function HubSplashScreen({ firstVisit, onDismiss }) {
@@ -23,3 +24,4 @@ export function HubSplashScreen({ firstVisit, onDismiss }) {
     </div>
   );
 }
+// "lines of code":"24","lines of commented":"0"

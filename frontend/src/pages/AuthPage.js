@@ -1,3 +1,4 @@
+// "lines of code":"223","lines of commented":"1"
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -238,3 +239,4 @@ export default function AuthPage() {
     </div>
   );
 }
+// "lines of code":"223","lines of commented":"1"

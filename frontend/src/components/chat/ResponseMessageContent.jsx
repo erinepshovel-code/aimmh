@@ -1,3 +1,4 @@
+// "lines of code":"80","lines of commented":"0"
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -83,3 +84,4 @@ export const ResponseMessageContent = ({ content = '', messageId, streaming = fa
     </div>
   );
 };
+// "lines of code":"80","lines of commented":"0"

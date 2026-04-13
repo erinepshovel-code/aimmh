@@ -1,3 +1,4 @@
+# "lines of code":"20","lines of commented":"38"
 """
 aimmh_lib — Async multi-model conversation orchestration library.
 
@@ -68,3 +69,4 @@ __all__ = [
     "council",
     "roleplay",
 ]
+# "lines of code":"20","lines of commented":"38"

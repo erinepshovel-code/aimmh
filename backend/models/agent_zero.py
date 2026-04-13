@@ -1,3 +1,4 @@
+# "lines of code":"41","lines of commented":"0"
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Literal
 
@@ -49,3 +50,4 @@ class A0NonUISynthesisRequest(BaseModel):
     global_context: Optional[str] = None
     model_roles: Optional[Dict[str, str]] = None
     history_limit: Optional[int] = Field(default=None, ge=0)
+# "lines of code":"41","lines of commented":"0"

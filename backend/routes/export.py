@@ -1,3 +1,4 @@
+# "lines of code":"106","lines of commented":"1"
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from datetime import datetime, timezone
@@ -121,3 +122,4 @@ async def export_conversation(
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id[:8]}.pdf"'}
         )
+# "lines of code":"106","lines of commented":"1"

@@ -1,3 +1,4 @@
+# "lines of code":"270","lines of commented":"0"
 from __future__ import annotations
 
 import asyncio
@@ -292,3 +293,4 @@ async def verify_registry(current_user: dict, registry: dict, mode: str = "light
         total_count=len(all_results),
         results=all_results,
     )
+# "lines of code":"270","lines of commented":"0"

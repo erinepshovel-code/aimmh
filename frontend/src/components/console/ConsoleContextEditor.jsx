@@ -1,3 +1,4 @@
+// "lines of code":"64","lines of commented":"0"
 import React from 'react';
 import { Copy, Save } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -65,3 +66,4 @@ export function ConsoleContextEditor({
     </Card>
   );
 }
+// "lines of code":"64","lines of commented":"0"

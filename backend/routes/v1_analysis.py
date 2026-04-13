@@ -1,3 +1,4 @@
+# "lines of code":"277","lines of commented":"20"
 """Transcript analysis — upload, parse with LLM, apply EDCM per turn, generate report."""
 
 import uuid
@@ -362,3 +363,4 @@ async def get_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+# "lines of code":"277","lines of commented":"20"

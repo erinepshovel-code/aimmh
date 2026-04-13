@@ -1,3 +1,4 @@
+# "lines of code":"128","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List
@@ -141,3 +142,4 @@ async def get_synthesis_batch(user_id: str, synthesis_batch_id: str) -> HubSynth
     if not doc:
         raise HTTPException(status_code=404, detail="Synthesis batch not found")
     return HubSynthesisBatchOut(**doc)
+# "lines of code":"128","lines of commented":"0"

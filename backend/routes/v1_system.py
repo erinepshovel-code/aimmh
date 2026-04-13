@@ -1,8 +1,10 @@
+# "lines of code":"77","lines of commented":"5"
 """V1 System endpoints — health, version, PTCA schema."""
 
 from fastapi import APIRouter
 from services.llm import DEFAULT_REGISTRY
 from services.ai_instructions import get_ai_instruction_payload
+from services.registry import collect_dynamic_registry
 
 router = APIRouter(prefix="/api/v1", tags=["system"])
 
@@ -84,3 +86,16 @@ async def list_available_models():
 @router.get("/ai-instructions")
 async def ai_instructions_v1():
     return get_ai_instruction_payload()
+
+
+@router.get("/readme/registry")
+async def readme_registry():
+    """Return dynamic module registry for README assembly."""
+    return collect_dynamic_registry(sync_markers=False)
+
+
+@router.post("/readme/registry/sync")
+async def readme_registry_sync():
+    """Sync metrics markers and return refreshed registry."""
+    return collect_dynamic_registry(sync_markers=True)
+# "lines of code":"77","lines of commented":"5"

@@ -1,3 +1,4 @@
+# "lines of code":"44","lines of commented":"6"
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime, timezone
@@ -62,3 +63,4 @@ class SynthesisRequest(BaseModel):
     selected_messages: List[str]
     target_models: List[str]
     synthesis_prompt: str
+# "lines of code":"44","lines of commented":"6"

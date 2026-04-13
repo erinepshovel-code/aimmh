@@ -1,3 +1,4 @@
+// "lines of code":"35","lines of commented":"0"
 import { GripVertical } from "lucide-react"
 import * as ResizablePrimitive from "react-resizable-panels"
 
@@ -38,3 +39,4 @@ const ResizableHandle = ({
 )
 
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
+// "lines of code":"35","lines of commented":"0"

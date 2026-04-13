@@ -1,3 +1,4 @@
+// "lines of code":"68","lines of commented":"0"
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker } from "react-day-picker"
@@ -69,3 +70,4 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
+// "lines of code":"68","lines of commented":"0"

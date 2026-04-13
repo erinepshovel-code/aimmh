@@ -1,3 +1,4 @@
+// "lines of code":"96","lines of commented":"0"
 import React from 'react';
 import { CheckCheck, Copy, LayoutPanelTop, Rows3, Share2 } from 'lucide-react';
 
@@ -95,3 +96,4 @@ export function ResponsesToolbar({
     </div>
   );
 }
+// "lines of code":"96","lines of commented":"0"

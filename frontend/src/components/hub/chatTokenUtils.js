@@ -1,3 +1,4 @@
+// "lines of code":"18","lines of commented":"0"
 export const estimateTokens = (text = '') => {
   const clean = String(text || '').trim();
   if (!clean) return 1;
@@ -18,3 +19,4 @@ export const responseTokenTotal = (response, promptText) => {
   const completionTokens = typeof response?.completion_tokens === 'number' ? response.completion_tokens : estimateTokens(response?.content || '');
   return promptTokens + completionTokens;
 };
+// "lines of code":"18","lines of commented":"0"

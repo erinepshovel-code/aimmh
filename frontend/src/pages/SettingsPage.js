@@ -1,3 +1,4 @@
+// "lines of code":"355","lines of commented":"0"
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -375,3 +376,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+// "lines of code":"355","lines of commented":"0"

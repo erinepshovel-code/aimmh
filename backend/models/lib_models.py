@@ -1,3 +1,4 @@
+# "lines of code":"170","lines of commented":"45"
 """
 lib_models.py — Pydantic request/response models for the /api/v1/lib/ routes.
 
@@ -251,3 +252,4 @@ class LibResponse(BaseModel):
     results: list[LibModelResult]
     pattern: str
     thread_id: Optional[str] = None
+# "lines of code":"170","lines of commented":"45"

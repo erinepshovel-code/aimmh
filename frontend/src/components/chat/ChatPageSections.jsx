@@ -1,3 +1,4 @@
+// "lines of code":"232","lines of commented":"0"
 import React, { useCallback, useEffect, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import useEmblaCarousel from 'embla-carousel-react';
@@ -241,3 +242,4 @@ export function LayoutToggle({ layout, setLayout, splitLocked, setSplitLocked })
     </div>
   );
 }
+// "lines of code":"232","lines of commented":"0"

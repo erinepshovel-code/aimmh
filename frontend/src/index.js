@@ -1,3 +1,4 @@
+// "lines of code":"25","lines of commented":"0"
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@/index.css";
@@ -27,3 +28,4 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+// "lines of code":"25","lines of commented":"0"

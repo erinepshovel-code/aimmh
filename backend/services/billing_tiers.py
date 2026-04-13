@@ -1,3 +1,4 @@
+# "lines of code":"154","lines of commented":"0"
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -180,3 +181,4 @@ async def consume_non_paying_daily_quota(
         "used": int((updated or {}).get("count") or 0),
         "limit": safe_limit,
     }
+# "lines of code":"154","lines of commented":"0"

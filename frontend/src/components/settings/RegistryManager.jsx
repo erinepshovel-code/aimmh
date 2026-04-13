@@ -1,3 +1,4 @@
+// "lines of code":"298","lines of commented":"0"
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, Plus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -317,3 +318,4 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
     </section>
   );
 }
+// "lines of code":"298","lines of commented":"0"

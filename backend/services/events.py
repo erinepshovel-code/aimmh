@@ -1,3 +1,4 @@
+# "lines of code":"90","lines of commented":"10"
 """Append-only event engine aligned to spec.md v1.0.2-S9.
 
 Every interaction is an append-only event. No destructive edits.
@@ -117,3 +118,4 @@ def build_sentinel_context(
             "retrieval_log": [],
         },
     }
+# "lines of code":"90","lines of commented":"10"

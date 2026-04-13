@@ -1,3 +1,4 @@
+// "lines of code":"35","lines of commented":"0"
 import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
@@ -39,3 +40,4 @@ const TabsContent = React.forwardRef(({ className, ...props }, ref) => (
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
 export { Tabs, TabsList, TabsTrigger, TabsContent }
+// "lines of code":"35","lines of commented":"0"

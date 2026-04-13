@@ -1,3 +1,4 @@
+# "lines of code":"9","lines of commented":"0"
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -13,3 +14,4 @@ class HubStateOut(BaseModel):
     state_key: str
     payload: Dict[str, Any] = Field(default_factory=dict)
     updated_at: str
+# "lines of code":"9","lines of commented":"0"

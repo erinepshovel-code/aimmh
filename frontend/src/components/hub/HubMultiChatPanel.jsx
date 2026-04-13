@@ -1,3 +1,4 @@
+// "lines of code":"363","lines of commented":"1"
 import React from 'react';
 import {
   CheckCheck,
@@ -393,3 +394,4 @@ export function HubMultiChatPanel({
     </div>
   );
 }
+// "lines of code":"363","lines of commented":"1"

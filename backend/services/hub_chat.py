@@ -1,3 +1,4 @@
+# "lines of code":"126","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List
@@ -139,3 +140,4 @@ async def get_chat_prompt(user_id: str, prompt_id: str) -> HubChatPromptOut:
     if not doc:
         raise HTTPException(status_code=404, detail="Chat prompt not found")
     return HubChatPromptOut(**doc)
+# "lines of code":"126","lines of commented":"0"

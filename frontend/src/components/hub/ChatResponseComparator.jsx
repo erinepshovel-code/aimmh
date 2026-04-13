@@ -1,3 +1,4 @@
+// "lines of code":"130","lines of commented":"0"
 import React from 'react';
 import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, Sparkles } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
@@ -140,3 +141,4 @@ export function ChatResponseComparator({ promptId, responses, synthesisBasket, o
     </section>
   );
 }
+// "lines of code":"130","lines of commented":"0"

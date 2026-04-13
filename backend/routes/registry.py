@@ -1,3 +1,4 @@
+# "lines of code":"286","lines of commented":"8"
 """Model registry management — add/remove developers and models."""
 
 import math
@@ -336,3 +337,4 @@ async def verify_registry_all(current_user: dict = Depends(get_current_user)):
     doc = await _get_or_seed_registry(uid)
     registry = doc.get("developers", {})
     return await verify_registry(current_user, registry, mode="light")
+# "lines of code":"286","lines of commented":"8"

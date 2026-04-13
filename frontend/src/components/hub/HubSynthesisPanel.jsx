@@ -1,3 +1,4 @@
+// "lines of code":"206","lines of commented":"0"
 import React from 'react';
 import { Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
@@ -219,3 +220,4 @@ export function HubSynthesisPanel({
     </div>
   );
 }
+// "lines of code":"206","lines of commented":"0"

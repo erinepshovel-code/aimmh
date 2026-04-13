@@ -1,3 +1,4 @@
+// "lines of code":"172","lines of commented":"0"
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -181,3 +182,4 @@ export default function ModelSelector({ selectedModels, onChange, maxModels = 6 
     </div>
   );
 }
+// "lines of code":"172","lines of commented":"0"

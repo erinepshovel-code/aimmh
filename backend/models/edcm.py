@@ -1,3 +1,4 @@
+# "lines of code":"25","lines of commented":"2"
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -31,3 +32,4 @@ class A0Config(BaseModel):
     api_key: str = ""
     route_via_a0: bool = False
     auto_ingest: bool = False
+# "lines of code":"25","lines of commented":"2"

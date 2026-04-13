@@ -1,20 +1,20 @@
+// "lines of code":"337","lines of commented":"4"
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { HubSplashScreen } from '../components/hub/HubSplashScreen';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
-import { ClaudeWelcomePanel } from '../components/hub/ClaudeWelcomePanel';
 import { AimmhHubTabContent } from '../components/hub/AimmhHubTabContent';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
-import { CLAUDE_MD_CONTEXT } from '../lib/claudeContext';
+import { HELP_MODEL_CONTEXT } from '../lib/helpModelContext';
 import { hubApi } from '../lib/hubApi';
 import { useAuth } from '../contexts/AuthContext';
 
 const SYNTHESIS_QUEUE_LOCAL_KEY = 'aimmh-synthesis-queue-local';
 
 const TABS = [
-  { id: 'claude', label: 'Claude.md' },
+  { id: 'help', label: 'Help' },
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
   { id: 'batch-runs', label: 'Batch Runs' },
@@ -30,7 +30,6 @@ export default function AimmhHubPage() {
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
-  const [showWelcomePanel, setShowWelcomePanel] = React.useState(false);
   const [firstVisit, setFirstVisit] = React.useState(false);
   const [welcomeProvisioning, setWelcomeProvisioning] = React.useState(false);
   const [chatPrompts, setChatPrompts] = React.useState([]);
@@ -127,12 +126,10 @@ export default function AimmhHubPage() {
       const seen = window.localStorage.getItem(FIRST_VISIT_KEY) === '1';
       const isFirst = !seen;
       setFirstVisit(isFirst);
-      setShowWelcomePanel(isFirst);
-      setActiveTab(isFirst ? 'claude' : 'registry');
+      setActiveTab(isFirst ? 'help' : 'registry');
     } catch {
       setFirstVisit(true);
-      setShowWelcomePanel(true);
-      setActiveTab('claude');
+      setActiveTab('help');
     }
   }, []);
 
@@ -237,7 +234,7 @@ export default function AimmhHubPage() {
         setWelcomeProvisioning(true);
         await workspace.updateInstance(welcomeInstance.instance_id, {
           model_id: fallbackModel,
-          instance_prompt: CLAUDE_MD_CONTEXT,
+          instance_prompt: HELP_MODEL_CONTEXT,
           metadata: { ...(welcomeInstance.metadata || {}), welcome_model: true, welcome_repaired: true },
         });
         await workspace.refreshCore();
@@ -263,9 +260,9 @@ export default function AimmhHubPage() {
           name: 'Welcome Guide',
           model_id: modelId,
           role_preset: 'Mentor',
-          instance_prompt: CLAUDE_MD_CONTEXT,
+          instance_prompt: HELP_MODEL_CONTEXT,
           history_window_messages: 24,
-          metadata: { welcome_model: true, welcome_seed: 'claude-md' },
+          metadata: { welcome_model: true, welcome_seed: 'help-model' },
         });
         await workspace.refreshCore();
       } catch {
@@ -337,27 +334,9 @@ export default function AimmhHubPage() {
               >
                 {isAuthenticated ? 'Logout' : 'Sign in'}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWelcomePanel((prev) => !prev);
-                }}
-                className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
-                data-testid="hub-toggle-ai-guide-button"
-              >
-                {showWelcomePanel ? 'Hide guide chat' : 'Guide chat'}
-              </button>
             </div>
             <HubTabsNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
           </div>
-          {showWelcomePanel && activeTab !== 'claude' && (
-            <ClaudeWelcomePanel
-              welcomeInstance={welcomeInstance}
-              prompts={chatPrompts}
-              onSendPrompt={sendChatPrompt}
-              busyKey={chatBusyKey}
-            />
-          )}
           <div data-testid={`hub-tab-panel-${activeTab}`}>
             <AimmhHubTabContent
               activeTab={activeTab}
@@ -388,3 +367,4 @@ export default function AimmhHubPage() {
     </div>
   );
 }
+// "lines of code":"337","lines of commented":"4"

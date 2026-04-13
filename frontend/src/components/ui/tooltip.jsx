@@ -1,3 +1,4 @@
+// "lines of code":"20","lines of commented":"0"
 import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
@@ -24,3 +25,4 @@ const TooltipContent = React.forwardRef(({ className, sideOffset = 4, ...props }
 TooltipContent.displayName = TooltipPrimitive.Content.displayName
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+// "lines of code":"20","lines of commented":"0"

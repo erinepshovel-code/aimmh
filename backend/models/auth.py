@@ -1,3 +1,4 @@
+# "lines of code":"72","lines of commented":"0"
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
@@ -102,3 +103,4 @@ class ServiceAccountPolicyResponse(BaseModel):
 
 class ServiceAccountPolicyUpdateRequest(BaseModel):
     one_token_per_bot: bool
+# "lines of code":"72","lines of commented":"0"

@@ -1,3 +1,4 @@
+// "lines of code":"31","lines of commented":"0"
 import { useToast } from "@/hooks/use-toast"
 import {
   Toast,
@@ -31,3 +32,4 @@ export function Toaster() {
     </ToastProvider>
   );
 }
+// "lines of code":"31","lines of commented":"0"

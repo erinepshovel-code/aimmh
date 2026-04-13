@@ -1,3 +1,4 @@
+// "lines of code":"283","lines of commented":"0"
 import React from 'react';
 import { ArrowLeft, BadgeCheck, HeartHandshake, Loader2, Sparkles, Users } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -300,3 +301,4 @@ export default function PricingPageV2() {
     </div>
   );
 }
+// "lines of code":"283","lines of commented":"0"

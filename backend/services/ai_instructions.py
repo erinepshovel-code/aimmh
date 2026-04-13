@@ -1,3 +1,4 @@
+# "lines of code":"76","lines of commented":"0"
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -79,3 +80,4 @@ def get_ai_instruction_text() -> str:
     lines.append(f"- Hub API: {payload['api_endpoints']['hub_base']}")
     lines.append(f"- Registry API: {payload['api_endpoints']['registry']}")
     return "\n".join(lines)
+# "lines of code":"76","lines of commented":"0"

@@ -1,3 +1,4 @@
+# "lines of code":"37","lines of commented":"0"
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Literal
 
@@ -47,3 +48,4 @@ class PaymentSummaryResponse(BaseModel):
     total_core_usd: float
     estimated_usage_cost_usd: float
     total_estimated_tokens: int
+# "lines of code":"37","lines of commented":"0"

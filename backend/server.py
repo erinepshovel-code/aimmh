@@ -1,3 +1,4 @@
+# "lines of code":"100","lines of commented":"3"
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -127,3 +128,4 @@ async def ready_check():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+# "lines of code":"100","lines of commented":"3"

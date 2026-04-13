@@ -1,3 +1,4 @@
+# "lines of code":"41","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Optional
@@ -51,3 +52,4 @@ class HubSynthesisBatchOut(BaseModel):
 class HubSynthesisBatchListResponse(BaseModel):
     batches: List[HubSynthesisBatchOut] = Field(default_factory=list)
     total: int = 0
+# "lines of code":"41","lines of commented":"0"

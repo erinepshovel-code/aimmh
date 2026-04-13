@@ -1,3 +1,4 @@
+// "lines of code":"97","lines of commented":"9"
 // webpack-health-plugin.js
 // Webpack plugin that tracks compilation state and health metrics
 
@@ -118,3 +119,4 @@ class WebpackHealthPlugin {
 }
 
 module.exports = WebpackHealthPlugin;
+// "lines of code":"97","lines of commented":"9"

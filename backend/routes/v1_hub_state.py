@@ -1,3 +1,4 @@
+# "lines of code":"45","lines of commented":"0"
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -56,3 +57,4 @@ async def delete_hub_state(state_key: str, current_user: dict = Depends(get_curr
     if result.deleted_count == 0:
         return {"message": "State already absent"}
     return {"message": f"Deleted state {state_key}"}
+# "lines of code":"45","lines of commented":"0"

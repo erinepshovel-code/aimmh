@@ -1,3 +1,4 @@
+# "lines of code":"68","lines of commented":"5"
 """User API key management — secure storage, never expose full keys."""
 
 import os
@@ -89,3 +90,4 @@ async def remove_key(
 async def universal_key_status():
     """Check if the universal key is valid."""
     return await validate_universal_key()
+# "lines of code":"68","lines of commented":"5"

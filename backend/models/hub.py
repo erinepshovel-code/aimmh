@@ -1,3 +1,4 @@
+# "lines of code":"163","lines of commented":"0"
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
@@ -208,3 +209,4 @@ class HubConnectionsResponse(BaseModel):
     fastapi_connections: Dict[str, Dict[str, str]]
     patterns: List[str]
     supports: Dict[str, bool]
+# "lines of code":"163","lines of commented":"0"

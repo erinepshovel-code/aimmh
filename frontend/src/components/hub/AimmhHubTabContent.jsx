@@ -1,10 +1,11 @@
+// "lines of code":"135","lines of commented":"0"
 import React from 'react';
 import { HubGroupsPanel } from './HubGroupsPanel';
 import { HubInstancesPanel } from './HubInstancesPanel';
 import { HubMultiChatPanel } from './HubMultiChatPanel';
 import { HubSynthesisPanel } from './HubSynthesisPanel';
 import { HubRunsWorkspace } from './HubRunsWorkspace';
-import { ClaudeWelcomePanel } from './ClaudeWelcomePanel';
+import { HelpReadmePanel } from './HelpReadmePanel';
 import { RegistryManager } from '../settings/RegistryManager';
 
 export function AimmhHubTabContent({
@@ -31,8 +32,8 @@ export function AimmhHubTabContent({
   welcomeInstance,
 }) {
   switch (activeTab) {
-    case 'claude':
-      return <ClaudeWelcomePanel welcomeInstance={welcomeInstance} prompts={chatPrompts} onSendPrompt={sendChatPrompt} busyKey={chatBusyKey} />;
+    case 'help':
+      return <HelpReadmePanel welcomeInstance={welcomeInstance} prompts={chatPrompts} onSendPrompt={sendChatPrompt} busyKey={chatBusyKey} />;
     case 'registry':
       return <RegistryManager onInventoryChanged={workspace.refreshCore} />;
     case 'instantiation':
@@ -134,3 +135,4 @@ export function AimmhHubTabContent({
       );
   }
 }
+// "lines of code":"135","lines of commented":"0"

@@ -1,3 +1,4 @@
+// "lines of code":"30","lines of commented":"0"
 const TRIAL_GUEST_KEY = 'aimmh-trial-guest-id';
 const TRIAL_GUEST_DAY_KEY = 'aimmh-trial-guest-day';
 let memoryGuestId = '';
@@ -31,3 +32,4 @@ export function getTrialGuestId() {
     return memoryGuestId;
   }
 }
+// "lines of code":"30","lines of commented":"0"

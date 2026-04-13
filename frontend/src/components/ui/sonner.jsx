@@ -1,3 +1,4 @@
+// "lines of code":"25","lines of commented":"0"
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, toast } from "sonner"
 
@@ -26,3 +27,4 @@ const Toaster = ({
 }
 
 export { Toaster, toast }
+// "lines of code":"25","lines of commented":"0"

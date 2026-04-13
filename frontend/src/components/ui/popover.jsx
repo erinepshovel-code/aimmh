@@ -1,3 +1,4 @@
+// "lines of code":"21","lines of commented":"0"
 import * as React from "react"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
 
@@ -25,3 +26,4 @@ const PopoverContent = React.forwardRef(({ className, align = "center", sideOffs
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
+// "lines of code":"21","lines of commented":"0"

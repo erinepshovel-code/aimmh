@@ -1,3 +1,4 @@
+// "lines of code":"35","lines of commented":"0"
 import * as React from "react"
 import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group"
 
@@ -41,3 +42,4 @@ const ToggleGroupItem = React.forwardRef(({ className, children, variant, size, 
 ToggleGroupItem.displayName = ToggleGroupPrimitive.Item.displayName
 
 export { ToggleGroup, ToggleGroupItem }
+// "lines of code":"35","lines of commented":"0"

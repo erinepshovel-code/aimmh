@@ -1,3 +1,4 @@
+// "lines of code":"20","lines of commented":"0"
 export function estimateTokens(text) {
   if (!text) return 0;
   return Math.ceil(String(text).length / 4);
@@ -20,3 +21,4 @@ export function estimateResponseCostUsd(modelId, text) {
   const ratePerThousand = estimateModelRate(modelId);
   return Number(((tokens / 1000) * ratePerThousand).toFixed(6));
 }
+// "lines of code":"20","lines of commented":"0"

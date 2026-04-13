@@ -1,3 +1,4 @@
+# "lines of code":"65","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Literal, Optional
@@ -84,3 +85,4 @@ class HallMakerEntry(BaseModel):
 
 class HallOfMakersResponse(BaseModel):
     entries: List[HallMakerEntry] = Field(default_factory=list)
+# "lines of code":"65","lines of commented":"0"

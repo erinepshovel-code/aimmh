@@ -1,3 +1,4 @@
+// "lines of code":"18","lines of commented":"0"
 import * as React from "react"
 import * as ProgressPrimitive from "@radix-ui/react-progress"
 
@@ -19,3 +20,4 @@ const Progress = React.forwardRef(({ className, value, ...props }, ref) => (
 Progress.displayName = ProgressPrimitive.Root.displayName
 
 export { Progress }
+// "lines of code":"18","lines of commented":"0"

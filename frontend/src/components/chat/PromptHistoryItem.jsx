@@ -1,3 +1,4 @@
+// "lines of code":"28","lines of commented":"0"
 import React from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -27,3 +28,4 @@ export const PromptHistoryItem = ({ prompt, onCopy }) => {
     </div>
   );
 };
+// "lines of code":"28","lines of commented":"0"

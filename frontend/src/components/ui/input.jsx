@@ -1,3 +1,4 @@
+// "lines of code":"16","lines of commented":"0"
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -17,3 +18,4 @@ const Input = React.forwardRef(({ className, type, ...props }, ref) => {
 Input.displayName = "Input"
 
 export { Input }
+// "lines of code":"16","lines of commented":"0"

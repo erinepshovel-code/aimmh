@@ -1,3 +1,4 @@
+// "lines of code":"127","lines of commented":"0"
 import React from 'react';
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut } from 'lucide-react';
 import { ResponsePane } from './ResponsePane';
@@ -139,3 +140,4 @@ export function ResponseCarousel({
     </div>
   );
 }
+// "lines of code":"127","lines of commented":"0"

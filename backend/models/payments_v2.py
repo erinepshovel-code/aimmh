@@ -1,11 +1,11 @@
-# "lines of code":"65","lines of commented":"0"
+# "lines of code":"66","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
-PaymentCategory = Literal["supporter", "pro", "team", "team_addon"]
+PaymentCategory = Literal["supporter", "pro", "team", "team_addon", "ws_tier"]
 BillingType = Literal["one_time", "monthly", "yearly"]
 
 
@@ -39,6 +39,7 @@ class CatalogPriceV2(BaseModel):
     description: str
     features: List[str] = Field(default_factory=list)
     stripe_price_id: Optional[str] = None
+    stripe_product_id: Optional[str] = None
     grants_tier: Optional[str] = None
 
 
@@ -85,4 +86,4 @@ class HallMakerEntry(BaseModel):
 
 class HallOfMakersResponse(BaseModel):
     entries: List[HallMakerEntry] = Field(default_factory=list)
-# "lines of code":"65","lines of commented":"0"
+# "lines of code":"66","lines of commented":"0"

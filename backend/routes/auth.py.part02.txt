@@ -169,6 +169,10 @@ async def process_google_session(request: Request, response: FastAPIResponse):
         }
         await db.users.insert_one(user_doc)
 
+    normalized_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if normalized_user:
+        await ensure_wayseer_tier(normalized_user)
+
     session_doc = {
         "user_id": user_id,
         "session_token": session_token,

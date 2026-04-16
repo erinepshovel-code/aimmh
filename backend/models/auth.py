@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 
 class UserCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_-]+$")
+    username: str = Field(min_length=3, max_length=120, pattern=r"^[a-zA-Z0-9_.@+-]+$")
     password: str = Field(min_length=6, max_length=256)
 
 

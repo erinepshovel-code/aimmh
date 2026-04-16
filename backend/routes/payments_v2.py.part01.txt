@@ -151,6 +151,21 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         "team_seat_delta": 1,
         "features": ["Adds 1 extra team seat"],
     },
+    "ws_tier_monthly": {
+        "name": "WaySeer Tier — Full Access",
+        "amount": 999.00,
+        "currency": "usd",
+        "billing_type": "monthly",
+        "category": "ws_tier",
+        "description": "WaySeer full-access administration tier.",
+        "grants_tier": "ws-tier",
+        "stripe_product_id": "prod_ULK7v7UFVntOV7",
+        "features": [
+            "Full access to all app capabilities",
+            "WS-Admin controls",
+            "Unlimited usage and orchestration",
+        ],
+    },
 }
 
 
@@ -197,15 +212,22 @@ async def _ensure_catalog_seeded() -> None:
         await db.payment_catalog.update_one(
             {"package_id": package_id},
             {
-                "$set": {
+                "$set": {"updated_at": iso_now()},
+                "$setOnInsert": {
                     "package_id": package_id,
                     **package,
-                    "updated_at": iso_now(),
+                    "created_at": iso_now(),
                 },
-                "$setOnInsert": {"created_at": iso_now()},
             },
             upsert=True,
         )
+
+
+async def _effective_package(package_id: str) -> Dict[str, Any] | None:
+    row = await db.payment_catalog.find_one({"package_id": package_id}, {"_id": 0})
+    if row:
+        return row
+    return PACKAGES.get(package_id)
 
 
 async def _fulfill_transaction_once(session_id: str) -> None:
@@ -222,7 +244,7 @@ async def _fulfill_transaction_once(session_id: str) -> None:
     user_id = tx.get("user_id")
     if not user_id:
         return
-    package = PACKAGES.get(tx.get("package_id"))
+    package = await _effective_package(tx.get("package_id"))
     if not package and tx.get("package_id") == "supporter_custom":
         amount = float(tx.get("amount") or 0.0)
         if amount <= 0:
@@ -240,8 +262,8 @@ async def _fulfill_transaction_once(session_id: str) -> None:
     }
     set_fields: Dict[str, Any] = {
         "billing.subscription_tier": next_tier,
-        "billing.hide_emergent_badge": next_tier in {"supporter", "pro", "team"},
-        "billing.supporter_eligible": next_tier in {"supporter", "pro", "team"},
+        "billing.hide_emergent_badge": next_tier in {"supporter", "pro", "team", "ws-tier"},
+        "billing.supporter_eligible": next_tier in {"supporter", "pro", "team", "ws-tier"},
         "billing.updated_at": iso_now(),
     }
 
@@ -282,19 +304,20 @@ async def get_catalog(current_user: dict = Depends(get_current_user)):
     user_id = get_user_id(current_user)
     profile = await get_user_doc(user_id)
     billing_profile = derive_billing_profile(profile)
-    rows = await db.payment_catalog.find({"package_id": {"$in": list(PACKAGES.keys())}}, {"_id": 0}).to_list(200)
+    rows = await db.payment_catalog.find({}, {"_id": 0}).to_list(500)
     catalog_map = {row["package_id"]: row for row in rows}
     prices = [CatalogPriceV2(
         package_id=package_id,
-        name=package["name"],
-        amount=float(package["amount"]),
-        currency=package["currency"],
-        billing_type=package["billing_type"],
-        category=package["category"],
-        description=package["description"],
-        features=package.get("features", []),
-        stripe_price_id=catalog_map.get(package_id, {}).get("stripe_price_id"),
-        grants_tier=package.get("grants_tier"),
+        name=(catalog_map.get(package_id) or package)["name"],
+        amount=float((catalog_map.get(package_id) or package)["amount"]),
+        currency=(catalog_map.get(package_id) or package)["currency"],
+        billing_type=(catalog_map.get(package_id) or package)["billing_type"],
+        category=(catalog_map.get(package_id) or package)["category"],
+        description=(catalog_map.get(package_id) or package)["description"],
+        features=(catalog_map.get(package_id) or package).get("features", []),
+        stripe_price_id=(catalog_map.get(package_id) or package).get("stripe_price_id"),
+        stripe_product_id=(catalog_map.get(package_id) or package).get("stripe_product_id"),
+        grants_tier=(catalog_map.get(package_id) or package).get("grants_tier"),
     ) for package_id, package in PACKAGES.items()]
     return CatalogResponseV2(prices=prices, current_tier=billing_profile["subscription_tier"])
 
@@ -302,7 +325,7 @@ async def get_catalog(current_user: dict = Depends(get_current_user)):
 @router.post("/checkout/session", response_model=CheckoutCreateResponseV2)
 async def create_checkout_session(checkout_data: CheckoutCreateRequestV2, request: Request, current_user: dict = Depends(get_current_user)):
     is_custom_support = checkout_data.package_id == "supporter_custom"
-    package = _custom_support_package(checkout_data.custom_amount) if is_custom_support and checkout_data.custom_amount else PACKAGES.get(checkout_data.package_id)
+    package = _custom_support_package(checkout_data.custom_amount) if is_custom_support and checkout_data.custom_amount else await _effective_package(checkout_data.package_id)
     if not package:
         if is_custom_support:
             raise HTTPException(status_code=400, detail="Custom support amount is required")

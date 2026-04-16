@@ -1,4 +1,4 @@
-// "lines of code":"135","lines of commented":"0"
+// "lines of code":"139","lines of commented":"0"
 import React from 'react';
 import { HubGroupsPanel } from './HubGroupsPanel';
 import { HubInstancesPanel } from './HubInstancesPanel';
@@ -6,6 +6,7 @@ import { HubMultiChatPanel } from './HubMultiChatPanel';
 import { HubSynthesisPanel } from './HubSynthesisPanel';
 import { HubRunsWorkspace } from './HubRunsWorkspace';
 import { HelpReadmePanel } from './HelpReadmePanel';
+import { WsAdminPanel } from './WsAdminPanel';
 import { RegistryManager } from '../settings/RegistryManager';
 
 export function AimmhHubTabContent({
@@ -30,12 +31,15 @@ export function AimmhHubTabContent({
   setPersistSynthesisQueue,
   queuePersistenceScope,
   welcomeInstance,
+  isWsAdmin,
 }) {
   switch (activeTab) {
     case 'help':
       return <HelpReadmePanel welcomeInstance={welcomeInstance} prompts={chatPrompts} onSendPrompt={sendChatPrompt} busyKey={chatBusyKey} />;
     case 'registry':
       return <RegistryManager onInventoryChanged={workspace.refreshCore} />;
+    case 'ws-admin':
+      return isWsAdmin ? <WsAdminPanel /> : null;
     case 'instantiation':
       return (
         <div className="space-y-4">
@@ -135,4 +139,4 @@ export function AimmhHubTabContent({
       );
   }
 }
-// "lines of code":"135","lines of commented":"0"
+// "lines of code":"139","lines of commented":"0"

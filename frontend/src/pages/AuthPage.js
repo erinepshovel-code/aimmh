@@ -19,7 +19,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
 
   const normalizedUsername = username.trim();
-  const validUsername = /^[a-zA-Z0-9_-]{3,32}$/.test(normalizedUsername);
+  const validUsername = /^[a-zA-Z0-9_.@+-]{3,120}$/.test(normalizedUsername);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ export default function AuthPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!validUsername) {
-      toast.error('Username must be 3-32 chars: letters, numbers, _ or -');
+      toast.error('Username/email must be 3-120 chars: letters, numbers, . _ @ + -');
       return;
     }
     if (password.length < 6) {
@@ -191,7 +191,7 @@ export default function AuthPage() {
                     required
                     className="bg-background"
                   />
-                  <p className="text-[11px] text-muted-foreground" data-testid="register-username-rules">3-32 chars. Letters, numbers, underscore, hyphen.</p>
+                  <p className="text-[11px] text-muted-foreground" data-testid="register-username-rules">3-120 chars. Letters, numbers, . _ @ + -</p>
                 </div>
                 
                 <div className="space-y-2">

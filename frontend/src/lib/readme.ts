@@ -9,7 +9,7 @@
  * - Builds overview, violations, module summaries, and function docs.
  */
 
-export function buildReadmeMarkdown(registry: any, userQuestion: string): string {
+export function buildReadmeMarkdown(registry, userQuestion) {
   const modules = Array.isArray(registry?.modules) ? registry.modules : [];
   const violations = Array.isArray(registry?.violations) ? registry.violations : [];
 
@@ -28,11 +28,11 @@ export function buildReadmeMarkdown(registry: any, userQuestion: string): string
     : [
       '## Compliance',
       '',
-      ...violations.slice(0, 60).map((v: any) => `- ❌ ${v.path} (code=${v.lines_of_code}, top=${v.marker_top_ok}, bottom=${v.marker_bottom_ok})`),
+      ...violations.slice(0, 60).map((v) => `- ❌ ${v.path} (code=${v.lines_of_code}, top=${v.marker_top_ok}, bottom=${v.marker_bottom_ok})`),
       '',
     ];
 
-  const moduleBlocks = modules.slice(0, 120).flatMap((m: any) => {
+  const moduleBlocks = modules.slice(0, 120).flatMap((m) => {
     const fnDocs = Array.isArray(m.functions) ? m.functions.slice(0, 12) : [];
     return [
       `## Module: ${m.path}`,
@@ -43,7 +43,7 @@ export function buildReadmeMarkdown(registry: any, userQuestion: string): string
       `- Marker top/bottom: ${m.marker_top_ok ? 'ok' : 'missing'} / ${m.marker_bottom_ok ? 'ok' : 'missing'}`,
       m.module_doc ? `- What/How: ${String(m.module_doc).replace(/\n+/g, ' ').slice(0, 600)}` : '- What/How: (no module doc found)',
       '',
-      ...fnDocs.map((f: any) => `  - ${f.name}: ${f.doc ? String(f.doc).replace(/\n+/g, ' ').slice(0, 300) : '(no doc)'}`),
+      ...fnDocs.map((f) => `  - ${f.name}: ${f.doc ? String(f.doc).replace(/\n+/g, ' ').slice(0, 300) : '(no doc)'}`),
       '',
     ];
   });

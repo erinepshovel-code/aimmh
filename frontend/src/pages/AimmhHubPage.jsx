@@ -1,4 +1,4 @@
-// "lines of code":"337","lines of commented":"4"
+// "lines of code":"344","lines of commented":"4"
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +47,13 @@ export default function AimmhHubPage() {
     if (['supporter', 'pro', 'team'].includes(user?.subscription_tier || 'free')) return 'cloud';
     return 'local';
   }, [isAuthenticated, user?.subscription_tier]);
+  const isWsAdmin = user?.subscription_tier === 'ws-tier';
+
+  const tabs = React.useMemo(() => {
+    const base = [...TABS];
+    if (isWsAdmin) base.splice(2, 0, { id: 'ws-admin', label: 'WS-Admin' });
+    return base;
+  }, [isWsAdmin]);
 
   const refreshChatPrompts = React.useCallback(async () => {
     try {
@@ -335,7 +342,7 @@ export default function AimmhHubPage() {
                 {isAuthenticated ? 'Logout' : 'Sign in'}
               </button>
             </div>
-            <HubTabsNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+            <HubTabsNav tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
           </div>
           <div data-testid={`hub-tab-panel-${activeTab}`}>
             <AimmhHubTabContent
@@ -360,6 +367,7 @@ export default function AimmhHubPage() {
               setPersistSynthesisQueue={setPersistSynthesisQueue}
               queuePersistenceScope={queuePersistenceScope}
               welcomeInstance={welcomeInstance}
+              isWsAdmin={isWsAdmin}
             />
           </div>
         </div>
@@ -367,4 +375,4 @@ export default function AimmhHubPage() {
     </div>
   );
 }
-// "lines of code":"337","lines of commented":"4"
+// "lines of code":"344","lines of commented":"4"

@@ -26,7 +26,7 @@ from models.auth import (
 )
 from services.auth import (
     hash_password, verify_password, create_access_token,
-    get_current_user, get_user_id, generate_service_token, hash_service_token
+    get_current_user, get_user_id, generate_service_token, hash_service_token, ensure_wayseer_tier
 )
 from services.billing_tiers import derive_billing_profile, normalize_tier
 from services.audit import append_audit_event
@@ -72,6 +72,7 @@ async def register(user_data: UserCreate, response: FastAPIResponse):
         },
     }
     await db.users.insert_one(user)
+    user = await ensure_wayseer_tier(user)
 
     token = create_access_token(user_id)
     _set_access_token_cookie(response, token)
@@ -93,6 +94,7 @@ async def login(user_data: UserLogin, response: FastAPIResponse):
     user = await db.users.find_one({"username": user_data.username})
     if not user or not verify_password(user_data.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    user = await ensure_wayseer_tier(user)
 
     token = create_access_token(user["id"])
     _set_access_token_cookie(response, token)

@@ -1,14 +1,17 @@
-# "lines of code":"154","lines of commented":"0"
+# "lines of code":"205","lines of commented":"0"
 from __future__ import annotations
 
+import copy
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, Request
 from db import db
 
-TIER_ORDER = {"free": 0, "supporter": 1, "pro": 2, "team": 3}
-TIER_LIMITS: Dict[str, Dict[str, Any]] = {
+WAYSEER_DOMAIN = "interdependentway.org"
+
+TIER_ORDER = {"free": 0, "supporter": 1, "pro": 2, "team": 3, "ws-tier": 4}
+TIER_LIMITS_DEFAULT: Dict[str, Dict[str, Any]] = {
     "free": {
         "max_instances": 5,
         "max_runs_per_month": 100,
@@ -60,7 +63,23 @@ TIER_LIMITS: Dict[str, Dict[str, Any]] = {
         "queue_priority": "high",
         "hide_emergent_badge": True,
     },
+    "ws-tier": {
+        "max_instances": None,
+        "max_runs_per_month": None,
+        "per_model_instance_cap": None,
+        "max_personas": None,
+        "hosted_requests_per_month": None,
+        "daily_trial_requests": None,
+        "daily_chats_per_24h": None,
+        "daily_batch_runs_per_24h": None,
+        "daily_roleplay_runs_per_24h": None,
+        "max_connected_keys": None,
+        "max_batch_size": None,
+        "queue_priority": "highest",
+        "hide_emergent_badge": True,
+    },
 }
+TIER_LIMITS: Dict[str, Dict[str, Any]] = copy.deepcopy(TIER_LIMITS_DEFAULT)
 
 
 def iso_now() -> str:
@@ -78,13 +97,26 @@ def normalize_tier(value: Optional[str]) -> str:
     return "free"
 
 
+def is_wayseer_email(value: Optional[str]) -> bool:
+    email = str(value or "").strip().lower()
+    return bool(email) and email.endswith(f"@{WAYSEER_DOMAIN}")
+
+
+def is_wayseer_user(user_doc: Optional[dict]) -> bool:
+    user = user_doc or {}
+    return is_wayseer_email(user.get("email")) or is_wayseer_email(user.get("username"))
+
+
 async def get_user_doc(user_id: str) -> Optional[dict]:
     return await db.users.find_one({"$or": [{"id": user_id}, {"user_id": user_id}]}, {"_id": 0})
 
 
 def derive_billing_profile(user_doc: Optional[dict]) -> dict:
     billing = (user_doc or {}).get("billing", {}) or {}
-    tier = normalize_tier(billing.get("subscription_tier"))
+    if is_wayseer_user(user_doc):
+        tier = "ws-tier"
+    else:
+        tier = normalize_tier(billing.get("subscription_tier"))
     limits = TIER_LIMITS[tier]
     return {
         "subscription_tier": tier,
@@ -100,13 +132,41 @@ def derive_billing_profile(user_doc: Optional[dict]) -> dict:
         "max_batch_size": limits["max_batch_size"],
         "queue_priority": limits["queue_priority"],
         "hide_emergent_badge": limits["hide_emergent_badge"],
-        "supporter_eligible": tier in {"supporter", "pro", "team"},
+        "supporter_eligible": tier in {"supporter", "pro", "team", "ws-tier"},
         "team_seats": int(billing.get("team_seats") or (3 if tier == "team" else 1)),
+        "is_ws_admin": tier == "ws-tier",
     }
 
 
 async def get_user_billing_profile(user_id: str) -> dict:
     return derive_billing_profile(await get_user_doc(user_id))
+
+
+async def warm_billing_tier_overrides() -> None:
+    rows = await db.billing_tier_overrides.find({}, {"_id": 0, "tier": 1, "limits": 1}).to_list(100)
+    for row in rows:
+        tier = normalize_tier(row.get("tier"))
+        if tier not in TIER_LIMITS:
+            continue
+        limits = row.get("limits") or {}
+        if isinstance(limits, dict):
+            TIER_LIMITS[tier].update(limits)
+
+
+async def update_tier_limits(tier: str, updates: Dict[str, Any]) -> dict:
+    normalized = normalize_tier(tier)
+    if normalized not in TIER_LIMITS:
+        raise HTTPException(status_code=400, detail="Unsupported tier")
+    safe_updates = {k: v for k, v in updates.items() if k in TIER_LIMITS[normalized]}
+    if not safe_updates:
+        raise HTTPException(status_code=400, detail="No valid tier fields provided")
+    TIER_LIMITS[normalized].update(safe_updates)
+    await db.billing_tier_overrides.update_one(
+        {"tier": normalized},
+        {"$set": {"tier": normalized, "limits": TIER_LIMITS[normalized], "updated_at": iso_now()}},
+        upsert=True,
+    )
+    return {"tier": normalized, "limits": TIER_LIMITS[normalized]}
 
 
 def merge_tier(current_tier: str, requested_tier: str) -> str:
@@ -181,4 +241,4 @@ async def consume_non_paying_daily_quota(
         "used": int((updated or {}).get("count") or 0),
         "limit": safe_limit,
     }
-# "lines of code":"154","lines of commented":"0"
+# "lines of code":"205","lines of commented":"0"

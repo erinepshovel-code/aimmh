@@ -1,4 +1,4 @@
-# "lines of code":"163","lines of commented":"2"
+# "lines of code":"182","lines of commented":"2"
 import bcrypt
 import jwt
 import logging
@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import HTTPException, status, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
-from services.billing_tiers import TIER_LIMITS
+from services.billing_tiers import TIER_LIMITS, is_wayseer_user
 from db import db
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ async def get_current_user(
         user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-        return user
+        return await ensure_wayseer_tier(user)
 
     token = credentials.credentials if credentials else access_cookie_token
     if token:
@@ -92,7 +92,7 @@ async def get_current_user(
                 user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
             if not user:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-            return user
+            return await ensure_wayseer_tier(user)
         except jwt.ExpiredSignatureError:
             jwt_error = "Token expired"
         except jwt.InvalidTokenError:
@@ -138,7 +138,7 @@ async def get_current_user(
 
             user["auth_type"] = "service_account"
             user["service_account_username"] = service_account.get("username")
-            return user
+            return await ensure_wayseer_tier(user)
 
         if jwt_error:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=jwt_error)
@@ -195,4 +195,28 @@ async def get_current_user(
 def get_user_id(user: dict) -> str:
     """Get user ID from user dict (supports both old 'id' and new 'user_id' fields)"""
     return user.get("user_id") or user.get("id")
-# "lines of code":"163","lines of commented":"2"
+
+
+async def ensure_wayseer_tier(user: dict) -> dict:
+    if not is_wayseer_user(user):
+        return user
+
+    billing = (user.get("billing") or {}).copy()
+    if billing.get("subscription_tier") == "ws-tier" and billing.get("hide_emergent_badge") is True:
+        return user
+
+    billing.update(
+        {
+            "subscription_tier": "ws-tier",
+            "hide_emergent_badge": True,
+            "supporter_eligible": True,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+    user_filter = {"$or": [{"id": user.get("id")}, {"user_id": user.get("user_id")}]}
+    await db.users.update_one(user_filter, {"$set": {"billing": billing}})
+    next_user = dict(user)
+    next_user["billing"] = billing
+    return next_user
+# "lines of code":"182","lines of commented":"2"

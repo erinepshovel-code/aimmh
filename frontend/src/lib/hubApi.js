@@ -1,4 +1,4 @@
-// "lines of code":"71","lines of commented":"3"
+// "lines of code":"78","lines of commented":"3"
 import { getTrialGuestId } from './trialSession';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -75,9 +75,16 @@ export const hubApi = {
   createSynthesis: (payload) => request('/v1/hub/chat/synthesize', { method: 'POST', body: JSON.stringify(payload) }),
   getReadmeRegistry: () => request('/v1/readme/registry'),
   syncReadmeRegistry: () => request('/v1/readme/registry/sync', { method: 'POST' }),
+  getWsBillingTiers: () => request('/v1/ws-admin/billing-tiers'),
+  updateWsBillingTier: (tier, updates) => request(`/v1/ws-admin/billing-tiers/${tier}`, { method: 'PUT', body: JSON.stringify({ updates }) }),
+  getWsPricingPackages: () => request('/v1/ws-admin/pricing-packages'),
+  updateWsPricingPackage: (packageId, payload) => request(`/v1/ws-admin/pricing-packages/${packageId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  getWsEndpoints: () => request('/v1/ws-admin/endpoints'),
+  getWsAnalytics: () => request('/v1/ws-admin/analytics'),
+  executeWsCli: (command) => request('/v1/ws-admin/cli/execute', { method: 'POST', body: JSON.stringify({ command }) }),
   getState: (stateKey) => request(`/v1/hub/state/${stateKey}`),
   setState: (stateKey, payload) => request(`/v1/hub/state/${stateKey}`, { method: 'PUT', body: JSON.stringify({ payload }) }),
   deleteState: (stateKey) => request(`/v1/hub/state/${stateKey}`, { method: 'DELETE' }),
   submitFeedback: (messageId, feedback) => request('/v1/a0/feedback', { method: 'POST', body: JSON.stringify({ message_id: messageId, feedback }) }),
 };
-// "lines of code":"71","lines of commented":"3"
+// "lines of code":"78","lines of commented":"3"

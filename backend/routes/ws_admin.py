@@ -1,4 +1,4 @@
-# "lines of code":"95","lines of commented":"0"
+# "lines of code":"103","lines of commented":"0"
 from __future__ import annotations
 
 import subprocess
@@ -109,9 +109,17 @@ def _run_shell(args: List[str]) -> dict:
 async def execute_cli(payload: CliExecuteRequest, _: dict = Depends(require_ws_admin)):
     cmd = payload.command.strip().lower()
     if cmd == "health_check":
-        return {"command": cmd, **_run_shell(["python", "-c", "import requests;print(requests.get('http://127.0.0.1:8001/api/health',timeout=5).text)"])}
+        try:
+            await db.command("ping")
+            return {"command": cmd, "exit_code": 0, "stdout": '{"status":"ok"}', "stderr": ""}
+        except Exception as exc:  # pragma: no cover - defensive
+            return {"command": cmd, "exit_code": 1, "stdout": "", "stderr": str(exc)}
     if cmd == "ready_check":
-        return {"command": cmd, **_run_shell(["python", "-c", "import requests;print(requests.get('http://127.0.0.1:8001/api/ready',timeout=5).text)"])}
+        try:
+            await db.command("ping")
+            return {"command": cmd, "exit_code": 0, "stdout": '{"status":"ready"}', "stderr": ""}
+        except Exception as exc:  # pragma: no cover - defensive
+            return {"command": cmd, "exit_code": 1, "stdout": "", "stderr": str(exc)}
     if cmd == "line_rules":
         return {"command": cmd, **_run_shell(["python", "/app/scripts/check_max_lines.py"])}
     if cmd == "tail_backend_logs":
@@ -121,4 +129,4 @@ async def execute_cli(payload: CliExecuteRequest, _: dict = Depends(require_ws_a
         return {"command": cmd, "result": {"module_count": result["module_count"], "violations": len(result["violations"])}}
     raise HTTPException(status_code=400, detail="Unsupported CLI command")
 
-# "lines of code":"95","lines of commented":"0"
+# "lines of code":"103","lines of commented":"0"

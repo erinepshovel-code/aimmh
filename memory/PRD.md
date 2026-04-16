@@ -280,6 +280,30 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Addressed testing-agent issue for fresh-session help ask timing:
   - ask button now requires a valid `welcomeInstance.instance_id`
 
+## Latest WaySeer Tier + WS-Admin Expansion — 2026-04-16
+- [x] Added **ws-tier** with full-access policy and domain-based assignment:
+  - any user with `@interdependentway.org` (email or username-form email) is auto-upgraded server-side
+  - enforcement occurs on authenticated user resolution (always-on)
+  - `ws-tier` receives unlimited limits + highest queue priority
+- [x] Added **WS-Admin backend** (`/api/v1/ws-admin/*`) with strict ws-tier-only access:
+  - billing tier editor (DB + live runtime updates)
+  - pricing package editor (DB + runtime package updates)
+  - endpoint inventory display
+  - app analytics counters
+  - safe CLI interface commands (`health_check`, `ready_check`, `line_rules`, `tail_backend_logs`, `sync_readme_registry`)
+- [x] Added **WS-Admin frontend tab** (visible only for ws-tier users) with collapsible menus:
+  - Billing tiers + pricing editor
+  - API and REST endpoints
+  - App analytics
+  - CLI interface
+- [x] Integrated provided Stripe product metadata into ws-tier package seed:
+  - `stripe_product_id: prod_ULK7v7UFVntOV7`
+- [x] Removed old readme-tab schema in active UX path:
+  - now user asks Help model for dynamic README context via `Help` tab
+- [x] Compliance and structure:
+  - module marker sync executed via dynamic registry
+  - line-rule checker passes (`<=400 code lines, comments excluded, marker boundaries ignored`)
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis

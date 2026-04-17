@@ -304,6 +304,27 @@ The application is now a full-stack AIMMH workspace with:
   - module marker sync executed via dynamic registry
   - line-rule checker passes (`<=400 code lines, comments excluded, marker boundaries ignored`)
 
+## Latest Feature Pass — 2026-04-17
+- [x] Completed run-to-visualizer auto-linking from both **Batch Runs** and **Roleplay Runs** inventory cards:
+  - clicking a run now routes to `Visualizer` tab
+  - selected pattern auto-resolves from run stage summaries (`resolvePatternFromRun`)
+  - visualizer now shows linked run context banner (label/mode/stage count)
+- [x] Reactivated chat carousel gesture controls:
+  - 1-finger swipe: previous/next response
+  - 2-finger swipe: previous/next prompt
+  - pinch/spread: font scale adjust
+  - double tap: lock current response
+- [x] Added **Saved Workflows scaffolding** in run builder:
+  - save current run draft as template
+  - list templates filtered by run mode (batch/roleplay)
+  - apply/delete templates
+  - persisted via existing hub state store key: `run-workflow-templates-v1`
+- [x] Quality fix: removed nested-button HTML warning source by refactoring `CollapsibleSection` header layout (header controls no longer render inside toggle button)
+- [x] Validation:
+  - `python /app/scripts/check_max_lines.py` → PASS
+  - targeted JS lint on touched modules → PASS
+  - testing report `iteration_32.json` → frontend 100% PASS for requested feature set
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
@@ -341,7 +362,7 @@ The application is now a full-stack AIMMH workspace with:
 ### P1 — Next
 - [ ] Deployment/release pass when requested
 - [ ] Optional modularization pass for `AimmhHubPage.jsx` and `useHubWorkspace.js`
-- [ ] Saved workflow/templates for favorite orchestration setups
+- [ ] Expand saved workflow templates from scaffold to full workflow management (rename, tags, export/import, cross-user sharing)
 
 ### P2 — Important Enhancements
 - [x] Mobile response gestures and font scaling refinements (pinch/spread zoom + pane swipe)

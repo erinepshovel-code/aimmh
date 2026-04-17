@@ -30,6 +30,7 @@ export function HubRunsWorkspace({
   onToggleRunArchive,
   onDeleteArchivedRun,
   selectedRun,
+  onVisualizeRun,
 }) {
   const runModeLabel = runMode === 'roleplay' ? 'Roleplay Runs' : 'Batch Runs';
   const runModeHint = runMode === 'roleplay'
@@ -40,6 +41,11 @@ export function HubRunsWorkspace({
   const openResponses = (runId) => {
     setSelectedRunId(runId);
     setShowResponseDrawer(true);
+  };
+
+  const openVisualizer = (run) => {
+    setSelectedRunId(run.run_id);
+    onVisualizeRun?.(run);
   };
 
   return (
@@ -71,7 +77,7 @@ export function HubRunsWorkspace({
             <div className="rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No runs yet. Build a room, define prompt order, then execute a pipeline.</div>
           ) : runs.map((run) => (
             <article key={run.run_id} className={`w-full rounded-2xl border p-4 transition ${selectedRunId === run.run_id ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700'}`} data-testid={`run-card-${run.run_id}`}>
-              <button type="button" onClick={() => setSelectedRunId(run.run_id)} className="w-full text-left" data-testid={`select-run-button-${run.run_id}`}>
+              <button type="button" onClick={() => openVisualizer(run)} className="w-full text-left" data-testid={`select-run-button-${run.run_id}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -87,6 +93,9 @@ export function HubRunsWorkspace({
                 <div className="mt-3 flex items-center gap-2 text-xs text-zinc-400"><MessageSquareText size={12} /> {run.prompt}</div>
               </button>
               <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => openVisualizer(run)} className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-500/20" data-testid={`open-visualizer-button-${run.run_id}`}>
+                  Open visualizer
+                </button>
                 <button type="button" onClick={() => openResponses(run.run_id)} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-700 hover:text-white" data-testid={`view-run-responses-button-${run.run_id}`}>
                   <span className="flex items-center gap-2"><Eye size={13} /> View responses</span>
                 </button>
@@ -146,4 +155,4 @@ export function HubRunsWorkspace({
     </div>
   );
 }
-// "lines of code":"139","lines of commented":"0"
+// "lines of code":"148","lines of commented":"0"

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { HubSplashScreen } from '../components/hub/HubSplashScreen';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
 import { AimmhHubTabContent } from '../components/hub/AimmhHubTabContent';
+import { resolvePatternFromRun } from '../components/hub/patternUtils';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
 import { HELP_MODEL_CONTEXT } from '../lib/helpModelContext';
 import { hubApi } from '../lib/hubApi';
@@ -42,6 +43,8 @@ export default function AimmhHubPage() {
   const [includeSavedSynthesisHistory, setIncludeSavedSynthesisHistory] = React.useState(false);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
   const [persistSynthesisQueue, setPersistSynthesisQueue] = React.useState(false);
+  const [visualizerPatternId, setVisualizerPatternId] = React.useState('fan_out');
+  const [visualizerRunContext, setVisualizerRunContext] = React.useState(null);
 
   const queuePersistenceScope = React.useMemo(() => {
     if (!isAuthenticated) return 'session';
@@ -211,6 +214,19 @@ export default function AimmhHubPage() {
     }
   }, [isAuthenticated, refreshSyntheses, workspace]);
 
+  const openRunInVisualizer = React.useCallback((run) => {
+    if (!run?.run_id) return;
+    setVisualizerPatternId(resolvePatternFromRun(run));
+    setVisualizerRunContext({
+      run_id: run.run_id,
+      run_label: run.label || run.run_id,
+      run_mode: run.run_mode || 'batch',
+      stage_count: Array.isArray(run.stage_summaries) ? run.stage_summaries.length : 0,
+    });
+    setActiveTab('visualizer');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const synthesisHistory = (isAuthenticated && includeSavedSynthesisHistory)
     ? [...sessionSynthesisBatches, ...synthesisBatches]
     : sessionSynthesisBatches;
@@ -369,6 +385,10 @@ export default function AimmhHubPage() {
               queuePersistenceScope={queuePersistenceScope}
               welcomeInstance={welcomeInstance}
               isWsAdmin={isWsAdmin}
+              onRunVisualize={openRunInVisualizer}
+              visualizerPatternId={visualizerPatternId}
+              setVisualizerPatternId={setVisualizerPatternId}
+              visualizerRunContext={visualizerRunContext}
             />
           </div>
         </div>
@@ -376,4 +396,4 @@ export default function AimmhHubPage() {
     </div>
   );
 }
-// "lines of code":"344","lines of commented":"4"
+// "lines of code":"363","lines of commented":"4"

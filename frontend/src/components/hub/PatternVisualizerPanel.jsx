@@ -1,6 +1,7 @@
 // "lines of code":"0","lines of commented":"0"
 import React from 'react';
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { normalizePatternId } from './patternUtils';
 
 const PATTERNS = [
   {
@@ -54,7 +55,7 @@ const ABSENT_PATTERNS = ['debate', 'tournament', 'pipeline_revise', 'vote'];
  * What: Visual guide for currently supported orchestration patterns.
  * How: Step-based animated sequence for each pattern with controls.
  */
-export function PatternVisualizerPanel() {
+export function PatternVisualizerPanel({ selectedPatternId = 'fan_out', onPatternChange = () => {}, runContext = null }) {
   const [patternId, setPatternId] = React.useState(PATTERNS[0].id);
   const [stepIndex, setStepIndex] = React.useState(0);
   const [isPlaying, setIsPlaying] = React.useState(true);
@@ -70,6 +71,11 @@ export function PatternVisualizerPanel() {
   }, [patternId]);
 
   React.useEffect(() => {
+    const normalized = normalizePatternId(selectedPatternId);
+    if (normalized !== patternId) setPatternId(normalized);
+  }, [patternId, selectedPatternId]);
+
+  React.useEffect(() => {
     if (!isPlaying) return undefined;
     const timer = window.setInterval(() => {
       setStepIndex((prev) => (prev + 1) % pattern.steps.length);
@@ -79,6 +85,11 @@ export function PatternVisualizerPanel() {
 
   const nextStep = () => setStepIndex((prev) => (prev + 1) % pattern.steps.length);
   const prevStep = () => setStepIndex((prev) => (prev - 1 + pattern.steps.length) % pattern.steps.length);
+  const applyPattern = (nextPatternId) => {
+    const normalized = normalizePatternId(nextPatternId);
+    setPatternId(normalized);
+    onPatternChange(normalized);
+  };
 
   return (
     <section className="space-y-4" data-testid="pattern-visualizer-panel">
@@ -89,13 +100,18 @@ export function PatternVisualizerPanel() {
       </div>
 
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="pattern-selector-wrap">
+        {runContext?.run_id ? (
+          <div className="mb-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200" data-testid="pattern-linked-run-banner">
+            Linked from run <span className="font-semibold">{runContext.run_label || runContext.run_id}</span> · {runContext.run_mode} · {runContext.stage_count} stages
+          </div>
+        ) : null}
         <div className="mb-2 text-xs text-zinc-400">Patterns</div>
         <div className="flex flex-wrap gap-2">
           {PATTERNS.map((item) => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setPatternId(item.id)}
+              onClick={() => applyPattern(item.id)}
               className={`rounded-xl border px-3 py-1.5 text-xs ${patternId === item.id ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border-zinc-700 text-zinc-300'}`}
               data-testid={`pattern-select-${item.id}`}
             >
@@ -159,4 +175,4 @@ export function PatternVisualizerPanel() {
   );
 }
 
-// "lines of code":"0","lines of commented":"0"
+// "lines of code":"19","lines of commented":"0"

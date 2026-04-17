@@ -2,6 +2,7 @@
 import React from 'react';
 import { ArrowDownToLine, Plus, Trash2, Workflow } from 'lucide-react';
 import { createEmptyStage, INPUT_MODE_OPTIONS, PATTERN_OPTIONS } from './hubConfig';
+import { HubWorkflowTemplatesPanel } from './HubWorkflowTemplatesPanel';
 import { hubApi } from '../../lib/hubApi';
 import { paymentsApi } from '../../lib/paymentsApi';
 import { UpgradeToProModal } from '../ui/UpgradeToProModal';
@@ -204,6 +205,7 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
   const [showStageLimitModal, setShowStageLimitModal] = React.useState(false);
   const runDraftKey = 'run-builder-draft:new';
   const maxPersonaStages = typeof billingSummary?.max_personas === 'number' ? billingSummary.max_personas : null;
+  const currentDraft = React.useMemo(() => ({ label, prompt, stages }), [label, prompt, stages]);
   const patternOptions = React.useMemo(() => (
     runMode === 'roleplay'
       ? PATTERN_OPTIONS.filter((option) => option.value === 'roleplay')
@@ -299,6 +301,12 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
     setStages((prev) => [...prev, stageFromRunMode()]);
   };
 
+  const applyTemplate = React.useCallback((template) => {
+    setLabel(template?.label || '');
+    setPrompt(template?.prompt || '');
+    setStages(Array.isArray(template?.stages) && template.stages.length > 0 ? template.stages : [stageFromRunMode()]);
+  }, [stageFromRunMode]);
+
   const submit = async (event) => {
     event.preventDefault();
     if (!prompt.trim() || stages.length === 0) return;
@@ -354,6 +362,14 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
         </ol>
       </div>
 
+      <div className="mt-4">
+        <HubWorkflowTemplatesPanel
+          runMode={runMode}
+          currentDraft={currentDraft}
+          onApplyTemplate={applyTemplate}
+        />
+      </div>
+
       <form onSubmit={submit} className="mt-4 space-y-4" data-testid="run-builder-form">
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Run label (optional)"
           data-testid="run-label-input"
@@ -399,4 +415,4 @@ export function HubRunBuilder({ runMode = 'batch', sourceOptions, instanceOption
     </section>
   );
 }
-// "lines of code":"377","lines of commented":"0"
+// "lines of code":"390","lines of commented":"0"

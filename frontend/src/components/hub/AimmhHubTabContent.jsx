@@ -33,6 +33,10 @@ export function AimmhHubTabContent({
   queuePersistenceScope,
   welcomeInstance,
   isWsAdmin,
+  onRunVisualize,
+  visualizerPatternId,
+  setVisualizerPatternId,
+  visualizerRunContext,
 }) {
   switch (activeTab) {
     case 'help':
@@ -40,7 +44,13 @@ export function AimmhHubTabContent({
     case 'registry':
       return <RegistryManager onInventoryChanged={workspace.refreshCore} />;
     case 'visualizer':
-      return <PatternVisualizerPanel />;
+      return (
+        <PatternVisualizerPanel
+          selectedPatternId={visualizerPatternId}
+          onPatternChange={setVisualizerPatternId}
+          runContext={visualizerRunContext}
+        />
+      );
     case 'ws-admin':
       return isWsAdmin ? <WsAdminPanel /> : null;
     case 'instantiation':
@@ -89,6 +99,7 @@ export function AimmhHubTabContent({
           setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
           onToggleRunArchive={workspace.toggleRunArchive}
           onDeleteArchivedRun={workspace.deleteArchivedRun}
+          onVisualizeRun={onRunVisualize}
         />
       );
     case 'roleplay-runs':
@@ -107,6 +118,7 @@ export function AimmhHubTabContent({
           setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
           onToggleRunArchive={workspace.toggleRunArchive}
           onDeleteArchivedRun={workspace.deleteArchivedRun}
+          onVisualizeRun={onRunVisualize}
         />
       );
     case 'synthesis':
@@ -142,4 +154,4 @@ export function AimmhHubTabContent({
       );
   }
 }
-// "lines of code":"139","lines of commented":"0"
+// "lines of code":"151","lines of commented":"0"

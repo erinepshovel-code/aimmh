@@ -15,6 +15,7 @@ const SYNTHESIS_QUEUE_LOCAL_KEY = 'aimmh-synthesis-queue-local';
 
 const TABS = [
   { id: 'help', label: 'Help' },
+  { id: 'visualizer', label: 'Visualizer' },
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
   { id: 'batch-runs', label: 'Batch Runs' },

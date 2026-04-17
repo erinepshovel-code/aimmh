@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aimmh-lib"
-version = "0.1.0"
+version = "1.0.0"
 description = "Async multi-model conversation orchestration patterns (fan_out, daisy_chain, room_all, room_synthesized, council, roleplay)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,7 +26,9 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://emergentapp.interdependentway.org"
 Repository = "https://github.com/erinepshovel-code/aimmh"
+"Bug Tracker" = "https://github.com/erinepshovel-code/aimmh/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,3 +1,4 @@
+// "lines of code":"12","lines of commented":"0"
 import { cn } from "@/lib/utils"
 
 function Skeleton({
@@ -12,3 +13,4 @@ function Skeleton({
 }
 
 export { Skeleton }
+// "lines of code":"12","lines of commented":"0"

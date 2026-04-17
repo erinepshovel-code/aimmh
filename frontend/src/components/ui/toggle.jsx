@@ -1,3 +1,4 @@
+// "lines of code":"34","lines of commented":"0"
 "use client"
 
 import * as React from "react"
@@ -38,3 +39,4 @@ const Toggle = React.forwardRef(({ className, variant, size, ...props }, ref) =>
 Toggle.displayName = TogglePrimitive.Root.displayName
 
 export { Toggle, toggleVariants }
+// "lines of code":"34","lines of commented":"0"

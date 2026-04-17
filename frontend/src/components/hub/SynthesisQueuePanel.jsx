@@ -1,3 +1,4 @@
+// "lines of code":"49","lines of commented":"0"
 import React from 'react';
 import { Sparkles, Trash2 } from 'lucide-react';
 import { estimateResponseCostUsd, estimateTokens } from '../../lib/responseCosting';
@@ -49,3 +50,4 @@ export function SynthesisQueuePanel({ synthesisBasket, onToggleSynthesisBlock })
     </section>
   );
 }
+// "lines of code":"49","lines of commented":"0"

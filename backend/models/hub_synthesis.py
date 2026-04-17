@@ -1,3 +1,4 @@
+# "lines of code":"41","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Optional
@@ -20,6 +21,7 @@ class HubSynthesisRequest(BaseModel):
     selected_blocks: List[SynthesisSourceBlock] = Field(min_length=1)
     instruction: Optional[str] = Field(default=None, max_length=4000)
     label: Optional[str] = Field(default=None, max_length=120)
+    save_history: bool = False
 
 
 class HubSynthesisOutput(BaseModel):
@@ -50,3 +52,4 @@ class HubSynthesisBatchOut(BaseModel):
 class HubSynthesisBatchListResponse(BaseModel):
     batches: List[HubSynthesisBatchOut] = Field(default_factory=list)
     total: int = 0
+# "lines of code":"41","lines of commented":"0"

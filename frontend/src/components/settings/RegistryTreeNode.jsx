@@ -1,3 +1,4 @@
+// "lines of code":"193","lines of commented":"0"
 import React from 'react';
 import { CheckCircle2, Copy, Loader2, ShieldCheck, Trash2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ export function RegistryTreeNode({
   developer,
   keyStatus,
   defaultsNode,
+  usageNode,
   verificationMap,
   busyKey,
   onAddModel,
@@ -22,6 +24,8 @@ export function RegistryTreeNode({
   onVerifyDeveloper,
   onRemoveModel,
   onRemoveDeveloper,
+  onSetDeveloperKey,
+  onRemoveDeveloperKey,
 }) {
   const universalManaged = developer.auth_type === 'emergent';
 
@@ -46,11 +50,40 @@ export function RegistryTreeNode({
               <span className={`rounded-full border px-2 py-1 text-[11px] ${keyStatus?.status === 'configured' || keyStatus?.status === 'universal' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`} data-testid={`registry-key-status-${developer.developer_id}`}>
                 Key: {keyStatus?.status || 'missing'}
               </span>
+              <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200" data-testid={`registry-developer-total-tokens-${developer.developer_id}`}>
+                Tokens: {usageNode?.total_tokens || 0}
+              </span>
               {universalManaged && <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200">Universal key compatible</span>}
             </div>
             <div className="mt-1 text-xs text-zinc-500">{developer.models.length} model{developer.models.length === 1 ? '' : 's'} available under this key.</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                onSetDeveloperKey(developer.developer_id);
+              }}
+              disabled={busyKey === `set-key-${developer.developer_id}`}
+              className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white disabled:opacity-60"
+              data-testid={`registry-set-key-button-${developer.developer_id}`}
+            >
+              {busyKey === `set-key-${developer.developer_id}` ? 'Saving key…' : keyStatus?.status === 'configured' ? 'Change key' : 'Add key'}
+            </button>
+            {keyStatus?.status === 'configured' && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onRemoveDeveloperKey(developer.developer_id);
+                }}
+                disabled={busyKey === `remove-key-${developer.developer_id}`}
+                className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-red-500/30 hover:text-red-300 disabled:opacity-60"
+                data-testid={`registry-remove-key-button-${developer.developer_id}`}
+              >
+                {busyKey === `remove-key-${developer.developer_id}` ? 'Removing key…' : 'Remove key'}
+              </button>
+            )}
             <button
               type="button"
               onClick={(event) => {
@@ -98,6 +131,7 @@ export function RegistryTreeNode({
           const verifyKey = `${developer.developer_id}:${model.model_id}`;
           const verification = verificationMap[verifyKey];
           const modelPayload = defaultsNode?.models?.[model.model_id] || getModelDefaultPayload(developer.developer_id, model.model_id);
+          const modelUsage = (usageNode?.models || []).find((item) => item.model_id === model.model_id);
 
           return (
             <details key={model.model_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/50" data-testid={`registry-model-node-${developer.developer_id}-${model.model_id}`}>
@@ -106,6 +140,7 @@ export function RegistryTreeNode({
                   <div>
                     <div className="text-sm text-zinc-100">{model.display_name || model.model_id}</div>
                     <div className="mt-1 text-xs text-zinc-500">{model.model_id}</div>
+                    <div className="mt-1 text-[11px] text-blue-200" data-testid={`registry-model-total-tokens-${developer.developer_id}-${model.model_id}`}>Tokens: {modelUsage?.total_tokens || 0}</div>
                     {verification && (
                       <div className={`mt-2 inline-flex max-w-full items-center gap-2 rounded-full border px-2 py-1 text-[11px] ${statusTone(verification.status)}`}>
                         <CheckCircle2 size={11} />
@@ -142,6 +177,19 @@ export function RegistryTreeNode({
                   </button>
                 </div>
                 <pre className="max-h-64 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-[11px] text-zinc-300">{JSON.stringify(modelPayload, null, 2)}</pre>
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-2" data-testid={`registry-model-instance-breakdown-${developer.developer_id}-${model.model_id}`}>
+                  <div className="text-xs font-medium text-zinc-300">Instance token breakdown</div>
+                  <div className="mt-1 space-y-1">
+                    {(modelUsage?.instances || []).length === 0 ? (
+                      <div className="text-[11px] text-zinc-500">No instance usage yet.</div>
+                    ) : (modelUsage.instances || []).map((instance) => (
+                      <div key={instance.instance_id} className="flex items-center justify-between text-[11px] text-zinc-300" data-testid={`registry-model-instance-token-${developer.developer_id}-${model.model_id}-${instance.instance_id}`}>
+                        <span>{instance.instance_name || instance.instance_id}</span>
+                        <span>{instance.tokens}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </details>
           );
@@ -150,3 +198,4 @@ export function RegistryTreeNode({
     </details>
   );
 }
+// "lines of code":"193","lines of commented":"0"

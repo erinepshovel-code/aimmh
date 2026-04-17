@@ -1,3 +1,4 @@
+// "lines of code":"28","lines of commented":"0"
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
@@ -31,3 +32,4 @@ const AvatarFallback = React.forwardRef(({ className, ...props }, ref) => (
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
 export { Avatar, AvatarImage, AvatarFallback }
+// "lines of code":"28","lines of commented":"0"

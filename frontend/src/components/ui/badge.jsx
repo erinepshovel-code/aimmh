@@ -1,3 +1,4 @@
+// "lines of code":"30","lines of commented":"0"
 import * as React from "react"
 import { cva } from "class-variance-authority";
 
@@ -32,3 +33,4 @@ function Badge({
 }
 
 export { Badge, badgeVariants }
+// "lines of code":"30","lines of commented":"0"

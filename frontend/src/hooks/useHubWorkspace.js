@@ -1,3 +1,4 @@
+// "lines of code":"252","lines of commented":"0"
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { hubApi } from '../lib/hubApi';
@@ -281,3 +282,4 @@ export function useHubWorkspace() {
     exportInventory,
   };
 }
+// "lines of code":"252","lines of commented":"0"

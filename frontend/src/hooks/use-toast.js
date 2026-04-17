@@ -1,3 +1,4 @@
+// "lines of code":"128","lines of commented":"3"
 "use client";
 // Inspired by react-hot-toast library
 import * as React from "react"
@@ -153,3 +154,4 @@ function useToast() {
 }
 
 export { useToast, toast }
+// "lines of code":"128","lines of commented":"3"

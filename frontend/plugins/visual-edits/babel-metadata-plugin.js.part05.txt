@@ -1,0 +1,320 @@
+          t.jsxIdentifier("x-source-editable"),
+          t.stringLiteral(sourceInfo.isEditable ? "true" : "false")
+        )
+      );
+    }
+
+    // Add array iteration context if available
+    if (arrayContext) {
+      if (arrayContext.arrayVar) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-array-var"), t.stringLiteral(arrayContext.arrayVar))
+        );
+      }
+      if (arrayContext.arrayFile) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-array-file"), t.stringLiteral(arrayContext.arrayFile))
+        );
+      }
+      if (arrayContext.arrayLine) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-array-line"), t.stringLiteral(String(arrayContext.arrayLine)))
+        );
+      }
+      if (arrayContext.itemParam) {
+        metaAttrs.push(
+          t.jsxAttribute(t.jsxIdentifier("x-array-item-param"), t.stringLiteral(arrayContext.itemParam))
+        );
+      }
+    }
+
+    insertMetaAttributes(openingEl, metaAttrs);
+  };
+
+  // Check if a JSX element is inside an array iteration callback
+  function isJSXDynamic(jsxPath) {
+    // Use findParent to reliably check if we're inside a function callback to an array method
+    return !!jsxPath.findParent((path) => {
+      // Look for ArrowFunctionExpression or FunctionExpression
+      if (!path.isArrowFunctionExpression() && !path.isFunctionExpression()) {
+        return false;
+      }
+
+      // Check if parent is a CallExpression with an array method
+      const parentCall = path.parentPath;
+      if (!parentCall || !parentCall.isCallExpression()) {
+        return false;
+      }
+
+      const { callee } = parentCall.node;
+      if (!t.isMemberExpression(callee) || !t.isIdentifier(callee.property)) {
+        return false;
+      }
+
+      return ARRAY_METHODS.has(callee.property.name);
+    });
+  }
+
+  // Check if JSX element has any expressions (data dependencies)
+  function hasAnyExpression(jsxElement) {
+    const openingEl = jsxElement.openingElement;
+    if (openingEl?.attributes?.some((attr) => t.isJSXSpreadAttribute(attr))) {
+      return true;
+    }
+    for (const child of jsxElement.children) {
+      if (
+        t.isJSXExpressionContainer(child) &&
+        !t.isJSXEmptyExpression(child.expression)
+      ) {
+        return true;
+      }
+      if (t.isJSXSpreadChild(child)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // bring in parser/traverse for dynamic analysis
+  const parser = require("@babel/parser");
+  const traverse = require("@babel/traverse").default;
+
+  function pathHasDynamicJSX(targetPath) {
+    if (!targetPath || !targetPath.node) return false;
+    let dynamic = false;
+    targetPath.traverse({
+      JSXExpressionContainer(p) {
+        if (dynamic) return;
+        if (!t.isJSXEmptyExpression(p.node.expression)) {
+          dynamic = true;
+          p.stop();
+        }
+      },
+      JSXSpreadAttribute(p) {
+        if (dynamic) return;
+        dynamic = true;
+        p.stop();
+      },
+      JSXSpreadChild(p) {
+        if (dynamic) return;
+        dynamic = true;
+        p.stop();
+      },
+    });
+    return dynamic;
+  }
+
+  function pathIsDynamicComponent(path, visited = new WeakSet()) {
+    if (!path || !path.node) return false;
+    if (visited.has(path.node)) return false;
+    visited.add(path.node);
+
+    if (
+      path.isFunctionDeclaration() ||
+      path.isFunctionExpression() ||
+      path.isArrowFunctionExpression()
+    ) {
+      return pathHasDynamicJSX(path);
+    }
+
+    if (path.isVariableDeclarator()) {
+      const init = path.get("init");
+      return init && init.node ? pathIsDynamicComponent(init, visited) : false;
+    }
+
+    if (path.isIdentifier()) {
+      const binding = path.scope.getBinding(path.node.name);
+      if (binding) {
+        return pathIsDynamicComponent(binding.path, visited);
+      }
+      return false;
+    }
+
+    if (path.isCallExpression()) {
+      const args = path.get("arguments") || [];
+      if (args.length === 0) {
+        return true;
+      }
+      for (const arg of args) {
+        if (pathIsDynamicComponent(arg, visited)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (path.isReturnStatement()) {
+      const argument = path.get("argument");
+      return argument && argument.node
+        ? pathIsDynamicComponent(argument, visited)
+        : false;
+    }
+
+    if (path.isExpressionStatement()) {
+      const expr = path.get("expression");
+      return expr && expr.node ? pathIsDynamicComponent(expr, visited) : false;
+    }
+
+    if (path.isJSXElement() || path.isJSXFragment()) {
+      return pathHasDynamicJSX(path);
+    }
+
+    if (path.isObjectExpression()) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function fileExportIsDynamic({ absPath, exportName }) {
+    if (!absPath) return false;
+    const cacheKey = `${absPath}::${exportName}`;
+    if (DYNAMIC_COMP_CACHE.has(cacheKey)) {
+      return DYNAMIC_COMP_CACHE.get(cacheKey);
+    }
+
+    // Set sentinel value to prevent infinite recursion with circular imports
+    // This will be updated with the actual result at the end
+    DYNAMIC_COMP_CACHE.set(cacheKey, false);
+
+    const ast = parseFileAst(absPath, parser);
+    if (!ast) {
+      DYNAMIC_COMP_CACHE.set(cacheKey, false);
+      return false;
+    }
+
+    let dynamic = false;
+    const visited = new WeakSet();
+
+    function evaluatePath(nodePath) {
+      if (!nodePath || !nodePath.node || dynamic) return;
+      if (visited.has(nodePath.node)) return;
+      visited.add(nodePath.node);
+
+      if (
+        nodePath.isFunctionDeclaration() ||
+        nodePath.isFunctionExpression() ||
+        nodePath.isArrowFunctionExpression()
+      ) {
+        if (pathHasDynamicJSX(nodePath)) {
+          dynamic = true;
+        }
+        return;
+      }
+
+      if (nodePath.isVariableDeclarator()) {
+        evaluatePath(nodePath.get("init"));
+        return;
+      }
+
+      if (nodePath.isIdentifier()) {
+        const binding = nodePath.scope.getBinding(nodePath.node.name);
+        if (binding) {
+          evaluatePath(binding.path);
+        }
+        return;
+      }
+
+      if (nodePath.isCallExpression()) {
+        const args = nodePath.get("arguments") || [];
+        if (args.length === 0) {
+          dynamic = true;
+          return;
+        }
+        for (const arg of args) {
+          evaluatePath(arg);
+          if (dynamic) return;
+        }
+        return;
+      }
+
+      if (nodePath.isReturnStatement()) {
+        evaluatePath(nodePath.get("argument"));
+        return;
+      }
+
+      if (nodePath.isExpressionStatement()) {
+        evaluatePath(nodePath.get("expression"));
+        return;
+      }
+
+      if (nodePath.isJSXElement() || nodePath.isJSXFragment()) {
+        if (pathHasDynamicJSX(nodePath)) {
+          dynamic = true;
+        }
+        return;
+      }
+
+      if (nodePath.isObjectExpression()) {
+        dynamic = true;
+      }
+    }
+
+    traverse(ast, {
+      ExportDefaultDeclaration(p) {
+        if (dynamic || exportName !== "default") return;
+        evaluatePath(p.get("declaration"));
+      },
+      ExportNamedDeclaration(p) {
+        if (dynamic || exportName === "default") return;
+
+        if (p.node.declaration) {
+          const decl = p.node.declaration;
+          if (t.isFunctionDeclaration(decl) && decl.id?.name === exportName) {
+            evaluatePath(p.get("declaration"));
+            return;
+          }
+          if (t.isVariableDeclaration(decl)) {
+            decl.declarations.forEach((vd, i) => {
+              if (t.isIdentifier(vd.id) && vd.id.name === exportName) {
+                evaluatePath(p.get(`declaration.declarations.${i}`));
+              }
+            });
+            return;
+          }
+        }
+
+        p.node.specifiers.forEach((s) => {
+          if (
+            !t.isExportSpecifier(s) ||
+            !t.isIdentifier(s.exported) ||
+            s.exported.name !== exportName
+          ) {
+            return;
+          }
+
+          if (p.node.source) {
+            const from = p.node.source.value;
+            const resolved = resolveImportPath(from, absPath);
+            if (resolved) {
+              if (
+                fileExportIsDynamic({
+                  absPath: resolved,
+                  exportName: t.isIdentifier(s.local)
+                    ? s.local.name
+                    : exportName,
+                })
+              ) {
+                dynamic = true;
+              }
+            }
+            return;
+          }
+
+          if (t.isIdentifier(s.local)) {
+            const binding = p.scope.getBinding(s.local.name);
+            if (binding) {
+              evaluatePath(binding.path);
+            }
+          }
+        });
+      },
+    });
+
+    DYNAMIC_COMP_CACHE.set(cacheKey, dynamic);
+    return dynamic;
+  }
+
+  function componentBindingIsDynamic({ binding, state }) {
+    if (!binding || !binding.path) return false;
+    const bindingPath = binding.path;

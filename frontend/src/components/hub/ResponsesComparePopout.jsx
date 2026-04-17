@@ -1,3 +1,4 @@
+// "lines of code":"29","lines of commented":"0"
 import React from 'react';
 import { X } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
@@ -29,3 +30,4 @@ export function ResponsesComparePopout({ open, selectedResponses, fontScale, onC
     </div>
   );
 }
+// "lines of code":"29","lines of commented":"0"

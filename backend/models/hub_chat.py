@@ -1,3 +1,4 @@
+# "lines of code":"35","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Optional
@@ -17,8 +18,13 @@ class HubChatResponseItem(BaseModel):
     instance_name: str
     thread_id: str
     model: str
+    developer_id: Optional[str] = None
     content: str
     message_id: Optional[str] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    tokens_estimated: bool = True
     response_time_ms: int = 0
     error: Optional[str] = None
     created_at: str
@@ -38,3 +44,4 @@ class HubChatPromptOut(BaseModel):
 class HubChatPromptListResponse(BaseModel):
     prompts: List[HubChatPromptOut] = Field(default_factory=list)
     total: int = 0
+# "lines of code":"35","lines of commented":"0"

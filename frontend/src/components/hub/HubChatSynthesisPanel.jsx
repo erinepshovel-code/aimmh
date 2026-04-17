@@ -1,3 +1,4 @@
+// "lines of code":"25","lines of commented":"0"
 import React from 'react';
 import { Sparkles } from 'lucide-react';
 import { HubRunTimeline } from './HubRunTimeline';
@@ -25,3 +26,4 @@ export function HubChatSynthesisPanel({ options, runs, selectedRunId, setSelecte
     </div>
   );
 }
+// "lines of code":"25","lines of commented":"0"

@@ -1,3 +1,4 @@
+// "lines of code":"81","lines of commented":"0"
 import React from 'react';
 import { RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Badge } from '../ui/badge';
@@ -82,3 +83,4 @@ export function ServiceAccountList({
     </div>
   );
 }
+// "lines of code":"81","lines of commented":"0"

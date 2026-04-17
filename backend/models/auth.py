@@ -1,11 +1,12 @@
+# "lines of code":"72","lines of commented":"0"
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
 
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=3, max_length=120, pattern=r"^[a-zA-Z0-9_.@+-]+$")
+    password: str = Field(min_length=6, max_length=256)
 
 
 class UserLogin(BaseModel):
@@ -102,3 +103,4 @@ class ServiceAccountPolicyResponse(BaseModel):
 
 class ServiceAccountPolicyUpdateRequest(BaseModel):
     one_token_per_bot: bool
+# "lines of code":"72","lines of commented":"0"

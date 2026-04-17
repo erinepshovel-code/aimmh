@@ -1,0 +1,333 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from db import db
+from models.hub import (
+    HubConnectionsResponse,
+    HubGroupCreateRequest,
+    HubGroupListResponse,
+    HubGroupOut,
+    HubGroupUpdateRequest,
+    HubInstanceCreateRequest,
+    HubInstanceHistoryResponse,
+    HubInstanceListResponse,
+    HubInstanceOut,
+    HubInstanceUpdateRequest,
+    HubRunDetailResponse,
+    HubRunListResponse,
+    HubRunOut,
+    HubRunRequest,
+)
+from models.hub_chat import HubChatPromptListResponse, HubChatPromptOut, HubChatPromptRequest
+from models.hub_synthesis import HubSynthesisBatchListResponse, HubSynthesisBatchOut, HubSynthesisRequest
+from services.auth import get_current_user, get_user_id
+from services.billing_tiers import consume_non_paying_daily_quota, current_month_start_iso, get_user_billing_profile
+from services.hub_chat import get_chat_prompt, list_chat_prompts, send_chat_prompt
+from services.hub_synthesis import create_synthesis_batch, get_synthesis_batch, list_synthesis_batches
+from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
+from services.hub_store import (
+    HUB_CHAT_PROMPT_COLLECTION,
+    HUB_GROUP_COLLECTION,
+    HUB_INSTANCE_COLLECTION,
+    HUB_RUN_COLLECTION,
+    HUB_RUN_STEP_COLLECTION,
+    ensure_models_exist,
+    get_group,
+    get_instance,
+    get_thread_messages,
+    iso_now,
+    make_id,
+)
+
+router = APIRouter(prefix="/api/v1/hub", tags=["hub"])
+
+
+def _has_persona_payload(role_preset: str | None, context: Dict[str, Any] | None, instance_prompt: str | None) -> bool:
+    ctx = context or {}
+    persona_fields = [
+        role_preset,
+        ctx.get("role"),
+        ctx.get("system_message"),
+        ctx.get("prompt_modifier"),
+        instance_prompt,
+    ]
+    return any(isinstance(value, str) and value.strip() for value in persona_fields)
+
+
+def _persona_query(user_id: str, exclude_instance_id: str | None = None) -> Dict[str, Any]:
+    query: Dict[str, Any] = {
+        "user_id": user_id,
+        "archived": {"$ne": True},
+        "metadata.welcome_model": {"$ne": True},
+        "$or": [
+            {"role_preset": {"$nin": [None, ""]}},
+            {"context.role": {"$nin": [None, ""]}},
+            {"context.system_message": {"$nin": [None, ""]}},
+            {"context.prompt_modifier": {"$nin": [None, ""]}},
+            {"instance_prompt": {"$nin": [None, ""]}},
+        ],
+    }
+    if exclude_instance_id:
+        query["instance_id"] = {"$ne": exclude_instance_id}
+    return query
+
+
+def _instance_quota_query(user_id: str, model_id: str | None = None) -> Dict[str, Any]:
+    query: Dict[str, Any] = {
+        "user_id": user_id,
+        "archived": {"$ne": True},
+        "metadata.welcome_model": {"$ne": True},
+    }
+    if model_id:
+        query["model_id"] = model_id
+    return query
+
+
+def _resolved_run_mode(req: HubRunRequest) -> str:
+    if req.run_mode in {"batch", "roleplay"}:
+        return req.run_mode
+    has_roleplay = any(stage.pattern == "roleplay" for stage in req.stages)
+    return "roleplay" if has_roleplay else "batch"
+
+
+def _connections_payload() -> HubConnectionsResponse:
+    return HubConnectionsResponse(
+        fastapi_connections={
+            "instances": {
+                "list": "/api/v1/hub/instances",
+                "create": "/api/v1/hub/instances",
+                "detail": "/api/v1/hub/instances/{instance_id}",
+                "update": "/api/v1/hub/instances/{instance_id}",
+                "archive": "/api/v1/hub/instances/{instance_id}/archive",
+                "unarchive": "/api/v1/hub/instances/{instance_id}/unarchive",
+                "delete": "/api/v1/hub/instances/{instance_id}",
+                "history": "/api/v1/hub/instances/{instance_id}/history",
+            },
+            "groups": {
+                "list": "/api/v1/hub/groups",
+                "create": "/api/v1/hub/groups",
+                "detail": "/api/v1/hub/groups/{group_id}",
+                "update": "/api/v1/hub/groups/{group_id}",
+                "archive": "/api/v1/hub/groups/{group_id}/archive",
+                "unarchive": "/api/v1/hub/groups/{group_id}/unarchive",
+            },
+            "runs": {
+                "execute": "/api/v1/hub/runs",
+                "list": "/api/v1/hub/runs",
+                "detail": "/api/v1/hub/runs/{run_id}",
+                "archive": "/api/v1/hub/runs/{run_id}/archive",
+                "unarchive": "/api/v1/hub/runs/{run_id}/unarchive",
+                "delete": "/api/v1/hub/runs/{run_id}",
+            },
+            "chat_prompts": {
+                "broadcast": "/api/v1/hub/chat/prompts",
+                "list": "/api/v1/hub/chat/prompts",
+                "detail": "/api/v1/hub/chat/prompts/{prompt_id}",
+            },
+            "synthesis": {
+                "create": "/api/v1/hub/chat/synthesize",
+                "list": "/api/v1/hub/chat/syntheses",
+                "detail": "/api/v1/hub/chat/syntheses/{synthesis_batch_id}",
+            },
+            "lib_patterns": {
+                "fan_out": "/api/v1/lib/fan-out",
+                "daisy_chain": "/api/v1/lib/daisy-chain",
+                "room_all": "/api/v1/lib/room-all",
+                "room_synthesized": "/api/v1/lib/room-synthesized",
+                "council": "/api/v1/lib/council",
+                "roleplay": "/api/v1/lib/roleplay",
+            },
+        },
+        patterns=["fan_out", "daisy_chain", "room_all", "room_synthesized", "council", "roleplay"],
+        supports={
+            "single_model_multiple_instances": True,
+            "nested_groups": True,
+            "pattern_pipelines": True,
+            "instance_archival": True,
+            "instance_private_thread_history": True,
+            "run_archival": True,
+            "same_prompt_multi_instance_chat": True,
+            "selected_response_synthesis": True,
+        },
+    )
+
+
+@router.get("/options", response_model=HubConnectionsResponse)
+async def get_hub_options(current_user: dict = Depends(get_current_user)):
+    return _connections_payload()
+
+
+@router.get("/fastapi-connections", response_model=HubConnectionsResponse)
+async def get_hub_fastapi_connections(current_user: dict = Depends(get_current_user)):
+    return _connections_payload()
+
+
+@router.post("/instances", response_model=HubInstanceOut)
+async def create_instance(req: HubInstanceCreateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    billing_profile = await get_user_billing_profile(user_id)
+    max_instances = billing_profile.get("max_instances")
+    if max_instances is not None:
+        active_instance_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_instance_quota_query(user_id))
+        if active_instance_count >= int(max_instances):
+            raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_instances} active instances. Archive an instance or upgrade to continue.")
+    per_model_cap = billing_profile.get("per_model_instance_cap")
+    if per_model_cap is not None:
+        same_model_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_instance_quota_query(user_id, req.model_id))
+        if same_model_count >= int(per_model_cap):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Your {billing_profile['subscription_tier']} tier allows up to {per_model_cap} active instances per model. Choose another model or upgrade.",
+            )
+    max_personas = billing_profile.get("max_personas")
+    if max_personas is not None:
+        request_has_persona = _has_persona_payload(
+            req.role_preset,
+            req.context.model_dump(exclude_none=True) if req.context else None,
+            req.instance_prompt,
+        )
+        if request_has_persona:
+            persona_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_persona_query(user_id))
+            if persona_count >= int(max_personas):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} saved personas. Upgrade to continue.",
+                )
+    await ensure_models_exist(user_id, [req.model_id])
+    now = iso_now()
+    doc = req.model_dump()
+    doc.update(
+        {
+            "instance_id": make_id("hubi"),
+            "thread_id": make_id("hubthr"),
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+            "archived_at": now if req.archived else None,
+        }
+    )
+    await db[HUB_INSTANCE_COLLECTION].insert_one(doc)
+    doc.pop("user_id", None)
+    return HubInstanceOut(**doc)
+
+
+@router.get("/instances", response_model=HubInstanceListResponse)
+async def get_instances(
+    include_archived: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_hub_instances(user_id, include_archived=include_archived, limit=limit)
+    return HubInstanceListResponse(instances=[HubInstanceOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/instances/{instance_id}", response_model=HubInstanceOut)
+async def get_instance_detail(instance_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    doc = await get_instance(user_id, instance_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    return HubInstanceOut(**doc)
+
+
+@router.patch("/instances/{instance_id}", response_model=HubInstanceOut)
+async def update_instance(instance_id: str, req: HubInstanceUpdateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    existing = await get_instance(user_id, instance_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Instance not found")
+
+    update = req.model_dump(exclude_none=True)
+
+    billing_profile = await get_user_billing_profile(user_id)
+    max_personas = billing_profile.get("max_personas")
+    if max_personas is not None:
+        current_context = existing.get("context") or {}
+        next_context = update.get("context", current_context) or {}
+        was_persona = _has_persona_payload(existing.get("role_preset"), current_context, existing.get("instance_prompt"))
+        becomes_persona = _has_persona_payload(
+            update.get("role_preset", existing.get("role_preset")),
+            next_context,
+            update.get("instance_prompt", existing.get("instance_prompt")),
+        )
+        if becomes_persona and not was_persona:
+            persona_count = await db[HUB_INSTANCE_COLLECTION].count_documents(_persona_query(user_id, exclude_instance_id=instance_id))
+            if persona_count >= int(max_personas):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} saved personas. Upgrade to continue.",
+                )
+
+    if "model_id" in update:
+        await ensure_models_exist(user_id, [update["model_id"]])
+    if "archived" in update:
+        update["archived_at"] = iso_now() if update["archived"] else None
+    update["updated_at"] = iso_now()
+
+    await db[HUB_INSTANCE_COLLECTION].update_one(
+        {"user_id": user_id, "instance_id": instance_id},
+        {"$set": update},
+    )
+    doc = await get_instance(user_id, instance_id)
+    return HubInstanceOut(**doc)
+
+
+@router.post("/instances/{instance_id}/archive", response_model=HubInstanceOut)
+async def archive_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_instance(instance_id, HubInstanceUpdateRequest(archived=True), current_user)
+
+
+@router.post("/instances/{instance_id}/unarchive", response_model=HubInstanceOut)
+async def unarchive_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_instance(instance_id, HubInstanceUpdateRequest(archived=False), current_user)
+
+
+@router.delete("/instances/{instance_id}")
+async def delete_instance(instance_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    existing = await db[HUB_INSTANCE_COLLECTION].find_one(
+        {"user_id": user_id, "instance_id": instance_id},
+        {"_id": 0, "instance_id": 1, "thread_id": 1, "archived": 1},
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    if not existing.get("archived"):
+        raise HTTPException(status_code=400, detail="Archive the instance before deleting it")
+
+    await db[HUB_INSTANCE_COLLECTION].delete_one({"user_id": user_id, "instance_id": instance_id, "archived": True})
+
+    thread_id = existing.get("thread_id")
+    if thread_id:
+        await db.threads.delete_one({"user_id": user_id, "thread_id": thread_id})
+        await db.messages.delete_many({"user_id": user_id, "thread_id": thread_id})
+
+    await db[HUB_GROUP_COLLECTION].update_many(
+        {"user_id": user_id},
+        {
+            "$pull": {"members": {"member_type": "instance", "member_id": instance_id}},
+            "$set": {"updated_at": iso_now()},
+        },
+    )
+
+    return {"message": f"Archived instance {instance_id} deleted"}
+
+
+@router.get("/instances/{instance_id}/history", response_model=HubInstanceHistoryResponse)
+async def get_instance_history(
+    instance_id: str,
+    limit: int = Query(default=200, ge=1, le=2000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    doc = await get_instance(user_id, instance_id, include_archived=True)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    messages = await get_thread_messages(user_id, doc["thread_id"], limit=limit)
+    return HubInstanceHistoryResponse(instance_id=instance_id, thread_id=doc["thread_id"], messages=messages)
+
+
+@router.post("/groups", response_model=HubGroupOut)

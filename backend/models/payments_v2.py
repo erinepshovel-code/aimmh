@@ -1,16 +1,18 @@
+# "lines of code":"66","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
-PaymentCategory = Literal["supporter", "pro", "team", "team_addon"]
+PaymentCategory = Literal["supporter", "pro", "team", "team_addon", "ws_tier"]
 BillingType = Literal["one_time", "monthly", "yearly"]
 
 
 class CheckoutCreateRequestV2(BaseModel):
     package_id: str
     origin_url: str
+    custom_amount: Optional[float] = Field(default=None, ge=1.0, le=10000.0)
 
 
 class CheckoutCreateResponseV2(BaseModel):
@@ -37,6 +39,7 @@ class CatalogPriceV2(BaseModel):
     description: str
     features: List[str] = Field(default_factory=list)
     stripe_price_id: Optional[str] = None
+    stripe_product_id: Optional[str] = None
     grants_tier: Optional[str] = None
 
 
@@ -50,6 +53,15 @@ class PaymentSummaryResponseV2(BaseModel):
     hide_emergent_badge: bool
     max_instances: Optional[int] = None
     max_runs_per_month: Optional[int] = None
+    per_model_instance_cap: Optional[int] = None
+    max_personas: Optional[int] = None
+    hosted_requests_per_month: Optional[int] = None
+    max_connected_keys: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    daily_chats_per_24h: Optional[int] = None
+    daily_batch_runs_per_24h: Optional[int] = None
+    daily_roleplay_runs_per_24h: Optional[int] = None
+    queue_priority: Optional[str] = None
     total_paid_usd: float
     total_supporter_usd: float
     total_pro_usd: float
@@ -74,3 +86,4 @@ class HallMakerEntry(BaseModel):
 
 class HallOfMakersResponse(BaseModel):
     entries: List[HallMakerEntry] = Field(default_factory=list)
+# "lines of code":"66","lines of commented":"0"

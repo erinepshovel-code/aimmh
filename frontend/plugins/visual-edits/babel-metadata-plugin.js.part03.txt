@@ -1,0 +1,322 @@
+
+      if (arrayContext && arrayContext.itemParam === rootName) {
+        // This is item.property where item comes from array.map(item => ...)
+        return {
+          type: "static-imported",
+          varName: arrayContext.arrayVar,
+          file: arrayContext.arrayFile,
+          absFile: arrayContext.absFile,
+          line: arrayContext.arrayLine,
+          path: propPath,
+          isEditable: arrayContext.isEditable,
+          valueType: "array-item",
+          arrayContext: arrayContext,
+        };
+      }
+
+      // Analyze the root identifier
+      // Pass skipArrayContext to avoid infinite recursion when called from getArrayIterationContext
+      const rootInfo = analyzeIdentifier(rootName, exprPath, state, options);
+      if (rootInfo) {
+        return {
+          ...rootInfo,
+          path: propPath,
+        };
+      }
+    }
+
+    return { type: "unknown", path: propPath, isEditable: false };
+  }
+
+  /**
+   * Builds a dot-notation path from a MemberExpression
+   */
+  function buildPropertyPath(node) {
+    const parts = [];
+    let current = node;
+
+    while (t.isMemberExpression(current)) {
+      if (t.isIdentifier(current.property)) {
+        parts.unshift(current.property.name);
+      } else if (t.isNumericLiteral(current.property)) {
+        parts.unshift(`[${current.property.value}]`);
+      } else if (t.isStringLiteral(current.property)) {
+        parts.unshift(current.property.value);
+      }
+      current = current.object;
+    }
+
+    return parts.join(".");
+  }
+
+  /**
+   * Gets the JSX element name from an opening element
+   */
+  function getJSXElementName(openingElement) {
+    const n = openingElement?.name;
+    if (t.isJSXIdentifier(n)) return n.name;
+    if (t.isJSXMemberExpression(n)) return n.property.name;
+    return null;
+  }
+
+  /**
+   * Gets the containing component name for an expression path
+   */
+  function getContainingComponentName(exprPath) {
+    let current = exprPath;
+    while (current) {
+      if (current.isFunctionDeclaration() && current.node.id) {
+        return current.node.id.name;
+      }
+      if (current.isVariableDeclarator() && t.isIdentifier(current.node.id)) {
+        return current.node.id.name;
+      }
+      if (current.isArrowFunctionExpression() || current.isFunctionExpression()) {
+        // Check if parent is variable declarator
+        const parent = current.parentPath;
+        if (parent && parent.isVariableDeclarator() && t.isIdentifier(parent.node.id)) {
+          return parent.node.id.name;
+        }
+      }
+      current = current.parentPath;
+    }
+    return null;
+  }
+
+  /**
+   * Traces a prop back to where it was passed in the same file
+   * @param {string} propName - The prop name to trace
+   * @param {string} componentName - The component that receives the prop
+   * @param {NodePath} exprPath - The expression path for scope access
+   * @param {Object} state - Babel state
+   * @returns {Object|null} Source info if traced, null otherwise
+   */
+  function tracePropToSource(propName, componentName, exprPath, state) {
+    if (!componentName) return null;
+
+    const programPath = exprPath.findParent(p => p.isProgram());
+    if (!programPath) return null;
+
+    let tracedSource = null;
+
+    programPath.traverse({
+      JSXOpeningElement(jsxPath) {
+        if (tracedSource) return;
+
+        const elementName = getJSXElementName(jsxPath.node);
+        if (elementName !== componentName) return;
+
+        // Look for the prop being passed
+        for (const attr of jsxPath.node.attributes || []) {
+          if (!t.isJSXAttribute(attr)) continue;
+          if (!t.isJSXIdentifier(attr.name) || attr.name.name !== propName) continue;
+          if (!t.isJSXExpressionContainer(attr.value)) continue;
+
+          // Found matching prop - analyze the expression passed to it
+          const attrs = jsxPath.get('attributes');
+          const attrPath = attrs.find(
+            a => a.isJSXAttribute() &&
+                 t.isJSXIdentifier(a.node.name) &&
+                 a.node.name.name === propName
+          );
+
+          if (attrPath) {
+            const valuePath = attrPath.get('value');
+            if (valuePath && valuePath.isJSXExpressionContainer()) {
+              const innerExpr = valuePath.get('expression');
+              if (innerExpr && innerExpr.node) {
+                tracedSource = analyzeExpression(innerExpr, state);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // If found in same file, return it
+    if (tracedSource) return tracedSource;
+
+    // Cross-file lookup
+    return lookupCrossFilePropSource(propName, componentName, state);
+  }
+
+  /**
+   * Records prop source information for cross-file prop tracing.
+   */
+  function recordPropSources(componentName, jsxPath, state) {
+    const binding = jsxPath.scope.getBinding(componentName);
+    if (!binding) return;
+
+    const componentAbsPath = getComponentSourcePath(binding, state);
+    if (!componentAbsPath) return; // Same-file, existing logic handles
+
+    const openingElement = jsxPath.node.openingElement;
+    for (const attr of openingElement.attributes || []) {
+      if (!t.isJSXAttribute(attr)) continue;
+      if (!t.isJSXIdentifier(attr.name)) continue;
+      if (!t.isJSXExpressionContainer(attr.value)) continue;
+
+      const propName = attr.name.name;
+
+      // Find the attribute path
+      const attrPath = jsxPath.get('openingElement.attributes').find(
+        a => a.isJSXAttribute() && a.node.name?.name === propName
+      );
+      if (!attrPath) continue;
+
+      const valuePath = attrPath.get('value.expression');
+      if (!valuePath?.node) continue;
+
+      // Analyze the expression being passed
+      const sourceInfo = analyzeExpression(valuePath, state);
+      const arrayContext = getArrayIterationContext(valuePath, state);
+
+      // Cache it
+      const cacheKey = `${componentAbsPath}::${componentName}::${propName}`;
+      PROP_SOURCE_CACHE.set(cacheKey, {
+        sourceInfo,
+        arrayContext: arrayContext || sourceInfo?.arrayContext,
+        fromFile: state.filename
+      });
+    }
+  }
+
+  /**
+   * Looks up prop source from cross-file cache.
+   */
+  function lookupCrossFilePropSource(propName, componentName, state) {
+    const currentFile = state.filename || state.file?.opts?.filename;
+    if (!currentFile) return null;
+
+    const cacheKey = `${currentFile}::${componentName}::${propName}`;
+    const cached = PROP_SOURCE_CACHE.get(cacheKey);
+
+    if (cached && cached.sourceInfo) {
+      return cached.sourceInfo;
+    }
+
+    // Cache miss - try lazy evaluation
+    return lazyEvaluatePropSource(propName, componentName, currentFile);
+  }
+
+  /**
+   * Lazily finds prop sources by scanning cached ASTs for component usages.
+   */
+  function lazyEvaluatePropSource(propName, componentName, componentFile) {
+    const traverse = require("@babel/traverse").default;
+
+    for (const [absPath, cached] of FILE_AST_CACHE) {
+      if (absPath === componentFile) continue;
+
+      const ast = cached.ast;
+      if (!ast) continue;
+
+      let result = null;
+
+      traverse(ast, {
+        ImportDeclaration(importPath) {
+          if (result) return;
+
+          const source = importPath.node.source.value;
+          const resolvedPath = resolveImportPath(source, absPath);
+          if (resolvedPath !== componentFile) return;
+
+          // Find the local name for this import
+          let localName = null;
+          for (const spec of importPath.node.specifiers) {
+            if (t.isImportSpecifier(spec) && spec.imported.name === componentName) {
+              localName = spec.local.name;
+            } else if (t.isImportDefaultSpecifier(spec)) {
+              localName = spec.local.name;
+            }
+          }
+          if (!localName) return;
+
+          // Search for usages of this component
+          const programPath = importPath.findParent((p) => p && p.isProgram && p.isProgram());
+          if (!programPath || !programPath.traverse) return;
+          programPath.traverse({
+            JSXOpeningElement(jsxPath) {
+              if (result) return;
+
+              const elemName = getJSXElementName(jsxPath.node);
+              if (elemName !== localName) return;
+
+              // Find the prop
+              for (const attr of jsxPath.node.attributes || []) {
+                if (!t.isJSXAttribute(attr)) continue;
+                if (!t.isJSXIdentifier(attr.name) || attr.name.name !== propName) continue;
+                if (!t.isJSXExpressionContainer(attr.value)) continue;
+
+                const attrPath = jsxPath.get('attributes').find(
+                  a => a.isJSXAttribute() && a.node.name?.name === propName
+                );
+
+                if (attrPath) {
+                  const valuePath = attrPath.get('value.expression');
+                  if (valuePath?.node) {
+                    const mockState = { filename: absPath };
+                    result = analyzeExpression(valuePath, mockState);
+
+                    // Cache for future
+                    const cacheKey = `${componentFile}::${componentName}::${propName}`;
+                    PROP_SOURCE_CACHE.set(cacheKey, {
+                      sourceInfo: result,
+                      arrayContext: result?.arrayContext,
+                      fromFile: absPath
+                    });
+                  }
+                }
+              }
+            }
+          });
+        }
+      });
+
+      if (result) return result;
+    }
+
+    return null;
+  }
+
+  /**
+   * Detects if we're inside an array iteration (.map(), etc.) and extracts context
+   */
+  function getArrayIterationContext(exprPath, state) {
+    // Find the parent .map() or similar call
+    const callExprParent = exprPath.findParent((p) => {
+      if (!p.isCallExpression()) return false;
+
+      const { callee } = p.node;
+      if (!t.isMemberExpression(callee) || !t.isIdentifier(callee.property)) {
+        return false;
+      }
+
+      return ARRAY_METHODS.has(callee.property.name);
+    });
+
+    if (!callExprParent) return null;
+
+    const callExpr = callExprParent.node;
+    const callee = callExpr.callee;
+
+    // Get the array being iterated
+    const arrayNode = callee.object;
+
+    // Get the callback function
+    const callback = callExpr.arguments[0];
+    if (!callback) return null;
+
+    // Get item parameter name(s)
+    let itemParam = null;
+    let indexParam = null;
+
+    if (t.isArrowFunctionExpression(callback) || t.isFunctionExpression(callback)) {
+      const params = callback.params;
+      if (params.length > 0 && t.isIdentifier(params[0])) {
+        itemParam = params[0].name;
+      }
+      if (params.length > 1 && t.isIdentifier(params[1])) {
+        indexParam = params[1].name;
+      }
+    }

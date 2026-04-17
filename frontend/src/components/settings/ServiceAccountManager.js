@@ -1,3 +1,4 @@
+// "lines of code":"213","lines of commented":"0"
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Bot } from 'lucide-react';
@@ -229,3 +230,4 @@ export const ServiceAccountManager = () => {
     </Card>
   );
 };
+// "lines of code":"213","lines of commented":"0"

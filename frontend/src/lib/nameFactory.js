@@ -1,3 +1,4 @@
+// "lines of code":"10","lines of commented":"0"
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
 
 export function generateInstanceName() {
@@ -9,3 +10,4 @@ export function generateInstanceName() {
   }
   return `${letters}${digits}`;
 }
+// "lines of code":"10","lines of commented":"0"

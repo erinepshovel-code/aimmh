@@ -1,3 +1,4 @@
+// "lines of code":"223","lines of commented":"1"
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,11 +18,14 @@ export default function AuthPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
 
+  const normalizedUsername = username.trim();
+  const validUsername = /^[a-zA-Z0-9_.@+-]{3,120}$/.test(normalizedUsername);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(username, password);
+      await login(normalizedUsername, password);
       toast.success('Welcome back!');
       navigate('/chat');
     } catch (error) {
@@ -33,13 +37,17 @@ export default function AuthPage() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (!validUsername) {
+      toast.error('Username/email must be 3-120 chars: letters, numbers, . _ @ + -');
+      return;
+    }
     if (password.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;
     }
     setLoading(true);
     try {
-      await register(username, password);
+      await register(normalizedUsername, password);
       toast.success('Account created successfully!');
       navigate('/chat');
     } catch (error) {
@@ -183,6 +191,7 @@ export default function AuthPage() {
                     required
                     className="bg-background"
                   />
+                  <p className="text-[11px] text-muted-foreground" data-testid="register-username-rules">3-120 chars. Letters, numbers, . _ @ + -</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -217,7 +226,7 @@ export default function AuthPage() {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={loading}
+                  disabled={loading || !validUsername}
                   data-testid="register-submit-btn"
                 >
                   {loading ? 'Creating account...' : 'Create Account'}
@@ -230,3 +239,4 @@ export default function AuthPage() {
     </div>
   );
 }
+// "lines of code":"223","lines of commented":"1"

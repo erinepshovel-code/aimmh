@@ -1,3 +1,4 @@
+// "lines of code":"28","lines of commented":"0"
 import React from 'react';
 
 export function HubTabsNav({ tabs, activeTab, onChange }) {
@@ -27,3 +28,4 @@ export function HubTabsNav({ tabs, activeTab, onChange }) {
     </nav>
   );
 }
+// "lines of code":"28","lines of commented":"0"

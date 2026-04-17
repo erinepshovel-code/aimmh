@@ -1,3 +1,4 @@
+// "lines of code":"38","lines of commented":"0"
 const OPENAI_COMPATIBLE_DEFAULT = (modelId) => ({
   model: modelId,
   messages: [
@@ -39,3 +40,4 @@ export function getModelDefaultPayload(developerId, modelId) {
   if (developerId === 'google') return GEMINI_DEFAULT(modelId);
   return OPENAI_COMPATIBLE_DEFAULT(modelId);
 }
+// "lines of code":"38","lines of commented":"0"

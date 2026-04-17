@@ -1,3 +1,4 @@
+// "lines of code":"66","lines of commented":"4"
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -84,3 +85,4 @@ export default function AuthCallback() {
     </div>
   );
 }
+// "lines of code":"66","lines of commented":"4"

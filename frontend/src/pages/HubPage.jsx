@@ -1,3 +1,4 @@
+// "lines of code":"77","lines of commented":"0"
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -82,3 +83,4 @@ export default function HubPage() {
     </div>
   );
 }
+// "lines of code":"77","lines of commented":"0"

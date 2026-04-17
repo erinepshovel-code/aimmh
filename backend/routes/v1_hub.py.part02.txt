@@ -1,0 +1,223 @@
+async def create_group(req: HubGroupCreateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    now = iso_now()
+    doc = req.model_dump()
+    doc.update(
+        {
+            "group_id": make_id("hubg"),
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+            "archived_at": now if req.archived else None,
+        }
+    )
+    await db[HUB_GROUP_COLLECTION].insert_one(doc)
+    doc.pop("user_id", None)
+    return HubGroupOut(**doc)
+
+
+@router.get("/groups", response_model=HubGroupListResponse)
+async def get_groups(
+    include_archived: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_hub_groups(user_id, include_archived=include_archived, limit=limit)
+    return HubGroupListResponse(groups=[HubGroupOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/groups/{group_id}", response_model=HubGroupOut)
+async def get_group_detail(group_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    doc = await get_group(user_id, group_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return HubGroupOut(**doc)
+
+
+@router.patch("/groups/{group_id}", response_model=HubGroupOut)
+async def update_group(group_id: str, req: HubGroupUpdateRequest, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    existing = await get_group(user_id, group_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    update = req.model_dump(exclude_none=True)
+    if "archived" in update:
+        update["archived_at"] = iso_now() if update["archived"] else None
+    update["updated_at"] = iso_now()
+
+    await db[HUB_GROUP_COLLECTION].update_one(
+        {"user_id": user_id, "group_id": group_id},
+        {"$set": update},
+    )
+    doc = await get_group(user_id, group_id)
+    return HubGroupOut(**doc)
+
+
+@router.post("/groups/{group_id}/archive", response_model=HubGroupOut)
+async def archive_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_group(group_id, HubGroupUpdateRequest(archived=True), current_user)
+
+
+@router.post("/groups/{group_id}/unarchive", response_model=HubGroupOut)
+async def unarchive_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    return await update_group(group_id, HubGroupUpdateRequest(archived=False), current_user)
+
+
+@router.post("/runs", response_model=HubRunDetailResponse)
+async def create_hub_run(req: HubRunRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    billing_profile = await get_user_billing_profile(user_id)
+    run_mode = _resolved_run_mode(req)
+
+    if run_mode == "batch" and any(stage.pattern == "roleplay" for stage in req.stages):
+        raise HTTPException(status_code=422, detail="Batch runs cannot include roleplay stages. Use the Roleplay tab.")
+    if run_mode == "roleplay" and not any(stage.pattern == "roleplay" for stage in req.stages):
+        raise HTTPException(status_code=422, detail="Roleplay runs require at least one roleplay stage.")
+
+    daily_batch_runs = billing_profile.get("daily_batch_runs_per_24h")
+    daily_roleplay_runs = billing_profile.get("daily_roleplay_runs_per_24h")
+    if run_mode == "roleplay":
+        await consume_non_paying_daily_quota(
+            current_user=current_user,
+            billing_profile=billing_profile,
+            request=request,
+            action="roleplay_runs_24h",
+            limit=daily_roleplay_runs,
+            error_message="Free tier allows 2 roleplay runs per 24 hours. Upgrade or wait for reset.",
+        )
+    else:
+        await consume_non_paying_daily_quota(
+            current_user=current_user,
+            billing_profile=billing_profile,
+            request=request,
+            action="batch_runs_24h",
+            limit=daily_batch_runs,
+            error_message="Free tier allows 5 batch runs per 24 hours. Upgrade or wait for reset.",
+        )
+
+    max_runs = billing_profile.get("max_runs_per_month")
+    if max_runs is not None:
+        run_count = await db[HUB_RUN_COLLECTION].count_documents({"user_id": user_id, "created_at": {"$gte": current_month_start_iso()}})
+        if run_count >= int(max_runs):
+            raise HTTPException(status_code=403, detail=f"Your {billing_profile['subscription_tier']} tier allows {max_runs} runs per month. Upgrade to continue.")
+    max_personas = billing_profile.get("max_personas")
+    if max_personas is not None and len(req.stages) > int(max_personas):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_personas} persona stages per run. Upgrade to continue.",
+        )
+    return await execute_hub_run(current_user, HubRunRequest(**{**req.model_dump(), "run_mode": run_mode}))
+
+
+@router.get("/runs", response_model=HubRunListResponse)
+async def get_runs(
+    include_archived: bool = Query(default=False),
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_hub_runs(user_id, include_archived=include_archived, limit=limit)
+    return HubRunListResponse(runs=[HubRunOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.post("/runs/{run_id}/archive", response_model=HubRunOut)
+async def archive_run(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    await db[HUB_RUN_COLLECTION].update_one(
+        {"user_id": user_id, "run_id": run_id},
+        {"$set": {"archived": True, "archived_at": iso_now(), "updated_at": iso_now()}},
+    )
+    doc = await db[HUB_RUN_COLLECTION].find_one({"user_id": user_id, "run_id": run_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return HubRunOut(**doc)
+
+
+@router.post("/runs/{run_id}/unarchive", response_model=HubRunOut)
+async def unarchive_run(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    await db[HUB_RUN_COLLECTION].update_one(
+        {"user_id": user_id, "run_id": run_id},
+        {"$set": {"archived": False, "archived_at": None, "updated_at": iso_now()}},
+    )
+    doc = await db[HUB_RUN_COLLECTION].find_one({"user_id": user_id, "run_id": run_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return HubRunOut(**doc)
+
+
+@router.delete("/runs/{run_id}")
+async def delete_run(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    result = await db[HUB_RUN_COLLECTION].delete_one({"user_id": user_id, "run_id": run_id, "archived": True})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Archived run not found")
+    await db[HUB_RUN_STEP_COLLECTION].delete_many({"user_id": user_id, "run_id": run_id})
+    return {"message": f"Archived run {run_id} deleted"}
+
+
+@router.get("/runs/{run_id}", response_model=HubRunDetailResponse)
+async def get_run_detail(run_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    return await get_hub_run_detail(user_id, run_id)
+
+@router.post("/chat/synthesize", response_model=HubSynthesisBatchOut)
+async def create_chat_synthesis(req: HubSynthesisRequest, current_user: dict = Depends(get_current_user)):
+    return await create_synthesis_batch(current_user, req)
+
+
+@router.get("/chat/syntheses", response_model=HubSynthesisBatchListResponse)
+async def get_chat_syntheses(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_synthesis_batches(user_id, limit=limit)
+    return HubSynthesisBatchListResponse(batches=[HubSynthesisBatchOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/chat/syntheses/{synthesis_batch_id}", response_model=HubSynthesisBatchOut)
+async def get_chat_synthesis_detail(synthesis_batch_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    return await get_synthesis_batch(user_id, synthesis_batch_id)
+
+
+
+@router.post("/chat/prompts", response_model=HubChatPromptOut)
+async def create_chat_prompt(req: HubChatPromptRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    billing_profile = await get_user_billing_profile(user_id)
+    await consume_non_paying_daily_quota(
+        current_user=current_user,
+        billing_profile=billing_profile,
+        request=request,
+        action="chat_prompts_24h",
+        limit=billing_profile.get("daily_chats_per_24h"),
+        error_message="Free tier allows 25 chats per 24 hours. Upgrade or wait for reset.",
+    )
+    max_batch_size = billing_profile.get("max_batch_size")
+    if max_batch_size is not None and len(req.instance_ids) > int(max_batch_size):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your {billing_profile['subscription_tier']} tier allows up to {max_batch_size} responses per batch.",
+        )
+    return await send_chat_prompt(current_user, req)
+
+
+@router.get("/chat/prompts", response_model=HubChatPromptListResponse)
+async def get_chat_prompts(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = get_user_id(current_user)
+    docs = await list_chat_prompts(user_id, limit=limit)
+    return HubChatPromptListResponse(prompts=[HubChatPromptOut(**doc) for doc in docs], total=len(docs))
+
+
+@router.get("/chat/prompts/{prompt_id}", response_model=HubChatPromptOut)
+async def get_chat_prompt_detail(prompt_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = get_user_id(current_user)
+    return await get_chat_prompt(user_id, prompt_id)

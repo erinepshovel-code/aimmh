@@ -1,3 +1,4 @@
+// "lines of code":"110","lines of commented":"0"
 import React from 'react';
 import { Layers3, Link2, Network, TerminalSquare } from 'lucide-react';
 
@@ -115,3 +116,4 @@ export function HubRunTimeline({ options, runs, selectedRunId, setSelectedRunId,
     </section>
   );
 }
+// "lines of code":"110","lines of commented":"0"

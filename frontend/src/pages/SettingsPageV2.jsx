@@ -1,3 +1,4 @@
+// "lines of code":"45","lines of commented":"0"
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -47,3 +48,4 @@ export default function SettingsPageV2() {
     </div>
   );
 }
+// "lines of code":"45","lines of commented":"0"

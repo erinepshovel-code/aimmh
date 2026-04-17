@@ -1,3 +1,4 @@
+# "lines of code":"36","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List, Literal, Optional
@@ -43,3 +44,4 @@ class VerificationResponse(BaseModel):
     verified_count: int = 0
     total_count: int = 0
     results: List[VerificationResult] = Field(default_factory=list)
+# "lines of code":"36","lines of commented":"0"

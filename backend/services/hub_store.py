@@ -1,3 +1,4 @@
+# "lines of code":"124","lines of commented":"0"
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -149,3 +150,4 @@ async def list_docs(collection: str, user_id: str, include_archived: bool = Fals
         query["archived"] = {"$ne": True}
     cursor = db[collection].find(query, {"_id": 0}).sort("updated_at", -1).limit(limit)
     return await cursor.to_list(limit)
+# "lines of code":"124","lines of commented":"0"

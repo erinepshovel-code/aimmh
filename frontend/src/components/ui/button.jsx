@@ -1,3 +1,4 @@
+// "lines of code":"44","lines of commented":"0"
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority";
@@ -46,3 +47,4 @@ const Button = React.forwardRef(({ className, variant, size, asChild = false, ..
 Button.displayName = "Button"
 
 export { Button, buttonVariants }
+// "lines of code":"44","lines of commented":"0"

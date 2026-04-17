@@ -1,3 +1,4 @@
+# "lines of code":"30","lines of commented":"25"
 """
 adapters.py — Bridge from aimmh_lib.conversations.CallFn to the aimmh backend.
 
@@ -67,3 +68,4 @@ def make_call_fn(
         return "".join(chunks)
 
     return call_fn
+# "lines of code":"30","lines of commented":"25"

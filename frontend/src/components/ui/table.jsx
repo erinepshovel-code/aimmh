@@ -1,3 +1,4 @@
+// "lines of code":"76","lines of commented":"0"
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -84,3 +85,4 @@ export {
   TableCell,
   TableCaption,
 }
+// "lines of code":"76","lines of commented":"0"

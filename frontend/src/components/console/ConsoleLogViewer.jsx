@@ -1,3 +1,4 @@
+// "lines of code":"22","lines of commented":"0"
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 
@@ -21,3 +22,4 @@ export function ConsoleLogViewer({ contextLogs, selectedContextId, onSelectConte
     </Card>
   );
 }
+// "lines of code":"22","lines of commented":"0"

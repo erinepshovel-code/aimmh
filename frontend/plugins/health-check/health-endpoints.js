@@ -1,3 +1,4 @@
+// "lines of code":"153","lines of commented":"38"
 // health-endpoints.js
 // API endpoints for health checks and monitoring
 
@@ -211,3 +212,4 @@ function formatDuration(ms) {
 }
 
 module.exports = setupHealthEndpoints;
+// "lines of code":"153","lines of commented":"38"

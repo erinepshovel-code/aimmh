@@ -1,3 +1,4 @@
+// "lines of code":"55","lines of commented":"0"
 import React from 'react';
 import { ArrowLeft, ExternalLink, HeartHandshake } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -56,3 +57,4 @@ export default function HallOfMakersPage() {
     </div>
   );
 }
+// "lines of code":"55","lines of commented":"0"

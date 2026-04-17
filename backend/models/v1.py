@@ -1,3 +1,4 @@
+# "lines of code":"164","lines of commented":"7"
 """V1 API Pydantic models for the Multi-Model Hub."""
 
 from pydantic import BaseModel, Field
@@ -232,3 +233,4 @@ class KeyStatusResponse(BaseModel):
 class FeedbackRequest(BaseModel):
     message_id: str
     feedback: str  # "up" | "down"
+# "lines of code":"164","lines of commented":"7"

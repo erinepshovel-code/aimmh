@@ -1,0 +1,234 @@
+                    use_initiative=stage.use_initiative,
+                    allow_reactions=stage.allow_reactions,
+                    max_history=stage.max_history,
+                )
+
+                for idx, instance in enumerate(player_instances):
+                    instances_by_slot[idx] = instance
+                if len(dm_instances) == 1:
+                    instances_by_slot[len(player_instances)] = dm_instances[0]
+
+                for raw in raw_results:
+                    mapped_instance = instances_by_slot.get(raw.slot_idx)
+                    if raw.role == "dm" and len(dm_instances) > 1:
+                        mapped_instance = dm_instances[raw.round_num % len(dm_instances)]
+                    result = HubRunResult(
+                        run_step_id=make_id("hrstep"),
+                        run_id=run_id,
+                        stage_index=stage_index,
+                        stage_name=stage_name,
+                        pattern=stage.pattern,
+                        instance_id=mapped_instance.get("instance_id") if mapped_instance else None,
+                        instance_name=mapped_instance.get("name") if mapped_instance else None,
+                        thread_id=mapped_instance.get("thread_id") if mapped_instance else None,
+                        model=raw.model,
+                        content=raw.content,
+                        response_time_ms=raw.response_time_ms,
+                        error=raw.error,
+                        round_num=raw.round_num,
+                        step_num=raw.step_num,
+                        initiative=raw.initiative,
+                        role=raw.role,
+                        slot_idx=raw.slot_idx,
+                        created_at=iso_now(),
+                    )
+                    stage_results.append(result)
+            else:
+                if not stage.participants:
+                    raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} requires participants")
+                instances = await _expand_participants(user_id, stage.participants)
+                if not instances:
+                    raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} has no active instances")
+                await ensure_models_exist(user_id, [instance["model_id"] for instance in instances])
+                model_ids = [instance["model_id"] for instance in instances]
+                slot_contexts = [await _build_slot_context(instance, stage.verbosity) for instance in instances]
+                for idx, instance in enumerate(instances):
+                    instances_by_slot[idx] = instance
+
+                if stage.pattern == "fan_out":
+                    raw_results = await fan_out(call, model_ids, [{"role": "user", "content": prompt_used}], slot_contexts)
+                elif stage.pattern == "daisy_chain":
+                    raw_results = await daisy_chain(
+                        call,
+                        model_ids,
+                        prompt_used,
+                        rounds=stage.rounds,
+                        slot_contexts=slot_contexts,
+                        include_original_prompt=stage.include_original_prompt,
+                        max_history=stage.max_history,
+                    )
+                elif stage.pattern == "room_all":
+                    raw_results = await room_all(
+                        call,
+                        model_ids,
+                        prompt_used,
+                        rounds=stage.rounds,
+                        slot_contexts=slot_contexts,
+                        max_history=stage.max_history,
+                    )
+                elif stage.pattern == "room_synthesized":
+                    synth_instances: List[dict] = []
+                    if stage.synthesis_instance_id:
+                        synth = await get_instance(user_id, stage.synthesis_instance_id, include_archived=False)
+                        if not synth:
+                            raise HTTPException(status_code=404, detail=f"Synthesis instance not found: {stage.synthesis_instance_id}")
+                        synth_instances = [synth]
+                    elif stage.synthesis_group_id:
+                        synth_instances = await _expand_group_instances(user_id, stage.synthesis_group_id)
+                    if len(synth_instances) != 1:
+                        raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} room_synthesized requires exactly one synthesis instance or single-member group")
+                    synth_instance = synth_instances[0]
+                    await ensure_models_exist(user_id, [synth_instance["model_id"]])
+                    instances_by_slot[len(instances)] = synth_instance
+                    raw_results = await room_synthesized(
+                        call,
+                        model_ids,
+                        prompt_used,
+                        synthesis_model=synth_instance["model_id"],
+                        rounds=stage.rounds,
+                        synthesis_prompt=stage.synthesis_prompt or "Synthesize and analyze these AI responses:",
+                        slot_contexts=slot_contexts,
+                        synth_slot_context=await _build_slot_context(synth_instance, stage.verbosity),
+                        max_history=stage.max_history,
+                    )
+                elif stage.pattern == "council":
+                    raw_results = await council(
+                        call,
+                        model_ids,
+                        prompt_used,
+                        rounds=stage.rounds,
+                        synthesis_prompt=stage.synthesis_prompt or "Synthesize and analyze all model responses including your own:",
+                        slot_contexts=slot_contexts,
+                        max_history=stage.max_history,
+                    )
+                else:
+                    raise HTTPException(status_code=422, detail=f"Unsupported pattern: {stage.pattern}")
+
+                for raw in raw_results:
+                    mapped_instance = instances_by_slot.get(raw.slot_idx)
+                    result = HubRunResult(
+                        run_step_id=make_id("hrstep"),
+                        run_id=run_id,
+                        stage_index=stage_index,
+                        stage_name=stage_name,
+                        pattern=stage.pattern,
+                        instance_id=mapped_instance.get("instance_id") if mapped_instance else None,
+                        instance_name=mapped_instance.get("name") if mapped_instance else None,
+                        thread_id=mapped_instance.get("thread_id") if mapped_instance else None,
+                        model=raw.model,
+                        content=raw.content,
+                        response_time_ms=raw.response_time_ms,
+                        error=raw.error,
+                        round_num=raw.round_num,
+                        step_num=raw.step_num,
+                        initiative=raw.initiative,
+                        role=raw.role,
+                        slot_idx=raw.slot_idx,
+                        created_at=iso_now(),
+                    )
+                    stage_results.append(result)
+
+            message_map = await _persist_instance_results(
+                user_id=user_id,
+                stage_prompt=prompt_used,
+                stage_index=stage_index,
+                stage=stage,
+                instances_by_slot=instances_by_slot,
+                results=stage_results,
+                persist_instance_threads=req.persist_instance_threads,
+                run_id=run_id,
+            )
+
+            for item in stage_results:
+                if item.run_step_id in message_map:
+                    item.message_id = message_map[item.run_step_id]
+                step_doc = item.model_dump()
+                step_doc["user_id"] = user_id
+                stage_result_docs.append(step_doc)
+            if stage_result_docs:
+                await db[HUB_RUN_STEP_COLLECTION].insert_many(stage_result_docs)
+
+            participant_names = [instance.get("name") or instance.get("instance_id") for _, instance in sorted(instances_by_slot.items(), key=lambda pair: pair[0])]
+            stage_summary = HubStageSummary(
+                stage_index=stage_index,
+                stage_name=stage_name,
+                pattern=stage.pattern,
+                prompt_used=prompt_used,
+                participants=participant_names,
+                result_count=len(stage_results),
+            )
+            stage_summaries.append(stage_summary)
+            prior_stage_results = stage_results
+            all_results.extend(stage_results)
+
+            await emit_event(
+                event_type="hub_stage_completed",
+                thread_id=f"hub_run:{run_id}",
+                actor_id=f"user:{user_id}",
+                payload={
+                    "run_id": run_id,
+                    "stage_index": stage_index,
+                    "pattern": stage.pattern,
+                    "result_count": len(stage_results),
+                },
+            )
+
+        await db[HUB_RUN_COLLECTION].update_one(
+            {"run_id": run_id, "user_id": user_id},
+            {
+                "$set": {
+                    "status": "completed",
+                    "stage_summaries": [summary.model_dump() for summary in stage_summaries],
+                    "updated_at": iso_now(),
+                }
+            },
+        )
+    except HTTPException:
+        await db[HUB_RUN_COLLECTION].update_one(
+            {"run_id": run_id, "user_id": user_id},
+            {"$set": {"status": "failed", "updated_at": iso_now()}},
+        )
+        raise
+    except Exception as exc:
+        await db[HUB_RUN_COLLECTION].update_one(
+            {"run_id": run_id, "user_id": user_id},
+            {"$set": {"status": "failed", "updated_at": iso_now(), "error": str(exc)}} ,
+        )
+        raise HTTPException(status_code=500, detail=f"Hub run failed: {exc}") from exc
+
+    run_doc = await db[HUB_RUN_COLLECTION].find_one({"run_id": run_id, "user_id": user_id}, {"_id": 0})
+    return HubRunDetailResponse(
+        **run_doc,
+        results=all_results,
+    )
+
+
+async def get_hub_run_detail(user_id: str, run_id: str) -> HubRunDetailResponse:
+    run_doc = await db[HUB_RUN_COLLECTION].find_one({"run_id": run_id, "user_id": user_id}, {"_id": 0})
+    if not run_doc:
+        raise HTTPException(status_code=404, detail="Hub run not found")
+    step_docs = await db[HUB_RUN_STEP_COLLECTION].find({"run_id": run_id, "user_id": user_id}, {"_id": 0}).sort([
+        ("stage_index", 1),
+        ("round_num", 1),
+        ("step_num", 1),
+        ("created_at", 1),
+    ]).to_list(5000)
+    return HubRunDetailResponse(
+        **run_doc,
+        results=[HubRunResult(**doc) for doc in step_docs],
+    )
+
+
+async def list_hub_runs(user_id: str, include_archived: bool = False, limit: int = 100) -> list[dict]:
+    query = {"user_id": user_id}
+    if not include_archived:
+        query["archived"] = {"$ne": True}
+    return await db[HUB_RUN_COLLECTION].find(query, {"_id": 0}).sort("updated_at", -1).limit(limit).to_list(limit)
+
+
+async def list_hub_instances(user_id: str, include_archived: bool = False, limit: int = 200) -> list[dict]:
+    return await list_docs(HUB_INSTANCE_COLLECTION, user_id, include_archived=include_archived, limit=limit)
+
+
+async def list_hub_groups(user_id: str, include_archived: bool = False, limit: int = 200) -> list[dict]:
+    return await list_docs(HUB_GROUP_COLLECTION, user_id, include_archived=include_archived, limit=limit)

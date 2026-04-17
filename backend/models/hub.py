@@ -1,3 +1,4 @@
+# "lines of code":"163","lines of commented":"0"
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
@@ -125,6 +126,7 @@ class HubRunRequest(BaseModel):
     label: Optional[str] = Field(default=None, max_length=120)
     stages: List[HubStageRequest] = Field(min_length=1)
     persist_instance_threads: bool = True
+    run_mode: Optional[Literal["batch", "roleplay"]] = None
 
 
 class HubRunResult(BaseModel):
@@ -163,6 +165,7 @@ class HubRunOut(BaseModel):
     run_id: str
     label: Optional[str] = None
     prompt: str
+    run_mode: Optional[Literal["batch", "roleplay"]] = None
     status: str
     archived: bool = False
     archived_at: Optional[str] = None
@@ -206,3 +209,4 @@ class HubConnectionsResponse(BaseModel):
     fastapi_connections: Dict[str, Dict[str, str]]
     patterns: List[str]
     supports: Dict[str, bool]
+# "lines of code":"163","lines of commented":"0"

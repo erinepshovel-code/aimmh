@@ -1,3 +1,4 @@
+// "lines of code":"130","lines of commented":"0"
 import React from 'react';
 import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, Sparkles } from 'lucide-react';
 import { ResponseMarkdown } from './ResponseMarkdown';
@@ -123,7 +124,9 @@ export function ChatResponseComparator({ promptId, responses, synthesisBasket, o
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3" data-testid="chat-compare-carousel-item">
               <div className="text-sm text-zinc-100">{carouselItem.instance_name}</div>
               <div className="text-[11px] text-zinc-500">{carouselItem.model}</div>
-              <div className="mt-2 line-clamp-4 text-xs text-zinc-300">{carouselItem.content}</div>
+              <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950/70 p-2">
+                <ResponseMarkdown content={carouselItem.content} fontScale={1} />
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => setCarouselIndex((prev) => prev - 1)} className="rounded-xl border border-zinc-800 px-2 py-1 text-xs text-zinc-300" data-testid="chat-compare-carousel-prev-button"><span className="flex items-center gap-1"><ChevronLeft size={12} /> Prev</span></button>
@@ -138,3 +141,4 @@ export function ChatResponseComparator({ promptId, responses, synthesisBasket, o
     </section>
   );
 }
+// "lines of code":"130","lines of commented":"0"

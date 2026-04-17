@@ -1,3 +1,4 @@
+// "lines of code":"141","lines of commented":"0"
 import React from 'react';
 import { Copy, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -145,3 +146,4 @@ export function ServiceAccountDetails({
     </div>
   );
 }
+// "lines of code":"141","lines of commented":"0"

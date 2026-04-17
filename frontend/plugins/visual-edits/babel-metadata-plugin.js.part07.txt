@@ -1,0 +1,173 @@
+        }
+
+        // Skip if already has metadata
+        const hasDebugAttr = jsxPath.node.attributes.some(
+          (attr) =>
+            t.isJSXAttribute(attr) &&
+            attr.name &&
+            attr.name.name &&
+            attr.name.name.startsWith("x-"),
+        );
+        if (hasDebugAttr) return;
+
+        // Get source location
+        const filename =
+          state.filename ||
+          state.file?.opts?.filename ||
+          state.file?.sourceFileName ||
+          "unknown";
+
+        const lineNumber = jsxPath.node.loc?.start.line || 0;
+
+        if (!fileNameCache.has(filename)) {
+          const base = path.basename(filename).replace(/\.[jt]sx?$/, "");
+          fileNameCache.set(filename, base);
+        }
+        const normalizedPath = fileNameCache.get(filename) || "unknown";
+
+        // Detect if native element is dynamic:
+        // 1. Inside an array iteration (.map(), etc.)
+        // 2. Has expression children (like {variable} or {obj.prop})
+        const parentElement = jsxPath.parentPath; // JSXElement containing this opening element
+        const isInArrayMethod = parentElement ? isJSXDynamic(parentElement) : false;
+        const hasExpressions = parentElement && parentElement.node ? hasAnyExpression(parentElement.node) : false;
+        const isDynamic = isInArrayMethod || hasExpressions;
+
+        // Analyze expression sources if element has expressions
+        let sourceInfo = null;
+        let arrayContext = null;
+
+        if (isDynamic && parentElement && parentElement.node) {
+          // Find expression children and analyze them
+          const children = parentElement.node.children || [];
+          for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            if (t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)) {
+              // Get the path to this expression container
+              const exprContainerPath = parentElement.get(`children.${i}`);
+              if (exprContainerPath && exprContainerPath.node) {
+                const exprPath = exprContainerPath.get("expression");
+                if (exprPath && exprPath.node) {
+                  sourceInfo = analyzeExpression(exprPath, state);
+                  if (sourceInfo && sourceInfo.arrayContext) {
+                    arrayContext = sourceInfo.arrayContext;
+                  }
+                }
+              }
+              break; // Only analyze first expression
+            }
+          }
+
+          // If no expression children, check if we're in array iteration context
+          if (!sourceInfo) {
+            const iterContext = getArrayIterationContext(parentElement, state);
+            if (iterContext) {
+              arrayContext = iterContext;
+              sourceInfo = {
+                type: iterContext.isEditable ? "static-imported" : "external",
+                varName: iterContext.arrayVar,
+                file: iterContext.arrayFile,
+                absFile: iterContext.absFile,
+                line: iterContext.arrayLine,
+                isEditable: iterContext.isEditable,
+              };
+            }
+          }
+        }
+
+        // Build metadata attributes
+        const metaAttrs = [
+          t.jsxAttribute(
+            t.jsxIdentifier("x-file-name"),
+            t.stringLiteral(normalizedPath),
+          ),
+          t.jsxAttribute(
+            t.jsxIdentifier("x-line-number"),
+            t.stringLiteral(String(lineNumber)),
+          ),
+          t.jsxAttribute(
+            t.jsxIdentifier("x-component"),
+            t.stringLiteral(elementName),
+          ),
+          t.jsxAttribute(
+            t.jsxIdentifier("x-id"),
+            t.stringLiteral(`${normalizedPath}_${lineNumber}`),
+          ),
+          t.jsxAttribute(
+            t.jsxIdentifier("x-dynamic"),
+            t.stringLiteral(isDynamic ? "true" : "false"),
+          ),
+        ];
+
+        // Add source tracking attributes if available
+        if (sourceInfo) {
+          if (sourceInfo.type) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-source-type"), t.stringLiteral(sourceInfo.type))
+            );
+          }
+          if (sourceInfo.varName) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-source-var"), t.stringLiteral(sourceInfo.varName))
+            );
+          }
+          if (sourceInfo.file) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-source-file"), t.stringLiteral(sourceInfo.file))
+            );
+          }
+          if (sourceInfo.absFile) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-source-file-abs"), t.stringLiteral(sourceInfo.absFile))
+            );
+          }
+          if (sourceInfo.line) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-source-line"), t.stringLiteral(String(sourceInfo.line)))
+            );
+          }
+          if (sourceInfo.path) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-source-path"), t.stringLiteral(sourceInfo.path))
+            );
+          }
+          metaAttrs.push(
+            t.jsxAttribute(
+              t.jsxIdentifier("x-source-editable"),
+              t.stringLiteral(sourceInfo.isEditable ? "true" : "false")
+            )
+          );
+        }
+
+        // Add array iteration context if available
+        if (arrayContext) {
+          if (arrayContext.arrayVar) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-array-var"), t.stringLiteral(arrayContext.arrayVar))
+            );
+          }
+          if (arrayContext.arrayFile) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-array-file"), t.stringLiteral(arrayContext.arrayFile))
+            );
+          }
+          if (arrayContext.arrayLine) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-array-line"), t.stringLiteral(String(arrayContext.arrayLine)))
+            );
+          }
+          if (arrayContext.itemParam) {
+            metaAttrs.push(
+              t.jsxAttribute(t.jsxIdentifier("x-array-item-param"), t.stringLiteral(arrayContext.itemParam))
+            );
+          }
+        }
+
+        // Add metadata attributes
+        insertMetaAttributes(jsxPath.node, metaAttrs);
+      },
+    },
+  };
+};
+
+module.exports = babelMetadataPlugin;

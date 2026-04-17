@@ -1,3 +1,4 @@
+// "lines of code":"100","lines of commented":"0"
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "lucide-react"
@@ -114,3 +115,4 @@ export {
   CommandShortcut,
   CommandSeparator,
 }
+// "lines of code":"100","lines of commented":"0"

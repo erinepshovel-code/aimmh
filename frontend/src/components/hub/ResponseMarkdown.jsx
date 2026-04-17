@@ -1,3 +1,4 @@
+// "lines of code":"10","lines of commented":"0"
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,3 +10,4 @@ export function ResponseMarkdown({ content, fontScale = 1 }) {
     </div>
   );
 }
+// "lines of code":"10","lines of commented":"0"

@@ -18,7 +18,7 @@ The application is now a full-stack AIMMH workspace with:
 - **Backend:** FastAPI, Pydantic, MongoDB via motor
 - **Core orchestration library:** local `/app/aimmh_lib`
 - **Payments:** Stripe via `/api/v2/payments`
-- **Auth:** JWT-based application auth
+- **Auth:** httpOnly cookie-based auth + guest trial identity fallback (`X-Guest-Id`)
 
 ## Primary Routes
 - `/auth` — login and registration
@@ -116,6 +116,193 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Backend persistence foundation: added `GET/PUT/DELETE /api/v1/hub/state/{state_key}` for user-scoped workspace state drafts
 - [x] Keystroke autosave (backend-backed, silent UX): chat prompt draft + run-builder draft now persist with debounce and restore on reload/tab switching
 - [x] Synthesis queue persistence moved to backend state (`synthesis-queue-global`) and restored on workspace reload
+- [x] First-visit onboarding flow: mandatory click-to-dismiss splash on first visit, then default landing to new `Claude.md` tab; returning visits auto-dismiss splash and default to Registry
+- [x] New welcome guide architecture: random first-visit welcome model is provisioned with `CLAUDE_MD_CONTEXT`, exposed via `ClaudeWelcomePanel` chat (with response popout)
+- [x] Registry analytics UX: added token usage endpoint `GET /api/v1/registry/usage` and frontend display of grand totals + per-model + per-instance token breakdown
+- [x] Disabled native browser zoom in runtime and static HTML viewport meta, favoring in-app text enlargement controls
+- [x] Stability patch: hardened API response parsing to avoid `body stream already read` runtime errors in frontend request wrappers (`hubApi`, `registryApi`, `paymentsApi`)
+- [x] Welcome-model resilience: auto-repair invalid legacy welcome model IDs (e.g., deprecated Gemini variants) by switching to a valid curated model before guide-chat use
+- [x] Guest trial auth flow: removed login wall for `/chat` and `/pricing`; backend now supports guest identity via `X-Guest-Id` with daily-reset request quota enforcement in `services/auth.py`
+- [x] Frontend trial routing UX: guest users see `Sign in` CTA while retaining full trial access; trial-exhausted API responses redirect to `/auth`
+- [x] Free-tier alignment: guest trial daily cap now derives from free-tier config (`TIER_LIMITS['free']['daily_trial_requests']`) with env override support
+- [x] Response formatting compliance update: comparator carousel now renders markdown-rich response boxes in scrollable containers (no plain text clamp fallback)
+
+## Latest Verified Fixes — 2026-04-05
+- [x] Finalized strict free-tier monetization guardrails:
+  - max **3 active agents/instances**
+  - max **3 saved personas**
+  - max **1 connected BYOK key**
+- [x] Added backend persona guardrails in `v1_hub.py` for both create and update flows
+- [x] Added backend run-stage guardrail in `v1_hub.py` (`max_personas` now blocks >3 persona stages for free tier)
+- [x] Added frontend hard-stop **Upgrade to Pro** modal (CTA to `/pricing`) for:
+  - instance-limit hit in `HubInstancesPanel.jsx`
+  - persona-limit hit in `HubInstancesPanel.jsx`
+  - BYOK key-limit hit in `KeyManager.jsx`
+  - persona-stage-limit hit in `HubRunBuilder.jsx`
+- [x] Updated pricing copy in `PricingPageV2.jsx` to explicitly communicate free vs pro limits
+- [x] Updated Pro package feature messaging in backend catalog seed (`payments_v2.py`) to reflect unlimited agents/personas/keys
+- [x] Updated Pro pricing points per user request:
+  - `pro_monthly` → **$31 / month**
+  - `pro_yearly` → **$313 / year**
+- [x] Added user-entered one-time **Effort support donation** flow:
+  - frontend donation input + checkout CTA in `PricingPageV2.jsx`
+  - backend custom checkout support via `package_id="supporter_custom"` + validated `custom_amount`
+  - transaction + webhook/status flow remains in existing `/api/payments` pipeline
+- [x] Verified with testing agent report `iteration_25.json`:
+  - backend limits: PASS
+  - frontend upgrade modals: PASS
+  - pricing copy and summary chips: PASS
+- [x] Verified latest pricing change and donation flow via backend+frontend testing:
+  - `/api/payments/catalog` returns Pro amounts 31.0 and 313.0
+  - custom donation checkout session creates successfully with user-entered amount
+  - `/pricing` renders new Pro labels and donation section
+
+## Latest Verified Refactor — 2026-04-06
+- [x] Enforced "no source file > 400 lines" across app/runtime files by splitting large modules into smaller parts
+- [x] Frontend split:
+  - `ChatPage.js` extracted UI sections into `components/chat/ChatPageSections.jsx`
+  - `AimmhHubPage.jsx` extracted tab rendering into `components/hub/AimmhHubTabContent.jsx`
+- [x] Backend/runtime large modules were split into chunked part files loaded by thin wrappers (behavior preserved)
+- [x] Validation:
+  - smoke screenshot passed on `/chat`
+  - testing report `iteration_26.json` passed backend and frontend smoke checks (100%)
+- [x] Added CI guard for max file length:
+  - script: `/app/scripts/check_max_lines.py`
+  - workflow: `/.github/workflows/line-length-guard.yml`
+  - enforces max 400 lines on checked source files
+
+## Latest Verified Feature Expansion — 2026-04-07
+- [x] Free-tier quota updates for non-paying users:
+  - max instances increased to **5**
+  - **25 chats / 24h**
+  - **5 batch runs / 24h**
+  - **2 roleplay runs / 24h**
+- [x] Guest quota enforcement by **IP address** for non-paying usage controls
+- [x] Batch vs Roleplay workflow split:
+  - dedicated tabs: `Batch Runs`, `Roleplay Runs`
+  - backend run-mode validation (batch disallows roleplay stages; roleplay requires roleplay stage)
+- [x] Chat tab redesigned to prompt/response carousel flow:
+  - one prompt visible at a time
+  - one response visible at a time
+  - lock current response and advance; max 3 locked responses (4th displaces oldest)
+  - per-response **Send to synthesis** action
+- [x] Synthesis tab now owns synthesis workflow:
+  - only queued responses appear
+  - remove buttons + checkbox selection for synthesis run
+  - session-only history by default
+  - authenticated users can opt to save history and opt to view saved cross-session history
+- [x] Registry/instance pricing alignment updates:
+  - wording standardized to **instances**
+  - pricing copy updated for new free-tier daily quotas
+- [x] Guide model / quota corrections:
+  - welcome guide instances (`metadata.welcome_model=true`) are quota-exempt for instance counting
+  - welcome guide excluded from persona quota counting as well
+- [x] Stability fix after testing report `iteration_27.json`:
+  - resolved React maximum update depth issue in synthesis/tab navigation effects
+
+## Latest Bug Fix Pass — 2026-04-07 (post-user validation)
+- [x] Run-builder usability fixes after user feedback:
+  - added **Select all** + **Clear** controls for Batch participants
+  - added **Select all** + **Clear** controls for Roleplay player participants
+  - added explicit **DM/GM host mode** selector for roleplay (`auto`, `fixed instance`, `rotation group`)
+  - relabeled DM fields to DM/GM for clarity
+- [x] Better out-of-box execution defaults:
+  - batch stage defaults to selecting all available sources
+  - roleplay stage defaults to selecting all available player participants
+  - chat recipients now auto-select active instances when none are selected
+- [x] Backend execution verified with fresh account:
+  - batch run executes successfully
+  - roleplay run executes successfully
+  - direct chat prompt executes successfully
+
+## Latest UX Upgrade — 2026-04-08
+- [x] Added collapsible menus across major work areas:
+  - Chat: Direct chat + Prompt carousel sections collapsible
+  - Synthesis: Queue + Controls + History sections collapsible
+  - Batch/Roleplay: Builder + Inventory sections collapsible
+- [x] Added run response viewing via drawer/modal from run inventory cards
+  - action button: `View responses`
+  - drawer test id: `run-responses-drawer`
+- [x] Synthesis queue scrolling improved:
+  - queue region now scrolls as queued-item list (`overflow-y-auto`, max-height)
+  - removed cramped inner-only text scrolling behavior
+- [x] Added mobile gesture system on chat carousel surface:
+  - 1-finger swipe: previous/next response
+  - 2-finger swipe: previous/next prompt
+  - 3-finger swipe: previous/next hub tab
+  - 1-finger double tap: lock current response + advance
+  - 2-finger double tap: toggle pinch font-mode
+  - pinch/spread in font-mode changes response font scale
+  - font scale persists via localStorage key `aimmh-chat-font-scale`
+- [x] External verification: testing report `iteration_28.json`
+  - backend: 8/8 pass
+  - frontend: all requested features pass (including collapses, queue scroll region, gesture controls presence, drawer component)
+
+## Latest Stability + UX Pass — 2026-04-10
+- [x] Disabled gesture controls temporarily in Chat prompt carousel (per user request)
+- [x] Added manual font controls in Chat (`A-` / `A+`) with persisted scale indicator
+- [x] Added Chat-to-many enhancements:
+  - single-room mode toggle (send prompts to all active instances)
+  - comparison mode toggle (`Carousel`, `Columns`, `Stack`)
+  - token displays per chat, per developer, per instance
+- [x] Added backend token fields in chat responses:
+  - `developer_id`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `tokens_estimated`
+- [x] Added synthesis queue persistence policy controls:
+  - guest: session-only
+  - logged-in free: local browser persistence
+  - paid account: cloud persistence
+- [x] Updated synthesis layout to left/right split (instance metadata left, response right) in queue and history
+- [x] Added batch job descriptions in run response drawer for selected run (stage prompt descriptions)
+- [x] Roleplay/batch/chat backend execution re-verified (all successful)
+- [x] Backend auth hardening:
+  - register username validation now enforced server-side (`3-32`, `[a-zA-Z0-9_-]`)
+
+## Latest Readme System Replacement — 2026-04-13
+- [x] Replaced old static readme/guide schema with dynamic help-model-driven README flow
+  - Hub tab renamed to **Help** (replaces prior Claude.md style surface)
+  - New panel: `HelpReadmePanel.jsx` with ask flow + preview + sync controls
+- [x] Built Python dynamic registry module:
+  - `backend/services/registry.py` scans backend/frontend/app modules
+  - Extracts module/function docs and computes code vs commented line metrics
+  - Supports begin/end metrics marker sync for modules
+- [x] Added API surface for dynamic README:
+  - `GET /api/v1/readme/registry`
+  - `POST /api/v1/readme/registry/sync`
+- [x] Added frontend README assembler:
+  - `frontend/src/lib/readme.ts` assembles coherent README markdown from registry payload
+  - Markdown is rendered and included in help-model prompt context
+- [x] Implemented module rule enforcement pipeline:
+  - updated `scripts/check_max_lines.py` to enforce
+    - begin/end metrics markers
+    - <=400 **code** lines (comments excluded)
+    - first/last marker lines excluded from code counting
+  - synced markers across scoped app modules (`backend`, `frontend/src`, `frontend/plugins`, `aimmh_lib`)
+- [x] Addressed testing-agent issue for fresh-session help ask timing:
+  - ask button now requires a valid `welcomeInstance.instance_id`
+
+## Latest WaySeer Tier + WS-Admin Expansion — 2026-04-16
+- [x] Added **ws-tier** with full-access policy and domain-based assignment:
+  - any user with `@interdependentway.org` (email or username-form email) is auto-upgraded server-side
+  - enforcement occurs on authenticated user resolution (always-on)
+  - `ws-tier` receives unlimited limits + highest queue priority
+- [x] Added **WS-Admin backend** (`/api/v1/ws-admin/*`) with strict ws-tier-only access:
+  - billing tier editor (DB + live runtime updates)
+  - pricing package editor (DB + runtime package updates)
+  - endpoint inventory display
+  - app analytics counters
+  - safe CLI interface commands (`health_check`, `ready_check`, `line_rules`, `tail_backend_logs`, `sync_readme_registry`)
+- [x] Added **WS-Admin frontend tab** (visible only for ws-tier users) with collapsible menus:
+  - Billing tiers + pricing editor
+  - API and REST endpoints
+  - App analytics
+  - CLI interface
+- [x] Integrated provided Stripe product metadata into ws-tier package seed:
+  - `stripe_product_id: prod_ULK7v7UFVntOV7`
+- [x] Removed old readme-tab schema in active UX path:
+  - now user asks Help model for dynamic README context via `Help` tab
+- [x] Compliance and structure:
+  - module marker sync executed via dynamic registry
+  - line-rule checker passes (`<=400 code lines, comments excluded, marker boundaries ignored`)
 
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
@@ -149,6 +336,7 @@ The application is now a full-stack AIMMH workspace with:
 - [x] Chat & Synthesis tab rendering / usability blocker
 - [x] Instance history metadata exposure for chat and synthesis
 - [x] Universal-key registry cleanup and protection rules
+- [x] Free-vs-Pro enforcement with upgrade modals (instances/personas/keys/stages)
 
 ### P1 — Next
 - [ ] Deployment/release pass when requested

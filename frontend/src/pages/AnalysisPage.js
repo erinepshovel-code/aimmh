@@ -1,3 +1,4 @@
+// "lines of code":"288","lines of commented":"4"
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -315,3 +316,4 @@ export default function AnalysisPage() {
     </div>
   );
 }
+// "lines of code":"288","lines of commented":"4"

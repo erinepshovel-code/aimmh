@@ -1,0 +1,320 @@
+"""
+Backend API Tests for A0 Plugin and EDCM Dashboard Features
+Tests: A0 config CRUD, EDCM metrics ingest/query, dashboard endpoint
+"""
+import pytest
+import requests
+import os
+import uuid
+
+from test_credentials import TEST_FAKE_API_KEY, TEST_USER_PASSWORD
+
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+
+# Test credentials - reuse from previous iteration
+TEST_USERNAME = "testuser_refactor"
+TEST_PASSWORD = TEST_USER_PASSWORD
+
+
+@pytest.fixture(scope="module")
+def api_client():
+    """Shared requests session"""
+    session = requests.Session()
+    session.headers.update({"Content-Type": "application/json"})
+    return session
+
+
+@pytest.fixture(scope="module")
+def auth_token(api_client):
+    """Login with existing test user credentials"""
+    response = api_client.post(
+        f"{BASE_URL}/api/auth/login",
+        json={"username": TEST_USERNAME, "password": TEST_PASSWORD}
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("access_token")
+    
+    # If login fails, try registering
+    register_response = api_client.post(
+        f"{BASE_URL}/api/auth/register",
+        json={"username": TEST_USERNAME, "password": TEST_PASSWORD}
+    )
+    
+    if register_response.status_code == 200:
+        data = register_response.json()
+        return data.get("access_token")
+    
+    pytest.skip(f"Authentication failed - cannot proceed with tests")
+
+
+@pytest.fixture(scope="module")
+def authenticated_client(api_client, auth_token):
+    """Session with auth header"""
+    api_client.headers.update({"Authorization": f"Bearer {auth_token}"})
+    return api_client
+
+
+# ============== A0 Config Tests ==============
+
+class TestA0ConfigEndpoints:
+    """Agent Zero configuration CRUD tests"""
+    
+    def test_get_a0_config_default(self, authenticated_client):
+        """Test GET /api/a0/config returns default config for new users"""
+        response = authenticated_client.get(f"{BASE_URL}/api/a0/config")
+        
+        assert response.status_code == 200, f"Get A0 config failed: {response.text}"
+        data = response.json()
+        
+        # Verify default config structure
+        assert "mode" in data, "Missing mode field"
+        assert "local_url" in data, "Missing local_url field"
+        assert "local_port" in data, "Missing local_port field"
+        assert "cloud_url" in data, "Missing cloud_url field"
+        assert "route_via_a0" in data, "Missing route_via_a0 field"
+        assert "auto_ingest" in data, "Missing auto_ingest field"
+        
+        # Default values check
+        assert data["mode"] in ["local", "cloud"], f"Invalid mode: {data['mode']}"
+        print(f"✓ GET /api/a0/config returned config: {data}")
+    
+    def test_put_a0_config_local_mode(self, authenticated_client):
+        """Test PUT /api/a0/config saves local device config"""
+        config_payload = {
+            "mode": "local",
+            "local_url": "http://192.168.1.50",
+            "local_port": 9000,
+            "cloud_url": "",
+            "api_key": "",
+            "route_via_a0": False,
+            "auto_ingest": True
+        }
+        
+        response = authenticated_client.put(
+            f"{BASE_URL}/api/a0/config",
+            json=config_payload
+        )
+        
+        assert response.status_code == 200, f"PUT A0 config failed: {response.text}"
+        data = response.json()
+        assert "message" in data
+        print(f"✓ PUT /api/a0/config saved local config: {data}")
+        
+        # Verify persistence via GET
+        get_response = authenticated_client.get(f"{BASE_URL}/api/a0/config")
+        assert get_response.status_code == 200
+        saved_config = get_response.json()
+        
+        assert saved_config["mode"] == "local"
+        assert saved_config["local_url"] == "http://192.168.1.50"
+        assert saved_config["local_port"] == 9000
+        assert saved_config["auto_ingest"] == True
+        print("✓ A0 config persistence verified")
+    
+    def test_put_a0_config_cloud_mode(self, authenticated_client):
+        """Test PUT /api/a0/config saves cloud config (stub)"""
+        config_payload = {
+            "mode": "cloud",
+            "local_url": "http://192.168.1.1",
+            "local_port": 8787,
+            "cloud_url": "https://my-a0-instance.run.app",
+            "api_key": TEST_FAKE_API_KEY,
+            "route_via_a0": True,
+            "auto_ingest": False
+        }
+        
+        response = authenticated_client.put(
+            f"{BASE_URL}/api/a0/config",
+            json=config_payload
+        )
+        
+        assert response.status_code == 200
+        print("✓ PUT /api/a0/config cloud mode saved")
+        
+        # Verify cloud config persisted
+        get_response = authenticated_client.get(f"{BASE_URL}/api/a0/config")
+        saved_config = get_response.json()
+        
+        assert saved_config["mode"] == "cloud"
+        assert saved_config["cloud_url"] == "https://my-a0-instance.run.app"
+        assert saved_config["route_via_a0"] == True
+        print("✓ Cloud mode config persistence verified")
+    
+    def test_a0_health_uses_user_config(self, authenticated_client):
+        """Test GET /api/a0/health uses user-specific config"""
+        # First set a specific config
+        config_payload = {
+            "mode": "local",
+            "local_url": "http://192.168.99.99",
+            "local_port": 1234,
+            "cloud_url": "",
+            "api_key": "",
+            "route_via_a0": False,
+            "auto_ingest": False
+        }
+        authenticated_client.put(f"{BASE_URL}/api/a0/config", json=config_payload)
+        
+        # Check health - should return unreachable since IP is fake
+        response = authenticated_client.get(f"{BASE_URL}/api/a0/health")
+        
+        assert response.status_code == 200, f"Health check failed: {response.text}"
+        data = response.json()
+        
+        assert "status" in data
+        assert "a0_url" in data
+        # Should reflect our configured URL
+        assert "192.168.99.99" in data.get("a0_url", "") or data["status"] in ["unreachable", "not_configured", "error"]
+        print(f"✓ GET /api/a0/health uses user config: {data}")
+    
+    def test_a0_config_requires_auth(self):
+        """Test A0 config endpoints require authentication"""
+        fresh_session = requests.Session()
+        
+        get_response = fresh_session.get(f"{BASE_URL}/api/a0/config")
+        assert get_response.status_code in [401, 403], "GET /api/a0/config should require auth"
+        
+        put_response = fresh_session.put(
+            f"{BASE_URL}/api/a0/config",
+            json={"mode": "local"},
+            headers={"Content-Type": "application/json"}
+        )
+        assert put_response.status_code in [401, 403], "PUT /api/a0/config should require auth"
+        print("✓ A0 config endpoints require authentication")
+
+
+# ============== EDCM Metrics Tests ==============
+
+class TestEDCMIngestEndpoint:
+    """EDCM metrics ingest endpoint tests"""
+    
+    def test_ingest_edcm_metrics(self, authenticated_client):
+        """Test POST /api/edcm/ingest receives and stores EDCM metrics"""
+        test_conversation_id = f"test_conv_{uuid.uuid4().hex[:8]}"
+        
+        payload = {
+            "conversation_id": test_conversation_id,
+            "metrics": {
+                "conversation_id": test_conversation_id,
+                "constraint_mismatch_density": 0.72,
+                "fixation_coefficient": 0.45,
+                "escalation_gradient": 0.88,
+                "context_drift_index": 0.31,
+                "load_saturation_index": 0.65,
+                "metadata": {"source": "test", "model": "test-model"}
+            },
+            "source": "agent_zero",
+            "timestamp": "2026-01-15T12:00:00Z"
+        }
+        
+        response = authenticated_client.post(
+            f"{BASE_URL}/api/edcm/ingest",
+            json=payload
+        )
+        
+        assert response.status_code == 200, f"EDCM ingest failed: {response.text}"
+        data = response.json()
+        
+        assert "message" in data
+        assert data.get("conversation_id") == test_conversation_id
+        print(f"✓ POST /api/edcm/ingest succeeded: {data}")
+        
+        return test_conversation_id
+    
+    def test_ingest_edcm_minimal_metrics(self, authenticated_client):
+        """Test EDCM ingest with minimal/partial metrics"""
+        test_conversation_id = f"test_conv_min_{uuid.uuid4().hex[:8]}"
+        
+        # Only some metrics provided
+        payload = {
+            "conversation_id": test_conversation_id,
+            "metrics": {
+                "conversation_id": test_conversation_id,
+                "constraint_mismatch_density": 0.55,
+                # Other metrics are optional
+            },
+            "source": "test_source"
+        }
+        
+        response = authenticated_client.post(
+            f"{BASE_URL}/api/edcm/ingest",
+            json=payload
+        )
+        
+        assert response.status_code == 200, f"Minimal ingest failed: {response.text}"
+        print("✓ EDCM ingest accepts partial metrics")
+    
+    def test_edcm_ingest_requires_auth(self):
+        """Test EDCM ingest requires authentication"""
+        fresh_session = requests.Session()
+        
+        response = fresh_session.post(
+            f"{BASE_URL}/api/edcm/ingest",
+            json={
+                "conversation_id": "test",
+                "metrics": {"conversation_id": "test"},
+                "source": "test"
+            },
+            headers={"Content-Type": "application/json"}
+        )
+        
+        assert response.status_code in [401, 403]
+        print("✓ EDCM ingest requires authentication")
+
+
+class TestEDCMQueryEndpoints:
+    """EDCM metrics query endpoint tests"""
+    
+    def test_get_edcm_metrics(self, authenticated_client):
+        """Test GET /api/edcm/metrics returns metrics list"""
+        response = authenticated_client.get(f"{BASE_URL}/api/edcm/metrics")
+        
+        assert response.status_code == 200, f"GET EDCM metrics failed: {response.text}"
+        data = response.json()
+        
+        assert "metrics" in data
+        assert isinstance(data["metrics"], list)
+        print(f"✓ GET /api/edcm/metrics returned {len(data['metrics'])} metrics")
+    
+    def test_get_edcm_metrics_by_conversation(self, authenticated_client):
+        """Test GET /api/edcm/metrics with conversation_id filter"""
+        # First ingest some metrics
+        test_conv_id = f"test_filter_{uuid.uuid4().hex[:8]}"
+        authenticated_client.post(
+            f"{BASE_URL}/api/edcm/ingest",
+            json={
+                "conversation_id": test_conv_id,
+                "metrics": {
+                    "conversation_id": test_conv_id,
+                    "constraint_mismatch_density": 0.99
+                },
+                "source": "test"
+            }
+        )
+        
+        # Query with filter
+        response = authenticated_client.get(
+            f"{BASE_URL}/api/edcm/metrics",
+            params={"conversation_id": test_conv_id}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # If metrics returned, they should match our conversation
+        if data["metrics"]:
+            for m in data["metrics"]:
+                assert m["conversation_id"] == test_conv_id
+        print(f"✓ GET /api/edcm/metrics with filter works: {len(data['metrics'])} results")
+
+
+class TestEDCMResponseTimesEndpoint:
+    """Response time stats endpoint tests"""
+    
+    def test_get_response_times(self, authenticated_client):
+        """Test GET /api/edcm/response-times returns per-model stats"""
+        response = authenticated_client.get(f"{BASE_URL}/api/edcm/response-times")
+        
+        assert response.status_code == 200, f"GET response-times failed: {response.text}"
+        data = response.json()

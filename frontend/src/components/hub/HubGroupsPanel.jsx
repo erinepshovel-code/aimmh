@@ -1,3 +1,4 @@
+// "lines of code":"149","lines of commented":"0"
 import React, { useMemo, useState } from 'react';
 import { Archive, Boxes, Edit3, Plus, RotateCcw } from 'lucide-react';
 
@@ -159,3 +160,4 @@ export function HubGroupsPanel({
     </section>
   );
 }
+// "lines of code":"149","lines of commented":"0"

@@ -1,3 +1,4 @@
+// "lines of code":"215","lines of commented":"2"
 import React from 'react';
 import { toast } from 'sonner';
 import { hubApi } from '../../lib/hubApi';
@@ -231,3 +232,4 @@ export function HubResponsesPanel({
     </section>
   );
 }
+// "lines of code":"215","lines of commented":"2"

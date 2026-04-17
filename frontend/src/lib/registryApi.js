@@ -1,8 +1,12 @@
+// "lines of code":"52","lines of commented":"0"
+import { getTrialGuestId } from './trialSession';
+
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 async function request(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    'X-Guest-Id': getTrialGuestId(),
     ...(options.headers || {}),
   };
 
@@ -12,7 +16,12 @@ async function request(path, options = {}) {
     headers,
   });
 
-  const text = await response.text();
+  let text = '';
+  try {
+    text = await response.text();
+  } catch {
+    text = '';
+  }
   let data = null;
   try {
     data = text ? JSON.parse(text) : null;
@@ -22,6 +31,9 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const detail = data?.detail || data?.message || response.statusText || 'Request failed';
+    if (typeof detail === 'string' && detail.toLowerCase().includes('daily trial exhausted')) {
+      window.location.href = '/auth';
+    }
     throw new Error(detail);
   }
 
@@ -39,9 +51,11 @@ export const registryApi = {
     body: JSON.stringify({ developer_id: developerId, model_id: modelId, mode: 'strict' }),
   }),
   getDefaults: () => request('/v1/registry/defaults'),
+  getUsage: () => request('/v1/registry/usage'),
   verifyDeveloper: (developerId) => request(`/v1/registry/verify/developer/${developerId}`, { method: 'POST' }),
   verifyAll: () => request('/v1/registry/verify/all', { method: 'POST' }),
   getKeys: () => request('/v1/keys'),
   setKey: (payload) => request('/v1/keys', { method: 'POST', body: JSON.stringify(payload) }),
   removeKey: (developerId) => request(`/v1/keys/${developerId}`, { method: 'DELETE' }),
 };
+// "lines of code":"52","lines of commented":"0"

@@ -1,3 +1,4 @@
+// "lines of code":"125","lines of commented":"0"
 import React from 'react';
 import { CheckCircle2, ExternalLink, Globe, Loader2, Plus, ShieldCheck, Trash2, Wand2 } from 'lucide-react';
 
@@ -128,3 +129,4 @@ export function RegistryDeveloperCard({
     </article>
   );
 }
+// "lines of code":"125","lines of commented":"0"

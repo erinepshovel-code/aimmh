@@ -1,3 +1,4 @@
+// "lines of code":"46","lines of commented":"0"
 import * as React from "react"
 import { OTPInput, OTPInputContext } from "input-otp"
 import { Minus } from "lucide-react"
@@ -51,3 +52,4 @@ const InputOTPSeparator = React.forwardRef(({ ...props }, ref) => (
 InputOTPSeparator.displayName = "InputOTPSeparator"
 
 export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
+// "lines of code":"46","lines of commented":"0"

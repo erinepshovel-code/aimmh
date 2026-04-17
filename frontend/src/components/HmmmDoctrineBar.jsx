@@ -1,3 +1,4 @@
+// "lines of code":"32","lines of commented":"0"
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useChat } from '../contexts/ChatContext';
@@ -34,3 +35,4 @@ export const HmmmDoctrineBar = () => {
     </div>
   );
 };
+// "lines of code":"32","lines of commented":"0"

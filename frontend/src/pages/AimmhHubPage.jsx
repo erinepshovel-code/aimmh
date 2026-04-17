@@ -1,45 +1,59 @@
+// "lines of code":"344","lines of commented":"4"
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { HubGroupsPanel } from '../components/hub/HubGroupsPanel';
-import { HubInstancesPanel } from '../components/hub/HubInstancesPanel';
-import { HubMultiChatPanel } from '../components/hub/HubMultiChatPanel';
-import { HubResponsesPanel } from '../components/hub/HubResponsesPanel';
-import { HubRunsWorkspace } from '../components/hub/HubRunsWorkspace';
+import { HubSplashScreen } from '../components/hub/HubSplashScreen';
 import { HubTabsNav } from '../components/hub/HubTabsNav';
-import { AiVisitorGuidePanel } from '../components/hub/AiVisitorGuidePanel';
+import { AimmhHubTabContent } from '../components/hub/AimmhHubTabContent';
 import { useHubWorkspace } from '../hooks/useHubWorkspace';
+import { HELP_MODEL_CONTEXT } from '../lib/helpModelContext';
 import { hubApi } from '../lib/hubApi';
-import { KeyManager } from '../components/settings/KeyManager';
-import { RegistryManager } from '../components/settings/RegistryManager';
 import { useAuth } from '../contexts/AuthContext';
 
+const SYNTHESIS_QUEUE_LOCAL_KEY = 'aimmh-synthesis-queue-local';
+
 const TABS = [
+  { id: 'help', label: 'Help' },
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
-  { id: 'runs', label: 'Rooms & Runs' },
-  { id: 'responses', label: 'Response Synthesis' },
-  { id: 'chat', label: 'Chat+Synth' },
+  { id: 'batch-runs', label: 'Batch Runs' },
+  { id: 'roleplay-runs', label: 'Roleplay Runs' },
+  { id: 'chat', label: 'Chat' },
+  { id: 'synthesis', label: 'Synthesis' },
 ];
-
-const AI_GUIDE_SEEN_KEY = 'aimmh-ai-guide-seen-v1';
+const FIRST_VISIT_KEY = 'aimmh-first-visit-complete-v1';
 
 export default function AimmhHubPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, isAuthenticated, user } = useAuth();
   const workspace = useHubWorkspace();
   const [activeTab, setActiveTab] = React.useState('registry');
   const [showSplash, setShowSplash] = React.useState(true);
-  const [showAiGuidePanel, setShowAiGuidePanel] = React.useState(false);
+  const [firstVisit, setFirstVisit] = React.useState(false);
+  const [welcomeProvisioning, setWelcomeProvisioning] = React.useState(false);
   const [chatPrompts, setChatPrompts] = React.useState([]);
   const [selectedChatPromptId, setSelectedChatPromptId] = React.useState('');
   const [chatBusyKey, setChatBusyKey] = React.useState('');
   const [synthesisBasket, setSynthesisBasket] = React.useState([]);
-  const [queueLoaded, setQueueLoaded] = React.useState(false);
-  const [synthesisInstanceIds, setSynthesisInstanceIds] = React.useState([]);
   const [synthesisBatches, setSynthesisBatches] = React.useState([]);
+  const [sessionSynthesisBatches, setSessionSynthesisBatches] = React.useState([]);
+  const [includeSavedSynthesisHistory, setIncludeSavedSynthesisHistory] = React.useState(false);
   const [synthesisBusy, setSynthesisBusy] = React.useState(false);
+  const [persistSynthesisQueue, setPersistSynthesisQueue] = React.useState(false);
+
+  const queuePersistenceScope = React.useMemo(() => {
+    if (!isAuthenticated) return 'session';
+    if (['supporter', 'pro', 'team'].includes(user?.subscription_tier || 'free')) return 'cloud';
+    return 'local';
+  }, [isAuthenticated, user?.subscription_tier]);
+  const isWsAdmin = user?.subscription_tier === 'ws-tier';
+
+  const tabs = React.useMemo(() => {
+    const base = [...TABS];
+    if (isWsAdmin) base.splice(2, 0, { id: 'ws-admin', label: 'WS-Admin' });
+    return base;
+  }, [isWsAdmin]);
 
   const refreshChatPrompts = React.useCallback(async () => {
     try {
@@ -73,59 +87,75 @@ export default function AimmhHubPage() {
   }, [refreshChatPrompts, refreshSyntheses]);
 
   React.useEffect(() => {
-    try {
-      const seen = window.localStorage.getItem(AI_GUIDE_SEEN_KEY) === '1';
-      setShowAiGuidePanel(!seen);
-    } catch {
-      setShowAiGuidePanel(true);
-    }
-  }, []);
-
-  const markGuideSeen = React.useCallback(() => {
-    try {
-      window.localStorage.setItem(AI_GUIDE_SEEN_KEY, '1');
-    } catch {
-      // ignore storage write issues
-    }
-  }, []);
-
-  const dismissSplash = React.useCallback(() => {
-    setShowSplash(false);
-    markGuideSeen();
-  }, [markGuideSeen]);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => dismissSplash(), 1800);
-    return () => window.clearTimeout(timer);
-  }, [dismissSplash]);
-
-  React.useEffect(() => {
     let active = true;
     const loadQueue = async () => {
+      if (!persistSynthesisQueue) return;
       try {
-        const state = await hubApi.getState('synthesis-queue-global');
-        if (!active) return;
-        setSynthesisBasket(Array.isArray(state?.payload?.items) ? state.payload.items : []);
+        if (queuePersistenceScope === 'local') {
+          const raw = window.localStorage.getItem(SYNTHESIS_QUEUE_LOCAL_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          if (active) setSynthesisBasket(Array.isArray(parsed) ? parsed : []);
+          return;
+        }
+        if (queuePersistenceScope === 'cloud') {
+          const state = await hubApi.getState('synthesis-queue-global');
+          if (active) setSynthesisBasket(Array.isArray(state?.payload?.items) ? state.payload.items : []);
+        }
       } catch {
-        if (!active) return;
-        setSynthesisBasket([]);
-      } finally {
-        if (active) setQueueLoaded(true);
+        if (active) setSynthesisBasket([]);
       }
     };
     loadQueue();
     return () => {
       active = false;
     };
-  }, []);
+  }, [persistSynthesisQueue, queuePersistenceScope]);
 
   React.useEffect(() => {
-    if (!queueLoaded) return;
+    if (!persistSynthesisQueue) return;
     const timer = window.setTimeout(() => {
-      hubApi.setState('synthesis-queue-global', { items: synthesisBasket }).catch(() => {});
-    }, 350);
+      if (queuePersistenceScope === 'local') {
+        try {
+          window.localStorage.setItem(SYNTHESIS_QUEUE_LOCAL_KEY, JSON.stringify(synthesisBasket));
+        } catch {
+          // noop
+        }
+      }
+      if (queuePersistenceScope === 'cloud') {
+        hubApi.setState('synthesis-queue-global', { items: synthesisBasket }).catch(() => {});
+      }
+    }, 250);
     return () => window.clearTimeout(timer);
-  }, [queueLoaded, synthesisBasket]);
+  }, [persistSynthesisQueue, queuePersistenceScope, synthesisBasket]);
+
+  React.useEffect(() => {
+    try {
+      const seen = window.localStorage.getItem(FIRST_VISIT_KEY) === '1';
+      const isFirst = !seen;
+      setFirstVisit(isFirst);
+      setActiveTab(isFirst ? 'help' : 'registry');
+    } catch {
+      setFirstVisit(true);
+      setActiveTab('help');
+    }
+  }, []);
+
+  const dismissSplash = React.useCallback(() => {
+    setShowSplash(false);
+    if (firstVisit) {
+      try {
+        window.localStorage.setItem(FIRST_VISIT_KEY, '1');
+      } catch {
+        // ignore write issues
+      }
+    }
+  }, [firstVisit]);
+
+  React.useEffect(() => {
+    if (firstVisit) return;
+    const timer = window.setTimeout(() => dismissSplash(), 1800);
+    return () => window.clearTimeout(timer);
+  }, [dismissSplash, firstVisit]);
 
   const sendChatPrompt = React.useCallback(async (payload) => {
     try {
@@ -146,10 +176,14 @@ export default function AimmhHubPage() {
     }
   }, [refreshChatPrompts, workspace]);
 
-  const toggleSynthesisBlock = React.useCallback((block) => {
-    setSynthesisBasket((prev) => prev.some((item) => item.source_id === block.source_id)
-      ? prev.filter((item) => item.source_id !== block.source_id)
-      : [...prev, block]);
+  const addSynthesisBlock = React.useCallback((block) => {
+    setSynthesisBasket((prev) => (prev.some((item) => item.source_id === block.source_id)
+      ? prev
+      : [...prev, block]));
+  }, []);
+
+  const removeSynthesisBlock = React.useCallback((sourceId) => {
+    setSynthesisBasket((prev) => prev.filter((item) => item.source_id !== sourceId));
   }, []);
 
   const runSynthesis = React.useCallback(async (payload) => {
@@ -157,9 +191,13 @@ export default function AimmhHubPage() {
       setSynthesisBusy(true);
       const detail = await hubApi.createSynthesis(payload);
       toast.success('Synthesis complete');
-      const nextBatches = await refreshSyntheses();
-      if (!nextBatches.find((item) => item.synthesis_batch_id === detail.synthesis_batch_id)) {
-        setSynthesisBatches((prev) => [detail, ...prev]);
+      if (payload.save_history && isAuthenticated) {
+        const nextBatches = await refreshSyntheses();
+        if (!nextBatches.find((item) => item.synthesis_batch_id === detail.synthesis_batch_id)) {
+          setSynthesisBatches((prev) => [detail, ...prev]);
+        }
+      } else {
+        setSessionSynthesisBatches((prev) => [detail, ...prev]);
       }
       setSynthesisBasket([]);
       await workspace.refreshCore();
@@ -170,102 +208,78 @@ export default function AimmhHubPage() {
     } finally {
       setSynthesisBusy(false);
     }
-  }, [refreshSyntheses, workspace]);
+  }, [isAuthenticated, refreshSyntheses, workspace]);
+
+  const synthesisHistory = (isAuthenticated && includeSavedSynthesisHistory)
+    ? [...sessionSynthesisBatches, ...synthesisBatches]
+    : sessionSynthesisBatches;
 
   const instanceOptions = workspace.instances
     .filter((item) => !item.archived)
     .map((item) => ({ value: item.instance_id, label: `${item.name} · ${item.model_id}` }));
 
-  const renderTab = () => {
-    switch (activeTab) {
-      case 'registry':
-        return (
-          <div className="space-y-4">
-            <KeyManager compact />
-            <RegistryManager onInventoryChanged={workspace.refreshCore} />
-          </div>
-        );
-      case 'instantiation':
-        return (
-          <div className="space-y-4">
-            <HubInstancesPanel
-              modelOptions={workspace.modelOptions}
-              instances={workspace.instances}
-              includeArchived={workspace.includeArchivedInstances}
-              setIncludeArchived={workspace.setIncludeArchivedInstances}
-              onCreate={workspace.createInstance}
-              onUpdate={workspace.updateInstance}
-              onToggleArchive={workspace.toggleInstanceArchive}
-              onDeleteArchived={workspace.deleteArchivedInstance}
-              onArchiveMany={workspace.archiveManyInstances}
-              onRestoreMany={workspace.restoreManyInstances}
-              onDeleteMany={workspace.deleteManyArchivedInstances}
-              onFetchHistory={workspace.fetchInstanceHistory}
-              busyKey={workspace.busyKey}
-            />
-            <HubGroupsPanel
-              instances={workspace.instances}
-              groups={workspace.groups}
-              includeArchived={workspace.includeArchivedGroups}
-              setIncludeArchived={workspace.setIncludeArchivedGroups}
-              onCreate={workspace.createGroup}
-              onUpdate={workspace.updateGroup}
-              onToggleArchive={workspace.toggleGroupArchive}
-              busyKey={workspace.busyKey}
-            />
-          </div>
-        );
-      case 'runs':
-        return (
-          <HubRunsWorkspace
-            sourceOptions={workspace.sourceOptions}
-            instanceOptions={instanceOptions}
-            onRun={workspace.createRun}
-            busyKey={workspace.busyKey}
-            runs={workspace.runs}
-            selectedRunId={workspace.selectedRunId}
-            setSelectedRunId={workspace.setSelectedRunId}
-            includeArchivedRuns={workspace.includeArchivedRuns}
-            setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
-            onToggleRunArchive={workspace.toggleRunArchive}
-            onDeleteArchivedRun={workspace.deleteArchivedRun}
-          />
-        );
-      case 'responses':
-        return (
-          <HubResponsesPanel
-            runs={workspace.runs}
-            selectedRun={workspace.selectedRun}
-            selectedRunId={workspace.selectedRunId}
-            setSelectedRunId={workspace.setSelectedRunId}
-            prompts={chatPrompts}
-            selectedPromptId={selectedChatPromptId}
-            setSelectedPromptId={setSelectedChatPromptId}
-            synthesisBasket={synthesisBasket}
-            onToggleSynthesisBlock={toggleSynthesisBlock}
-          />
-        );
-      case 'chat':
-      default:
-        return (
-          <HubMultiChatPanel
-            instances={workspace.instances}
-            prompts={chatPrompts}
-            selectedPromptId={selectedChatPromptId}
-            setSelectedPromptId={setSelectedChatPromptId}
-            onSendPrompt={sendChatPrompt}
-            busyKey={chatBusyKey}
-            synthesisBasket={synthesisBasket}
-            onToggleSynthesisBlock={toggleSynthesisBlock}
-            synthesisInstanceIds={synthesisInstanceIds}
-            setSynthesisInstanceIds={setSynthesisInstanceIds}
-            onRunSynthesis={runSynthesis}
-            synthesisBusy={synthesisBusy}
-            synthesisBatches={synthesisBatches}
-          />
-        );
-    }
-  };
+  const curatedWelcomeModelIds = React.useMemo(() => {
+    const allowedDevelopers = new Set(['openai', 'anthropic', 'google']);
+    return workspace.models
+      .filter((developer) => allowedDevelopers.has(developer.developer_id))
+      .flatMap((developer) => developer.models.map((model) => model.model_id));
+  }, [workspace.models]);
+
+  const welcomeInstance = React.useMemo(
+    () => workspace.instances.find((item) => item.metadata?.welcome_model) || null,
+    [workspace.instances],
+  );
+
+  const welcomeModelValid = !welcomeInstance || curatedWelcomeModelIds.includes(welcomeInstance.model_id);
+
+  React.useEffect(() => {
+    if (!welcomeInstance || welcomeModelValid || welcomeProvisioning) return;
+    if (curatedWelcomeModelIds.length === 0) return;
+    const fallbackModel = curatedWelcomeModelIds[Math.floor(Math.random() * curatedWelcomeModelIds.length)];
+    const repairWelcomeModel = async () => {
+      try {
+        setWelcomeProvisioning(true);
+        await workspace.updateInstance(welcomeInstance.instance_id, {
+          model_id: fallbackModel,
+          instance_prompt: HELP_MODEL_CONTEXT,
+          metadata: { ...(welcomeInstance.metadata || {}), welcome_model: true, welcome_repaired: true },
+        });
+        await workspace.refreshCore();
+      } catch {
+        // silent fail, user can continue with other models
+      } finally {
+        setWelcomeProvisioning(false);
+      }
+    };
+    repairWelcomeModel();
+  }, [curatedWelcomeModelIds, welcomeInstance, welcomeModelValid, welcomeProvisioning, workspace.refreshCore, workspace.updateInstance]);
+
+  React.useEffect(() => {
+    if (!firstVisit || workspace.loading || welcomeInstance || welcomeProvisioning) return;
+    if (curatedWelcomeModelIds.length === 0) return;
+    const modelId = curatedWelcomeModelIds[Math.floor(Math.random() * curatedWelcomeModelIds.length)];
+    if (!modelId) return;
+
+    const seedWelcomeModel = async () => {
+      try {
+        setWelcomeProvisioning(true);
+        await workspace.createInstance({
+          name: 'Welcome Guide',
+          model_id: modelId,
+          role_preset: 'Mentor',
+          instance_prompt: HELP_MODEL_CONTEXT,
+          history_window_messages: 24,
+          metadata: { welcome_model: true, welcome_seed: 'help-model' },
+        });
+        await workspace.refreshCore();
+      } catch {
+        // silent fail: user can still create instances manually
+      } finally {
+        setWelcomeProvisioning(false);
+      }
+    };
+    seedWelcomeModel();
+  }, [curatedWelcomeModelIds, firstVisit, welcomeInstance, welcomeProvisioning, workspace.createInstance, workspace.refreshCore]);
 
   if (workspace.loading) {
     return (
@@ -280,29 +294,7 @@ export default function AimmhHubPage() {
   }
 
   if (showSplash) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4" data-testid="hub-splash-screen">
-        <div className="w-full max-w-2xl space-y-4 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-          <div className="text-xs uppercase tracking-[0.24em] text-emerald-300">AIMMH HUB</div>
-          <h1 className="text-4xl font-semibold text-zinc-100 sm:text-5xl">Multi-model orchestration workspace</h1>
-          <p className="text-sm text-zinc-400 sm:text-base" data-testid="hub-splash-ai-guide-summary">Persistent isolated instances, nested groups, staged runs, and synthesis workflows. For agents: instantiate, run, compare, synthesize.</p>
-          <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-3 text-xs text-cyan-100" data-testid="hub-splash-ai-guide-block">
-            AI visitor instructions available at
-            <code className="ml-1">/api/ai-instructions</code>
-            <span className="mx-1">and</span>
-            <code>/ai-instructions.txt</code>
-          </div>
-          <button
-            type="button"
-            onClick={dismissSplash}
-            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
-            data-testid="dismiss-hub-splash-button"
-          >
-            Enter workspace
-          </button>
-        </div>
-      </div>
-    );
+    return <HubSplashScreen firstVisit={firstVisit} onDismiss={dismissSplash} />;
   }
 
   return (
@@ -319,40 +311,68 @@ export default function AimmhHubPage() {
               >
                 Pricing
               </button>
+              {!isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shouldCreate = window.confirm(
+                      'Guest sessions are IP-rate-limited and cross-session history is not preserved. Create an account now?',
+                    );
+                    if (shouldCreate) navigate('/auth');
+                  }}
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 transition hover:bg-emerald-500/20"
+                  data-testid="hub-create-account-button"
+                >
+                  Create account
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {
+                  if (!isAuthenticated) {
+                    navigate('/auth', { replace: true });
+                    return;
+                  }
                   await logout();
                   navigate('/auth', { replace: true });
                 }}
                 className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
                 data-testid="hub-logout-button"
               >
-                Logout
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAiGuidePanel((prev) => {
-                    const next = !prev;
-                    if (!next) markGuideSeen();
-                    return next;
-                  });
-                }}
-                className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
-                data-testid="hub-toggle-ai-guide-button"
-              >
-                {showAiGuidePanel ? 'Hide AI guide' : 'Help for AI'}
+                {isAuthenticated ? 'Logout' : 'Sign in'}
               </button>
             </div>
-            <HubTabsNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+            <HubTabsNav tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
           </div>
-          {showAiGuidePanel && <AiVisitorGuidePanel activeTab={activeTab} />}
           <div data-testid={`hub-tab-panel-${activeTab}`}>
-            {renderTab()}
+            <AimmhHubTabContent
+              activeTab={activeTab}
+              workspace={workspace}
+              instanceOptions={instanceOptions}
+              chatPrompts={chatPrompts}
+              selectedChatPromptId={selectedChatPromptId}
+              setSelectedChatPromptId={setSelectedChatPromptId}
+              chatBusyKey={chatBusyKey}
+              sendChatPrompt={sendChatPrompt}
+              synthesisBasket={synthesisBasket}
+              addSynthesisBlock={addSynthesisBlock}
+              removeSynthesisBlock={removeSynthesisBlock}
+              runSynthesis={runSynthesis}
+              synthesisBusy={synthesisBusy}
+              synthesisHistory={synthesisHistory}
+              isAuthenticated={isAuthenticated}
+              includeSavedSynthesisHistory={includeSavedSynthesisHistory}
+              setIncludeSavedSynthesisHistory={setIncludeSavedSynthesisHistory}
+              persistSynthesisQueue={persistSynthesisQueue}
+              setPersistSynthesisQueue={setPersistSynthesisQueue}
+              queuePersistenceScope={queuePersistenceScope}
+              welcomeInstance={welcomeInstance}
+              isWsAdmin={isWsAdmin}
+            />
           </div>
         </div>
       </main>
     </div>
   );
 }
+// "lines of code":"344","lines of commented":"4"

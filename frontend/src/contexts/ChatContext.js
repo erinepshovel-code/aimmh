@@ -1,3 +1,4 @@
+// "lines of code":"234","lines of commented":"9"
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
@@ -277,3 +278,4 @@ export const ChatProvider = ({ children }) => {
     </ChatContext.Provider>
   );
 };
+// "lines of code":"234","lines of commented":"9"

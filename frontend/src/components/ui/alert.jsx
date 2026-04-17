@@ -1,3 +1,4 @@
+// "lines of code":"41","lines of commented":"0"
 import * as React from "react"
 import { cva } from "class-variance-authority";
 
@@ -45,3 +46,4 @@ const AlertDescription = React.forwardRef(({ className, ...props }, ref) => (
 AlertDescription.displayName = "AlertDescription"
 
 export { Alert, AlertTitle, AlertDescription }
+// "lines of code":"41","lines of commented":"0"

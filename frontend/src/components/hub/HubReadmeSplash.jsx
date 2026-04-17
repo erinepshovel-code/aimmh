@@ -1,3 +1,4 @@
+// "lines of code":"19","lines of commented":"0"
 import React from 'react';
 
 export function HubReadmeSplash() {
@@ -18,3 +19,4 @@ export function HubReadmeSplash() {
     </section>
   );
 }
+// "lines of code":"19","lines of commented":"0"

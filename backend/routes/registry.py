@@ -1,5 +1,7 @@
+# "lines of code":"286","lines of commented":"8"
 """Model registry management — add/remove developers and models."""
 
+import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -17,6 +19,10 @@ from services.llm import (
 from services.registry_verifier import verify_developer_models, verify_registry, verify_single_model
 
 router = APIRouter(prefix="/api/v1/registry", tags=["registry"])
+HUB_INSTANCE_COLLECTION = "hub_instances"
+HUB_RUN_COLLECTION = "hub_runs"
+HUB_CHAT_PROMPT_COLLECTION = "hub_chat_prompts"
+HUB_SYNTHESIS_BATCH_COLLECTION = "hub_synthesis_batches"
 
 
 async def _get_or_seed_registry(user_id: str) -> dict:
@@ -87,6 +93,107 @@ async def get_registry_model_defaults(current_user: dict = Depends(get_current_u
             }
         }
     return {"defaults": result}
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, math.ceil(len(str(text)) / 4))
+
+
+@router.get("/usage")
+async def get_registry_usage_totals(current_user: dict = Depends(get_current_user)):
+    uid = get_user_id(current_user)
+    doc = await _get_or_seed_registry(uid)
+    developers = doc.get("developers", {})
+
+    model_to_developer = {}
+    usage = {}
+    for developer_id, developer in developers.items():
+        usage[developer_id] = {
+            "developer_id": developer_id,
+            "name": developer.get("name", developer_id),
+            "total_tokens": 0,
+            "models": {},
+        }
+        for model in developer.get("models", []):
+            model_id = model.get("model_id") if isinstance(model, dict) else None
+            if not model_id:
+                continue
+            model_to_developer[model_id] = developer_id
+            usage[developer_id]["models"][model_id] = {
+                "model_id": model_id,
+                "display_name": model.get("display_name", model_id),
+                "total_tokens": 0,
+                "instances": {},
+            }
+
+    instance_docs = await db[HUB_INSTANCE_COLLECTION].find(
+        {"user_id": uid},
+        {"_id": 0, "instance_id": 1, "name": 1},
+    ).to_list(5000)
+    instance_name_map = {item.get("instance_id"): item.get("name") for item in instance_docs}
+
+    def add_usage(model_id: str, instance_id: str | None, content: str):
+        developer_id = model_to_developer.get(model_id)
+        if not developer_id:
+            return
+        model_bucket = usage[developer_id]["models"].get(model_id)
+        if not model_bucket:
+            return
+        tokens = _estimate_tokens(content)
+        model_bucket["total_tokens"] += tokens
+        usage[developer_id]["total_tokens"] += tokens
+        if instance_id:
+            if instance_id not in model_bucket["instances"]:
+                model_bucket["instances"][instance_id] = {
+                    "instance_id": instance_id,
+                    "instance_name": instance_name_map.get(instance_id) or instance_id,
+                    "tokens": 0,
+                }
+            model_bucket["instances"][instance_id]["tokens"] += tokens
+
+    run_docs = await db[HUB_RUN_COLLECTION].find(
+        {"user_id": uid},
+        {"_id": 0, "results": 1},
+    ).to_list(1000)
+    for run in run_docs:
+        for result in run.get("results", []):
+            add_usage(result.get("model"), result.get("instance_id"), result.get("content", ""))
+
+    prompt_docs = await db[HUB_CHAT_PROMPT_COLLECTION].find(
+        {"user_id": uid},
+        {"_id": 0, "responses": 1},
+    ).to_list(1000)
+    for prompt in prompt_docs:
+        for response in prompt.get("responses", []):
+            add_usage(response.get("model"), response.get("instance_id"), response.get("content", ""))
+
+    synthesis_docs = await db[HUB_SYNTHESIS_BATCH_COLLECTION].find(
+        {"user_id": uid},
+        {"_id": 0, "outputs": 1},
+    ).to_list(1000)
+    for batch in synthesis_docs:
+        for output in batch.get("outputs", []):
+            add_usage(output.get("model"), output.get("synthesis_instance_id"), output.get("content", ""))
+
+    developers_out = []
+    grand_total = 0
+    for developer_id, dev in usage.items():
+        model_values = []
+        for model in dev["models"].values():
+            model["instances"] = sorted(model["instances"].values(), key=lambda x: x["tokens"], reverse=True)
+            model_values.append(model)
+        model_values.sort(key=lambda x: x["total_tokens"], reverse=True)
+        dev["models"] = model_values
+        grand_total += dev["total_tokens"]
+        developers_out.append(dev)
+    developers_out.sort(key=lambda x: x["total_tokens"], reverse=True)
+
+    return {
+        "grand_total_tokens": grand_total,
+        "developers": developers_out,
+    }
 
 
 @router.post("/developer")
@@ -230,3 +337,4 @@ async def verify_registry_all(current_user: dict = Depends(get_current_user)):
     doc = await _get_or_seed_registry(uid)
     registry = doc.get("developers", {})
     return await verify_registry(current_user, registry, mode="light")
+# "lines of code":"286","lines of commented":"8"

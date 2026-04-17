@@ -1,3 +1,4 @@
+# "lines of code":"296","lines of commented":"18"
 """LLM integration service — Emergent + OpenAI-compatible providers.
 
 Model registry defines which provider/auth to use for each model.
@@ -55,7 +56,7 @@ DEFAULT_REGISTRY = {
             {"model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash"},
             {"model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro"},
             {"model_id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash"},
-            {"model_id": "gemini-2.5-flash-lite", "display_name": "Gemini 2.5 Flash Lite"},
+            {"model_id": "gemini-2.0-flash-lite", "display_name": "Gemini 2.0 Flash Lite"},
         ],
     },
     "xai": {
@@ -354,3 +355,4 @@ async def validate_universal_key() -> dict:
         msg = str(e)
         status = "invalid" if any(w in msg.lower() for w in ["invalid", "auth", "unauthorized", "401"]) else "error"
         return {"status": status, "message": msg}
+# "lines of code":"296","lines of commented":"18"

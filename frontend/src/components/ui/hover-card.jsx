@@ -1,3 +1,4 @@
+// "lines of code":"18","lines of commented":"0"
 import * as React from "react"
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card"
 
@@ -21,3 +22,4 @@ const HoverCardContent = React.forwardRef(({ className, align = "center", sideOf
 HoverCardContent.displayName = HoverCardPrimitive.Content.displayName
 
 export { HoverCard, HoverCardTrigger, HoverCardContent }
+// "lines of code":"18","lines of commented":"0"

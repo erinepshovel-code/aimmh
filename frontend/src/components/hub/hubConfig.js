@@ -1,3 +1,4 @@
+// "lines of code":"54","lines of commented":"0"
 export const PATTERN_OPTIONS = [
   { value: 'fan_out', label: 'Fan Out', description: 'Parallel call to many isolated instances' },
   { value: 'daisy_chain', label: 'Daisy Chain', description: 'Sequential instance-to-instance chaining' },
@@ -55,3 +56,4 @@ export function createEmptyStage() {
     allow_reactions: false,
   };
 }
+// "lines of code":"54","lines of commented":"0"

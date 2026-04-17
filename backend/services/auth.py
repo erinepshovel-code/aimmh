@@ -1,17 +1,26 @@
+# "lines of code":"182","lines of commented":"2"
 import bcrypt
 import jwt
 import logging
 import hashlib
 import secrets
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException, status, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+from services.billing_tiers import TIER_LIMITS, is_wayseer_user
 from db import db
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
+TRIAL_DAILY_REQUEST_LIMIT = int(
+    os.environ.get(
+        "TRIAL_DAILY_REQUEST_LIMIT",
+        str(TIER_LIMITS.get("free", {}).get("daily_trial_requests") or 120),
+    )
+)
 
 
 def hash_password(password: str) -> str:
@@ -68,7 +77,7 @@ async def get_current_user(
         user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-        return user
+        return await ensure_wayseer_tier(user)
 
     token = credentials.credentials if credentials else access_cookie_token
     if token:
@@ -83,7 +92,7 @@ async def get_current_user(
                 user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
             if not user:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-            return user
+            return await ensure_wayseer_tier(user)
         except jwt.ExpiredSignatureError:
             jwt_error = "Token expired"
         except jwt.InvalidTokenError:
@@ -129,11 +138,56 @@ async def get_current_user(
 
             user["auth_type"] = "service_account"
             user["service_account_username"] = service_account.get("username")
-            return user
+            return await ensure_wayseer_tier(user)
 
         if jwt_error:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=jwt_error)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    guest_id = request.headers.get("X-Guest-Id")
+    if guest_id:
+        day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        trial_doc = await db.guest_trials.find_one(
+            {"guest_id": guest_id, "day_key": day_key},
+            {"_id": 0},
+        )
+        if not trial_doc:
+            await db.guest_trials.insert_one(
+                {
+                    "guest_id": guest_id,
+                    "day_key": day_key,
+                    "request_count": 1,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            request_count = 1
+        else:
+            request_count = int(trial_doc.get("request_count", 0)) + 1
+            await db.guest_trials.update_one(
+                {"guest_id": guest_id, "day_key": day_key},
+                {
+                    "$set": {
+                        "request_count": request_count,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                },
+            )
+
+        if request_count > TRIAL_DAILY_REQUEST_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Daily trial exhausted. Please sign in to continue.",
+            )
+
+        return {
+            "id": f"guest:{guest_id}",
+            "user_id": f"guest:{guest_id}",
+            "username": "Guest Trial",
+            "auth_type": "guest",
+            "trial_limit": TRIAL_DAILY_REQUEST_LIMIT,
+            "trial_used": request_count,
+        }
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
@@ -141,3 +195,28 @@ async def get_current_user(
 def get_user_id(user: dict) -> str:
     """Get user ID from user dict (supports both old 'id' and new 'user_id' fields)"""
     return user.get("user_id") or user.get("id")
+
+
+async def ensure_wayseer_tier(user: dict) -> dict:
+    if not is_wayseer_user(user):
+        return user
+
+    billing = (user.get("billing") or {}).copy()
+    if billing.get("subscription_tier") == "ws-tier" and billing.get("hide_emergent_badge") is True:
+        return user
+
+    billing.update(
+        {
+            "subscription_tier": "ws-tier",
+            "hide_emergent_badge": True,
+            "supporter_eligible": True,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+    user_filter = {"$or": [{"id": user.get("id")}, {"user_id": user.get("user_id")}]}
+    await db.users.update_one(user_filter, {"$set": {"billing": billing}})
+    next_user = dict(user)
+    next_user["billing"] = billing
+    return next_user
+# "lines of code":"182","lines of commented":"2"

@@ -1,3 +1,4 @@
+# "lines of code":"147","lines of commented":"9"
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone
 import logging
@@ -182,3 +183,4 @@ async def get_dashboard(current_user: dict = Depends(get_current_user)):
         "total_conversations": total_convs,
         "total_messages": total_msgs
     }
+# "lines of code":"147","lines of commented":"9"

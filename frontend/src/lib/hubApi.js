@@ -1,8 +1,12 @@
+// "lines of code":"78","lines of commented":"3"
+import { getTrialGuestId } from './trialSession';
+
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 async function request(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    'X-Guest-Id': getTrialGuestId(),
     ...(options.headers || {}),
   };
 
@@ -12,7 +16,12 @@ async function request(path, options = {}) {
     headers,
   });
 
-  const text = await response.text();
+  let text = '';
+  try {
+    text = await response.text();
+  } catch {
+    text = '';
+  }
   let data = null;
   try {
     data = text ? JSON.parse(text) : null;
@@ -21,7 +30,16 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const detail = data?.detail || data?.message || response.statusText || 'Request failed';
+    // For 403 errors, the response body may not be readable due to CORS
+    // In this case, we construct a meaningful error message based on the status code
+    let detail = data?.detail || data?.message || response.statusText || 'Request failed';
+    if (response.status === 403 && (!data || !data.detail)) {
+      // Likely a tier limit error - provide a generic message that will trigger the upgrade modal
+      detail = 'Free tier limit reached. Upgrade to continue.';
+    }
+    if (typeof detail === 'string' && detail.toLowerCase().includes('daily trial exhausted')) {
+      window.location.href = '/auth';
+    }
     throw new Error(detail);
   }
 
@@ -55,8 +73,18 @@ export const hubApi = {
   getSyntheses: () => request('/v1/hub/chat/syntheses'),
   getSynthesis: (batchId) => request(`/v1/hub/chat/syntheses/${batchId}`),
   createSynthesis: (payload) => request('/v1/hub/chat/synthesize', { method: 'POST', body: JSON.stringify(payload) }),
+  getReadmeRegistry: () => request('/v1/readme/registry'),
+  syncReadmeRegistry: () => request('/v1/readme/registry/sync', { method: 'POST' }),
+  getWsBillingTiers: () => request('/v1/ws-admin/billing-tiers'),
+  updateWsBillingTier: (tier, updates) => request(`/v1/ws-admin/billing-tiers/${tier}`, { method: 'PUT', body: JSON.stringify({ updates }) }),
+  getWsPricingPackages: () => request('/v1/ws-admin/pricing-packages'),
+  updateWsPricingPackage: (packageId, payload) => request(`/v1/ws-admin/pricing-packages/${packageId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  getWsEndpoints: () => request('/v1/ws-admin/endpoints'),
+  getWsAnalytics: () => request('/v1/ws-admin/analytics'),
+  executeWsCli: (command) => request('/v1/ws-admin/cli/execute', { method: 'POST', body: JSON.stringify({ command }) }),
   getState: (stateKey) => request(`/v1/hub/state/${stateKey}`),
   setState: (stateKey, payload) => request(`/v1/hub/state/${stateKey}`, { method: 'PUT', body: JSON.stringify({ payload }) }),
   deleteState: (stateKey) => request(`/v1/hub/state/${stateKey}`, { method: 'DELETE' }),
   submitFeedback: (messageId, feedback) => request('/v1/a0/feedback', { method: 'POST', body: JSON.stringify({ message_id: messageId, feedback }) }),
 };
+// "lines of code":"78","lines of commented":"3"

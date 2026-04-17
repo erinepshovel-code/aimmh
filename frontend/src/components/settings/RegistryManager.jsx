@@ -1,3 +1,4 @@
+// "lines of code":"298","lines of commented":"0"
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, Plus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +18,8 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
   const [registry, setRegistry] = useState([]);
   const [keyMap, setKeyMap] = useState({});
   const [defaultsMap, setDefaultsMap] = useState({});
+  const [usageMap, setUsageMap] = useState({});
+  const [grandTotalTokens, setGrandTotalTokens] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
@@ -41,10 +44,19 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
       setKeyMap(mapKeysByDeveloper(keysResponse || []));
       const defaultsResponse = await registryApi.getDefaults();
       setDefaultsMap(defaultsResponse?.defaults || {});
+      const usageResponse = await registryApi.getUsage();
+      const usageByDeveloper = (usageResponse?.developers || []).reduce((acc, item) => {
+        acc[item.developer_id] = item;
+        return acc;
+      }, {});
+      setUsageMap(usageByDeveloper);
+      setGrandTotalTokens(usageResponse?.grand_total_tokens || 0);
     } catch (err) {
       setRegistry([]);
       setKeyMap({});
       setDefaultsMap({});
+      setUsageMap({});
+      setGrandTotalTokens(0);
       setError(err.message || 'Could not load the model registry from the backend.');
     } finally {
       setLoading(false);
@@ -196,6 +208,34 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
     }
   };
 
+  const setDeveloperKey = async (developerId) => {
+    const raw = window.prompt(`Enter API key for ${developerId}`);
+    if (!raw || !raw.trim()) return;
+    try {
+      setBusyKey(`set-key-${developerId}`);
+      await registryApi.setKey({ developer_id: developerId, api_key: raw.trim() });
+      toast.success(`Saved key for ${developerId}`);
+      await fetchRegistry(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to save key');
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const removeDeveloperKey = async (developerId) => {
+    try {
+      setBusyKey(`remove-key-${developerId}`);
+      await registryApi.removeKey(developerId);
+      toast.success(`Removed key for ${developerId}`);
+      await fetchRegistry(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove key');
+    } finally {
+      setBusyKey('');
+    }
+  };
+
   if (loading) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-400">
@@ -211,6 +251,7 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
           <div>
             <h2 className="text-base font-semibold text-zinc-100">Registry tree</h2>
             <p className="mt-1 text-xs text-zinc-500">Provider key nodes with collapsible model branches, validation, instantiation, and default request JSON.</p>
+            <p className="mt-2 inline-flex rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200" data-testid="registry-grand-total-tokens">Grand total tokens: {grandTotalTokens}</p>
           </div>
           <button onClick={verifyAll} disabled={busyKey === 'verify-all'} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-700 hover:text-white disabled:opacity-60">
             <span className="flex items-center gap-2">{busyKey === 'verify-all' ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />} Verify entire registry</span>
@@ -236,6 +277,7 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
             developer={developer}
             keyStatus={keyMap[developer.developer_id]}
             defaultsNode={defaultsMap[developer.developer_id]}
+            usageNode={usageMap[developer.developer_id]}
             verificationMap={verificationMap}
             busyKey={busyKey}
             onAddModel={addModelPrompt}
@@ -244,6 +286,8 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
             onVerifyModel={verifyModel}
             onVerifyDeveloper={verifyDeveloper}
             onRemoveDeveloper={removeDeveloper}
+            onSetDeveloperKey={setDeveloperKey}
+            onRemoveDeveloperKey={removeDeveloperKey}
           />
         ))}
       </div>
@@ -274,3 +318,4 @@ export function RegistryManager({ onInventoryChanged = async () => {} }) {
     </section>
   );
 }
+// "lines of code":"298","lines of commented":"0"

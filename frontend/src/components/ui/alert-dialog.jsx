@@ -1,3 +1,4 @@
+// "lines of code":"84","lines of commented":"0"
 import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
@@ -95,3 +96,4 @@ export {
   AlertDialogAction,
   AlertDialogCancel,
 }
+// "lines of code":"84","lines of commented":"0"

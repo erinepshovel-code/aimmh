@@ -1,6 +1,9 @@
+// "lines of code":"373","lines of commented":"1"
 import React, { useMemo, useState } from 'react';
 import { Archive, CheckCheck, Clock3, Edit3, Plus, RotateCcw, ScrollText, Trash2 } from 'lucide-react';
 import { ROLE_PRESET_OPTIONS } from './hubConfig';
+import { paymentsApi } from '../../lib/paymentsApi';
+import { UpgradeToProModal } from '../ui/UpgradeToProModal';
 
 const emptyForm = {
   name: '',
@@ -28,6 +31,22 @@ function normalizePayload(form) {
   };
 }
 
+function hasPersonaConfig(payload) {
+  const context = payload?.context || {};
+  return Boolean(
+    (payload?.role_preset || '').trim()
+    || (context.role || '').trim()
+    || (context.system_message || '').trim()
+    || (context.prompt_modifier || '').trim()
+    || (payload?.instance_prompt || '').trim()
+  );
+}
+
+function isWelcomeGuideInstance(instance) {
+  const metadata = instance?.metadata || {};
+  return Boolean(metadata.welcome_model);
+}
+
 export function HubInstancesPanel({
   modelOptions,
   instances,
@@ -47,8 +66,20 @@ export function HubInstancesPanel({
   const [editingId, setEditingId] = useState('');
   const [historyMap, setHistoryMap] = useState({});
   const [selectedInstanceIds, setSelectedInstanceIds] = useState([]);
+  const [billingSummary, setBillingSummary] = useState(null);
+  const [upgradeModal, setUpgradeModal] = useState({ open: false, title: '', description: '', currentCount: 0, maxAllowed: null, contextLabel: '' });
 
   const activeInstances = useMemo(() => instances, [instances]);
+  const activeInstanceCount = useMemo(
+    () => activeInstances.filter((item) => !item.archived && !isWelcomeGuideInstance(item)).length,
+    [activeInstances],
+  );
+  const activePersonaCount = useMemo(
+    () => activeInstances.filter((item) => !item.archived && !isWelcomeGuideInstance(item) && hasPersonaConfig(item)).length,
+    [activeInstances],
+  );
+  const maxInstances = typeof billingSummary?.max_instances === 'number' ? billingSummary.max_instances : null;
+  const maxPersonas = typeof billingSummary?.max_personas === 'number' ? billingSummary.max_personas : null;
   const allVisibleSelected = activeInstances.length > 0 && selectedInstanceIds.length === activeInstances.length;
   const selectedActiveIds = selectedInstanceIds.filter((instanceId) => {
     const instance = activeInstances.find((item) => item.instance_id === instanceId);
@@ -63,10 +94,52 @@ export function HubInstancesPanel({
     event.preventDefault();
     const payload = normalizePayload(form);
     if (!payload.name || !payload.model_id) return;
-    if (editingId) await onUpdate(editingId, payload);
-    else await onCreate(payload);
-    setForm(emptyForm);
-    setEditingId('');
+    if (!editingId) {
+      if (maxInstances !== null && activeInstanceCount >= maxInstances) {
+        setUpgradeModal({
+          open: true,
+          title: 'Instance limit reached',
+          description: `Free tier supports up to ${maxInstances} active instances. Upgrade to Pro to create more.`,
+          currentCount: activeInstanceCount,
+          maxAllowed: maxInstances,
+          contextLabel: 'Active instances',
+        });
+        return;
+      }
+      if (maxPersonas !== null && hasPersonaConfig(payload) && activePersonaCount >= maxPersonas) {
+        setUpgradeModal({
+          open: true,
+          title: 'Persona limit reached',
+          description: `Free tier supports up to ${maxPersonas} saved personas. Upgrade to Pro for unlimited personas.`,
+          currentCount: activePersonaCount,
+          maxAllowed: maxPersonas,
+          contextLabel: 'Saved personas',
+        });
+        return;
+      }
+    }
+
+    try {
+      if (editingId) await onUpdate(editingId, payload);
+      else await onCreate(payload);
+      setForm(emptyForm);
+      setEditingId('');
+    } catch (error) {
+      const detail = String(error?.message || '').toLowerCase();
+      // Check for various limit-related keywords in the error message
+      const isInstanceLimit = detail.includes('instances') || detail.includes('per model') || detail.includes('limit') || detail.includes('upgrade');
+      const isPersonaLimit = detail.includes('persona');
+      if (isInstanceLimit || isPersonaLimit) {
+        setUpgradeModal({
+          open: true,
+          title: isPersonaLimit ? 'Persona limit reached' : 'Instance limit reached',
+          description: error.message || 'Your free-tier limit has been reached. Upgrade to continue.',
+          currentCount: isPersonaLimit ? activePersonaCount : activeInstanceCount,
+          maxAllowed: isPersonaLimit ? maxPersonas : maxInstances,
+          contextLabel: isPersonaLimit ? 'Saved personas' : 'Active instances',
+        });
+      }
+    }
   };
 
   const startEdit = (instance) => {
@@ -91,6 +164,22 @@ export function HubInstancesPanel({
   React.useEffect(() => {
     setSelectedInstanceIds((prev) => prev.filter((instanceId) => activeInstances.some((item) => item.instance_id === instanceId)));
   }, [activeInstances]);
+
+  React.useEffect(() => {
+    let active = true;
+    const loadSummary = async () => {
+      try {
+        const summary = await paymentsApi.getSummary();
+        if (active) setBillingSummary(summary);
+      } catch {
+        if (active) setBillingSummary(null);
+      }
+    };
+    loadSummary();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const toggleInstanceSelected = (instanceId) => {
     setSelectedInstanceIds((prev) => prev.includes(instanceId)
@@ -176,17 +265,23 @@ export function HubInstancesPanel({
           </select>
           <input list="hub-role-presets" value={form.role_preset} onChange={(e) => setForm((prev) => ({ ...prev, role_preset: e.target.value }))}
             placeholder="Role preset (optional)"
+            data-testid="instance-role-preset-input"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
           <input value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))} placeholder="Private role"
+            data-testid="instance-private-role-input"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
           <input value={form.system_message} onChange={(e) => setForm((prev) => ({ ...prev, system_message: e.target.value }))} placeholder="System message"
+            data-testid="instance-system-message-input"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 sm:col-span-2" />
           <input value={form.prompt_modifier} onChange={(e) => setForm((prev) => ({ ...prev, prompt_modifier: e.target.value }))} placeholder="Prompt modifier"
+            data-testid="instance-prompt-modifier-input"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 sm:col-span-2" />
           <textarea value={form.instance_prompt} onChange={(e) => setForm((prev) => ({ ...prev, instance_prompt: e.target.value }))} rows={3} placeholder="Persistent instance prompt"
+            data-testid="instance-persistent-prompt-textarea"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50 sm:col-span-2" />
           <input type="number" min={0} max={100} value={form.history_window_messages} onChange={(e) => setForm((prev) => ({ ...prev, history_window_messages: e.target.value }))}
             placeholder="History window"
+            data-testid="instance-history-window-input"
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500/50" />
         </div>
         <datalist id="hub-role-presets">
@@ -281,6 +376,20 @@ export function HubInstancesPanel({
           );
         })}
       </div>
+
+      <UpgradeToProModal
+        open={upgradeModal.open}
+        title={upgradeModal.title}
+        description={upgradeModal.description}
+        currentCount={upgradeModal.currentCount}
+        maxAllowed={upgradeModal.maxAllowed}
+        contextLabel={upgradeModal.contextLabel}
+        onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
+        onUpgrade={() => {
+          window.location.href = '/pricing';
+        }}
+      />
     </section>
   );
 }
+// "lines of code":"373","lines of commented":"1"

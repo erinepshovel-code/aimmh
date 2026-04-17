@@ -1,3 +1,4 @@
+# "lines of code":"126","lines of commented":"0"
 from __future__ import annotations
 
 from typing import List
@@ -16,14 +17,25 @@ from services.hub_store import (
     ensure_models_exist,
     ensure_thread,
     get_instance,
+    get_registry_doc,
     iso_now,
     make_id,
     persist_message,
 )
+from services.llm import resolve_model
+
+
+def _estimate_tokens(text: str) -> int:
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return 1
+    return max(1, int(round(len(cleaned) / 4)))
 
 
 async def send_chat_prompt(current_user: dict, req: HubChatPromptRequest) -> HubChatPromptOut:
     user_id = get_user_id(current_user)
+    registry_doc = await get_registry_doc(user_id)
+    developers_registry = (registry_doc or {}).get("developers", {})
     instances = []
     for instance_id in req.instance_ids:
         instance = await get_instance(user_id, instance_id, include_archived=False)
@@ -82,14 +94,22 @@ async def send_chat_prompt(current_user: dict, req: HubChatPromptRequest) -> Hub
                 "error": raw.error,
             },
         )
+        model_info = resolve_model(raw.model, developers_registry)
+        prompt_tokens = _estimate_tokens(req.prompt)
+        completion_tokens = _estimate_tokens(raw.content)
         responses.append(HubChatResponseItem(
             prompt_id=prompt_id,
             instance_id=instance["instance_id"],
             instance_name=instance.get("name") or instance["instance_id"],
             thread_id=instance["thread_id"],
             model=raw.model,
+            developer_id=model_info.get("developer_id") if model_info else None,
             content=raw.content,
             message_id=persisted["message_id"],
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            tokens_estimated=True,
             response_time_ms=raw.response_time_ms,
             error=raw.error,
             created_at=iso_now(),
@@ -120,3 +140,4 @@ async def get_chat_prompt(user_id: str, prompt_id: str) -> HubChatPromptOut:
     if not doc:
         raise HTTPException(status_code=404, detail="Chat prompt not found")
     return HubChatPromptOut(**doc)
+# "lines of code":"126","lines of commented":"0"

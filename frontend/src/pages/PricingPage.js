@@ -1,3 +1,4 @@
+// "lines of code":"316","lines of commented":"0"
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
@@ -345,3 +346,4 @@ export default function PricingPage() {
     </div>
   );
 }
+// "lines of code":"316","lines of commented":"0"

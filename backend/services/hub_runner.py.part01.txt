@@ -1,0 +1,322 @@
+from __future__ import annotations
+
+from typing import Dict, List, Optional
+
+from fastapi import HTTPException
+
+from aimmh_lib import council, daisy_chain, fan_out, roleplay, room_all, room_synthesized
+from aimmh_lib.adapters import make_call_fn
+
+from models.hub import HubRunRequest, HubRunResult, HubRunDetailResponse, HubStageSummary
+from models.lib_models import ROLE_PRESETS, verbosity_instruction
+from services.auth import get_user_id
+from services.events import emit_event
+from services.hub_store import (
+    HUB_GROUP_COLLECTION,
+    HUB_INSTANCE_COLLECTION,
+    HUB_RUN_COLLECTION,
+    HUB_RUN_STEP_COLLECTION,
+    ensure_models_exist,
+    ensure_thread,
+    get_group,
+    get_instance,
+    get_thread_messages,
+    iso_now,
+    list_docs,
+    make_id,
+    persist_message,
+)
+from db import db
+
+
+def _compose_context(*parts: Optional[str]) -> Optional[str]:
+    values = [part.strip() for part in parts if part and str(part).strip()]
+    return "\n\n".join(values) if values else None
+
+
+async def _expand_group_instances(user_id: str, group_id: str, visited: Optional[set[str]] = None) -> List[dict]:
+    visited = visited or set()
+    if group_id in visited:
+        raise HTTPException(status_code=400, detail=f"Circular group nesting detected at {group_id}")
+    visited.add(group_id)
+
+    group = await get_group(user_id, group_id, include_archived=False)
+    if not group:
+        raise HTTPException(status_code=404, detail=f"Group not found: {group_id}")
+
+    instances: List[dict] = []
+    for member in group.get("members", []) or []:
+        member_type = member.get("member_type")
+        member_id = member.get("member_id")
+        if member_type == "instance":
+            instance = await get_instance(user_id, member_id, include_archived=False)
+            if not instance:
+                raise HTTPException(status_code=404, detail=f"Instance not found: {member_id}")
+            instances.append(instance)
+        elif member_type == "group":
+            instances.extend(await _expand_group_instances(user_id, member_id, visited=set(visited)))
+        else:
+            raise HTTPException(status_code=422, detail=f"Unsupported group member type: {member_type}")
+    return instances
+
+
+async def _expand_participants(user_id: str, participants: list) -> List[dict]:
+    instances: List[dict] = []
+    for participant in participants:
+        source_type = participant.source_type if hasattr(participant, "source_type") else participant.get("source_type")
+        source_id = participant.source_id if hasattr(participant, "source_id") else participant.get("source_id")
+        if source_type == "instance":
+            instance = await get_instance(user_id, source_id, include_archived=False)
+            if not instance:
+                raise HTTPException(status_code=404, detail=f"Instance not found: {source_id}")
+            instances.append(instance)
+        elif source_type == "group":
+            instances.extend(await _expand_group_instances(user_id, source_id))
+        else:
+            raise HTTPException(status_code=422, detail=f"Unsupported participant type: {source_type}")
+    return instances
+
+
+def _history_block(messages: List[dict], limit: int) -> Optional[str]:
+    if limit <= 0 or not messages:
+        return None
+    tail = messages[-limit:]
+    lines = []
+    for message in tail:
+        role = message.get("role", "unknown")
+        content = (message.get("content") or "").strip()
+        if not content:
+            continue
+        lines.append(f"{role.upper()}: {content}")
+    if not lines:
+        return None
+    return "Your private instance thread history:\n" + "\n\n".join(lines)
+
+
+async def _build_slot_context(instance: dict, verbosity: Optional[int]) -> Optional[str]:
+    role_preset = instance.get("role_preset")
+    preset_text = ROLE_PRESETS.get(role_preset.lower().strip()) if role_preset else None
+    ctx = instance.get("context") or {}
+    explicit_system = ctx.get("system_message")
+    role_line = f"Your role: {ctx.get('role')}." if ctx.get("role") else None
+    modifier = ctx.get("prompt_modifier")
+    instance_prompt = instance.get("instance_prompt")
+    thread_history = await get_thread_messages(
+        instance["user_id"],
+        instance["thread_id"],
+        limit=max(1, int(instance.get("history_window_messages", 12) or 0)) if int(instance.get("history_window_messages", 12) or 0) > 0 else 1,
+    ) if int(instance.get("history_window_messages", 12) or 0) > 0 else []
+    history_block = _history_block(thread_history, int(instance.get("history_window_messages", 12) or 0))
+    verbosity_text = verbosity_instruction(verbosity)
+    return _compose_context(
+        explicit_system or preset_text,
+        role_line,
+        modifier,
+        f"Persistent instance prompt:\n{instance_prompt}" if instance_prompt else None,
+        history_block,
+        verbosity_text,
+    )
+
+
+def _outputs_text(results: List[HubRunResult]) -> str:
+    lines = []
+    for item in results:
+        label = item.instance_name or item.model
+        lines.append(f"[{label}] {item.content}")
+    return "\n\n".join(lines)
+
+
+def _stage_prompt(root_prompt: str, prior_results: List[HubRunResult], stage) -> str:
+    stage_prompt = (stage.prompt or "").strip()
+    if not prior_results:
+        return stage_prompt or root_prompt
+
+    prior_text = _outputs_text(prior_results)
+    if stage.input_mode == "root_prompt":
+        return stage_prompt or root_prompt
+    if stage.input_mode == "previous_outputs":
+        if stage_prompt:
+            return f"{stage_prompt}\n\nPrevious stage outputs:\n{prior_text}"
+        return prior_text
+
+    pieces = []
+    if stage_prompt:
+        pieces.append(stage_prompt)
+    else:
+        pieces.append(root_prompt)
+    pieces.append(f"Previous stage outputs:\n{prior_text}")
+    return "\n\n".join(pieces)
+
+
+async def _persist_instance_results(
+    user_id: str,
+    stage_prompt: str,
+    stage_index: int,
+    stage,
+    instances_by_slot: Dict[int, dict],
+    results: List[HubRunResult],
+    persist_instance_threads: bool,
+    run_id: str,
+) -> Dict[str, str]:
+    message_map: Dict[str, str] = {}
+    if not persist_instance_threads:
+        return message_map
+
+    touched = set()
+    for slot_idx, instance in instances_by_slot.items():
+        touched.add(instance["instance_id"])
+        await ensure_thread(
+            instance["thread_id"],
+            user_id,
+            title=instance.get("name") or stage_prompt[:80],
+            extra={
+                "hub_instance_id": instance["instance_id"],
+                "hub_instance_name": instance.get("name"),
+                "hub_model_id": instance.get("model_id"),
+                "hub_archived": instance.get("archived", False),
+            },
+        )
+        await persist_message(
+            thread_id=instance["thread_id"],
+            user_id=user_id,
+            role="user",
+            content=stage_prompt,
+            model="hub_user",
+            extra={
+                "hub_run_id": run_id,
+                "hub_stage_index": stage_index,
+                "hub_pattern": stage.pattern,
+                "hub_instance_id": instance["instance_id"],
+                "hub_role": "input",
+            },
+        )
+
+    for result in results:
+        instance = instances_by_slot.get(result.slot_idx)
+        if not instance and result.instance_id:
+            instance = await get_instance(user_id, result.instance_id)
+        if not instance:
+            continue
+        if instance["instance_id"] not in touched:
+            touched.add(instance["instance_id"])
+            await ensure_thread(
+                instance["thread_id"],
+                user_id,
+                title=instance.get("name") or stage_prompt[:80],
+                extra={
+                    "hub_instance_id": instance["instance_id"],
+                    "hub_instance_name": instance.get("name"),
+                    "hub_model_id": instance.get("model_id"),
+                    "hub_archived": instance.get("archived", False),
+                },
+            )
+            await persist_message(
+                thread_id=instance["thread_id"],
+                user_id=user_id,
+                role="user",
+                content=stage_prompt,
+                model="hub_user",
+                extra={
+                    "hub_run_id": run_id,
+                    "hub_stage_index": stage_index,
+                    "hub_pattern": stage.pattern,
+                    "hub_instance_id": instance["instance_id"],
+                    "hub_role": "input",
+                },
+            )
+        persisted = await persist_message(
+            thread_id=instance["thread_id"],
+            user_id=user_id,
+            role="assistant",
+            content=result.content,
+            model=result.model,
+            extra={
+                "hub_run_id": run_id,
+                "hub_stage_index": stage_index,
+                "hub_pattern": stage.pattern,
+                "hub_instance_id": instance["instance_id"],
+                "hub_role": result.role,
+                "response_time_ms": result.response_time_ms,
+                "error": result.error,
+                "round_num": result.round_num,
+                "step_num": result.step_num,
+                "slot_idx": result.slot_idx,
+                "initiative": result.initiative,
+            },
+        )
+        message_map[result.run_step_id] = persisted["message_id"]
+
+    return message_map
+
+
+async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetailResponse:
+    user_id = get_user_id(current_user)
+    run_id = make_id("hrun")
+    now = iso_now()
+    run_mode = req.run_mode or ("roleplay" if any(stage.pattern == "roleplay" for stage in req.stages) else "batch")
+
+    run_doc = {
+        "run_id": run_id,
+        "user_id": user_id,
+        "label": req.label,
+        "prompt": req.prompt,
+        "run_mode": run_mode,
+        "status": "running",
+        "archived": False,
+        "archived_at": None,
+        "stage_summaries": [],
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db[HUB_RUN_COLLECTION].insert_one(run_doc)
+
+    all_results: List[HubRunResult] = []
+    stage_summaries: List[HubStageSummary] = []
+    prior_stage_results: List[HubRunResult] = []
+    call = make_call_fn(user=current_user)
+
+    try:
+        for stage_index, stage in enumerate(req.stages):
+            prompt_used = _stage_prompt(req.prompt, prior_stage_results, stage)
+            stage_results: List[HubRunResult] = []
+            stage_name = stage.name or f"Stage {stage_index + 1}"
+            stage_result_docs = []
+            instances_by_slot: Dict[int, dict] = {}
+
+            if stage.pattern == "roleplay":
+                player_instances = await _expand_participants(user_id, stage.player_participants)
+                if not player_instances:
+                    raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} roleplay requires player_participants")
+                dm_instances: List[dict] = []
+                if stage.dm_instance_id:
+                    dm_instance = await get_instance(user_id, stage.dm_instance_id, include_archived=False)
+                    if not dm_instance:
+                        raise HTTPException(status_code=404, detail=f"DM instance not found: {stage.dm_instance_id}")
+                    dm_instances = [dm_instance]
+                elif stage.dm_group_id:
+                    dm_instances = await _expand_group_instances(user_id, stage.dm_group_id)
+                    if not dm_instances:
+                        raise HTTPException(status_code=422, detail=f"DM group has no active instances: {stage.dm_group_id}")
+
+                await ensure_models_exist(
+                    user_id,
+                    [instance["model_id"] for instance in player_instances + dm_instances],
+                )
+                player_contexts = [await _build_slot_context(instance, stage.verbosity) for instance in player_instances]
+
+                dm_model = dm_instances[0]["model_id"] if len(dm_instances) == 1 else None
+                dm_rotation = [instance["model_id"] for instance in dm_instances] if len(dm_instances) > 1 else None
+                dm_slot_context = await _build_slot_context(dm_instances[0], stage.verbosity) if len(dm_instances) == 1 else None
+                dm_rotation_contexts = [await _build_slot_context(instance, stage.verbosity) for instance in dm_instances] if len(dm_instances) > 1 else None
+
+                raw_results = await roleplay(
+                    call,
+                    player_models=[instance["model_id"] for instance in player_instances],
+                    initial_prompt=prompt_used,
+                    dm_model=dm_model,
+                    dm_rotation=dm_rotation,
+                    rounds=stage.rounds,
+                    slot_contexts=player_contexts,
+                    dm_slot_context=dm_slot_context,
+                    dm_rotation_contexts=dm_rotation_contexts,
+                    action_word_limit=stage.action_word_limit,

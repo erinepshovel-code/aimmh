@@ -1,0 +1,122 @@
+async def get_conversations(current_user: dict = Depends(get_current_user)):
+    """Get user's conversation history"""
+    conversations = await db.conversations.find(
+        {"user_id": get_user_id(current_user)},
+        {"_id": 0}
+    ).sort("updated_at", -1).limit(50).to_list(50)
+
+    return [
+        ConversationResponse(
+            id=conv["id"],
+            user_id=conv["user_id"],
+            title=conv.get("title", "New Conversation"),
+            created_at=datetime.fromisoformat(conv["created_at"]),
+            updated_at=datetime.fromisoformat(conv["updated_at"])
+        )
+        for conv in conversations
+    ]
+
+
+@router.get("/conversations/search")
+async def search_conversations(
+    q: str = Query(default="", max_length=120),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Search conversation titles with pagination for older thread retrieval."""
+    uid = get_user_id(current_user)
+
+    title_query = (q or "").strip()
+    base_filter: Dict[str, Any] = {"user_id": uid}
+    if title_query:
+        base_filter["title"] = {"$regex": title_query, "$options": "i"}
+
+    total = await db.conversations.count_documents(base_filter)
+    conversations = await db.conversations.find(
+        base_filter,
+        {"_id": 0}
+    ).sort("updated_at", -1).skip(offset).limit(limit).to_list(limit)
+
+    return {
+        "query": title_query,
+        "offset": offset,
+        "limit": limit,
+        "total": total,
+        "conversations": conversations,
+    }
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get messages from a conversation"""
+    messages = await db.messages.find(
+        {"conversation_id": conversation_id, "user_id": get_user_id(current_user)},
+        {"_id": 0}
+    ).sort("timestamp", 1).to_list(1000)
+    return messages
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a conversation and its messages"""
+    uid = get_user_id(current_user)
+    conversation_delete = await db.conversations.delete_one({"id": conversation_id, "user_id": uid})
+    messages_delete = await db.messages.delete_many({"conversation_id": conversation_id, "user_id": uid})
+    await append_audit_event(
+        collection="chat_event_logs",
+        event_type="conversation_deleted",
+        actor_user_id=uid,
+        payload={
+            "conversation_id": conversation_id,
+            "conversation_deleted": conversation_delete.deleted_count,
+            "messages_deleted": messages_delete.deleted_count,
+        },
+    )
+    return {"message": "Conversation deleted"}
+
+
+@router.post("/chat/catchup")
+async def catchup_models(
+    request: CatchupRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Catch up new models with conversation history"""
+    if request.message_ids:
+        messages = []
+        for msg_id in request.message_ids:
+            msg = await db.messages.find_one(
+                {"id": msg_id, "user_id": get_user_id(current_user)},
+                {"_id": 0}
+            )
+            if msg:
+                messages.append(msg)
+        messages.sort(key=lambda x: x['timestamp'])
+    else:
+        messages = await db.messages.find(
+            {"conversation_id": request.conversation_id, "user_id": get_user_id(current_user)},
+            {"_id": 0}
+        ).sort("timestamp", 1).to_list(1000)
+
+    if not messages:
+        raise HTTPException(status_code=404, detail="No messages found")
+
+    catchup_parts = ["Here is the conversation history to catch you up:\n"]
+    for msg in messages:
+        if msg['role'] == 'user':
+            catchup_parts.append(f"User: {msg['content']}")
+        elif msg['role'] == 'assistant':
+            catchup_parts.append(f"{msg['model']}: {msg['content']}")
+    catchup_parts.append("\nYou are now caught up. Please acknowledge that you understand the conversation context.")
+
+    return {
+        "message": "Catchup initiated",
+        "models": request.new_models,
+        "message_count": len(messages)
+    }

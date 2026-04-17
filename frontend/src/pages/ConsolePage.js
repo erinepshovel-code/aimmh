@@ -1,3 +1,4 @@
+// "lines of code":"309","lines of commented":"0"
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -341,3 +342,4 @@ export default function ConsolePage() {
     </div>
   );
 }
+// "lines of code":"309","lines of commented":"0"

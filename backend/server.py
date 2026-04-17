@@ -1,3 +1,4 @@
+# "lines of code":"106","lines of commented":"3"
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -23,8 +24,10 @@ from routes.v1_lib import router as v1_lib_router
 from routes.v1_hub import router as v1_hub_router
 from routes.v1_hub_state import router as v1_hub_state_router
 from routes.payments_v2 import router as payments_router
+from routes.ws_admin import router as ws_admin_router
 from routes.console import router as console_router
 from services.ai_instructions import get_ai_instruction_payload, get_ai_instruction_text
+from services.billing_tiers import warm_billing_tier_overrides
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,6 +62,7 @@ app.include_router(v1_lib_router)
 app.include_router(v1_hub_router)
 app.include_router(v1_hub_state_router)
 app.include_router(payments_router)
+app.include_router(ws_admin_router)
 app.include_router(console_router)
 
 cors_origins_raw = os.environ.get('CORS_ORIGINS')
@@ -75,6 +79,7 @@ app.add_middleware(
     allow_origin_regex=r'https?://.*' if allow_all_origins else None,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -126,3 +131,9 @@ async def ready_check():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+@app.on_event("startup")
+async def startup_db_client():
+    await warm_billing_tier_overrides()
+# "lines of code":"106","lines of commented":"3"

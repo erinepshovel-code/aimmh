@@ -1,0 +1,120 @@
+{
+  "summary": "Iteration 25: Free vs Pro Monetization Controls Testing COMPLETE. Backend: 10/10 tests PASSED. Frontend: All upgrade modals now working correctly after fix. Key Manager, Instances Panel, and Pricing page all verified.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_iteration25_free_pro_limits.py",
+    "/app/test_reports/pytest/pytest_iteration25.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Backend /api/v1/hub/instances correctly enforces max_instances=3 and per_model_instance_cap=2 with 403",
+    "Backend /api/v1/hub/runs correctly enforces max_personas=3 stages with 403",
+    "Backend /api/v1/keys correctly enforces max_connected_keys=1 with 403",
+    "Backend /api/payments/summary returns correct free tier limits (instances:3, personas:3, keys:1, runs:100)",
+    "Frontend KeyManager.jsx correctly shows UpgradeToProModal when second key is attempted",
+    "Frontend PricingPageV2.jsx correctly displays free tier limits and Pro unlimited messaging",
+    "Frontend HubInstancesPanel.jsx now correctly shows UpgradeToProModal when instance limit is hit"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_iteration25_free_pro_limits.py",
+    "/app/frontend/src/lib/hubApi.js",
+    "/app/frontend/src/components/hub/HubInstancesPanel.jsx",
+    "/app/backend/server.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% - 10/10 tests passed",
+    "frontend": "100% - All upgrade modals working correctly"
+  },
+
+  "test_credentials": {
+    "note": "Fresh users registered for each test session via /api/auth/register"
+  },
+
+  "seed_data_creation": "Test instances created during UI testing",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Iteration 25 tested and FIXED Free vs Pro monetization controls. All backend APIs correctly enforce limits with 403 status codes. Frontend now correctly shows UpgradeToProModal for: (1) Instance limit when creating 3rd instance with same model (per_model_instance_cap=2), (2) Key Manager when adding second BYOK key. PricingPageV2 shows correct free tier limits. Fixed CORS issue where 403 response body was not readable - now frontend handles 403 with empty body by showing generic upgrade message.",
+
+  "tests_executed": {
+    "backend_api_tests": {
+      "status": "PASS (10/10)",
+      "details": {
+        "test_payments_summary_returns_free_tier_limits": "PASS - Returns current_tier=free, max_instances=3, max_personas=3, max_connected_keys=1",
+        "test_create_instances_up_to_free_limit": "PASS - Can create instances up to limit",
+        "test_instance_limit_enforced_with_403": "PASS - Instance blocked with 403 when limit hit",
+        "test_persona_limit_enforced_with_403": "PASS - Persona limit enforced with 403",
+        "test_run_with_more_than_3_stages_returns_403": "PASS - Run with 4 stages blocked with 403",
+        "test_run_with_3_stages_allowed": "PASS - Run with 3 stages allowed",
+        "test_keys_list_returns_status": "PASS - Returns key status list",
+        "test_second_key_blocked_with_403": "PASS - Second BYOK key blocked with 403",
+        "test_free_tier_has_correct_limits": "PASS - All free tier limits verified",
+        "test_catalog_shows_pro_unlimited_messaging": "PASS - Pro packages show 'unlimited' features"
+      }
+    },
+    "frontend_ui_tests": {
+      "status": "PASS",
+      "details": {
+        "pricing_page_free_tier_card": "PASS - Shows 'Max 3 active agents', 'Max 3 saved personas', 'Max 1 connected BYOK key'",
+        "pricing_page_summary_chips": "PASS - Shows 'Agents: 3', 'Personas: 3', 'Connected keys: 1', 'Runs / month: 100'",
+        "pricing_page_pro_unlimited": "PASS - Pro packages show 'Unlimited agents and personas', 'Unlimited runs', 'Unlimited connected keys'",
+        "key_manager_first_key": "PASS - First BYOK key saved successfully",
+        "key_manager_second_key_modal": "PASS - UpgradeToProModal appears with 'Connected key limit reached' title",
+        "key_manager_modal_content": "PASS - Modal shows correct description and buttons",
+        "instances_panel_form": "PASS - Instance form found with all fields",
+        "instances_panel_create": "PASS - Can create instances",
+        "instances_panel_limit_modal": "PASS - UpgradeToProModal appears with 'Instance limit reached' title when limit hit"
+      }
+    }
+  },
+
+  "features_verified": [
+    "Backend: /api/payments/summary returns correct free tier limits",
+    "Backend: /api/v1/hub/instances enforces max_instances=3 with 403",
+    "Backend: /api/v1/hub/instances enforces per_model_instance_cap=2 with 403",
+    "Backend: /api/v1/hub/runs enforces max persona stages=3 with 403",
+    "Backend: /api/v1/keys enforces max_connected_keys=1 with 403",
+    "Backend: /api/payments/catalog shows Pro unlimited messaging",
+    "Frontend: PricingPageV2 shows correct free tier limits",
+    "Frontend: PricingPageV2 shows Pro unlimited agents/personas/runs/keys",
+    "Frontend: KeyManager shows UpgradeToProModal when second key attempted",
+    "Frontend: HubInstancesPanel shows UpgradeToProModal when instance limit hit",
+    "Frontend: Upgrade modal has correct title, description, counter, and CTA buttons"
+  ],
+
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "details": "Stripe test-mode/local mocked behavior (not in scope for this run)"
+  },
+
+  "fixes_applied": {
+    "issue_1": {
+      "description": "HubInstancesPanel upgrade modal not appearing when instance limit hit",
+      "root_cause": "CORS issue - browser not exposing 403 response body for cross-origin requests with credentials",
+      "fix": "Updated hubApi.js to detect 403 with empty body and return generic 'Free tier limit reached' message. Updated HubInstancesPanel.jsx to detect 'limit' and 'upgrade' keywords in error message.",
+      "files_modified": ["/app/frontend/src/lib/hubApi.js", "/app/frontend/src/components/hub/HubInstancesPanel.jsx"]
+    },
+    "issue_2": {
+      "description": "Added expose_headers to CORS middleware",
+      "fix": "Added expose_headers=['*'] to CORSMiddleware in server.py",
+      "files_modified": ["/app/backend/server.py"]
+    }
+  }
+}

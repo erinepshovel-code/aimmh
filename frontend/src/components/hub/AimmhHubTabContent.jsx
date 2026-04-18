@@ -7,6 +7,8 @@ import { HubSynthesisPanel } from './HubSynthesisPanel';
 import { HubRunsWorkspace } from './HubRunsWorkspace';
 import { HelpReadmePanel } from './HelpReadmePanel';
 import { WsAdminPanel } from './WsAdminPanel';
+import { PatternVisualizerPanel } from './PatternVisualizerPanel';
+import { DocsModuleMapPanel } from './DocsModuleMapPanel';
 import { RegistryManager } from '../settings/RegistryManager';
 
 export function AimmhHubTabContent({
@@ -32,12 +34,26 @@ export function AimmhHubTabContent({
   queuePersistenceScope,
   welcomeInstance,
   isWsAdmin,
+  onRunVisualize,
+  visualizerPatternId,
+  setVisualizerPatternId,
+  visualizerRunContext,
 }) {
   switch (activeTab) {
     case 'help':
       return <HelpReadmePanel welcomeInstance={welcomeInstance} prompts={chatPrompts} onSendPrompt={sendChatPrompt} busyKey={chatBusyKey} />;
     case 'registry':
       return <RegistryManager onInventoryChanged={workspace.refreshCore} />;
+    case 'module-map':
+      return <DocsModuleMapPanel />;
+    case 'visualizer':
+      return (
+        <PatternVisualizerPanel
+          selectedPatternId={visualizerPatternId}
+          onPatternChange={setVisualizerPatternId}
+          runContext={visualizerRunContext}
+        />
+      );
     case 'ws-admin':
       return isWsAdmin ? <WsAdminPanel /> : null;
     case 'instantiation':
@@ -86,6 +102,7 @@ export function AimmhHubTabContent({
           setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
           onToggleRunArchive={workspace.toggleRunArchive}
           onDeleteArchivedRun={workspace.deleteArchivedRun}
+          onVisualizeRun={onRunVisualize}
         />
       );
     case 'roleplay-runs':
@@ -104,6 +121,7 @@ export function AimmhHubTabContent({
           setIncludeArchivedRuns={workspace.setIncludeArchivedRuns}
           onToggleRunArchive={workspace.toggleRunArchive}
           onDeleteArchivedRun={workspace.deleteArchivedRun}
+          onVisualizeRun={onRunVisualize}
         />
       );
     case 'synthesis':
@@ -139,4 +157,4 @@ export function AimmhHubTabContent({
       );
   }
 }
-// "lines of code":"139","lines of commented":"0"
+// "lines of code":"154","lines of commented":"0"

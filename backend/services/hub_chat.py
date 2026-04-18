@@ -46,7 +46,11 @@ async def send_chat_prompt(current_user: dict, req: HubChatPromptRequest) -> Hub
     await ensure_models_exist(user_id, [instance["model_id"] for instance in instances])
     prompt_id = make_id("hprompt")
     call = make_call_fn(user=current_user)
-    slot_contexts = [await _build_slot_context(instance, verbosity=None) for instance in instances]
+    in_prompt_context_cache = {}
+    slot_contexts = [
+        await _build_slot_context(instance, verbosity=None, in_run_cache=in_prompt_context_cache)
+        for instance in instances
+    ]
     raw_results = await fan_out(
         call,
         [instance["model_id"] for instance in instances],

@@ -325,6 +325,24 @@ The application is now a full-stack AIMMH workspace with:
   - targeted JS lint on touched modules → PASS
   - testing report `iteration_32.json` → frontend 100% PASS for requested feature set
 
+## Latest Backend Optimization — 2026-04-18
+- [x] Implemented **per-instantiation context/prompt caching** with roleplay focus:
+  - new service: `backend/services/hub_cache.py`
+  - Mongo cache collection: `hub_context_cache`
+  - cache key includes: instance config + verbosity + `instance_updated_at` + `thread_updated_at`
+  - automatic TTL cache expiry (30 minutes) via Mongo TTL index
+- [x] Wired cache usage across orchestration/chat/synthesis context assembly:
+  - roleplay and batch run execution (`hub_runner`)
+  - direct chat fan-out (`hub_chat`)
+  - synthesis fan-out (`hub_synthesis`)
+- [x] Added in-run memoization to avoid duplicate context lookups within one run execution.
+- [x] Added invalidation hooks on instance mutations:
+  - purge on instance update (`PATCH /api/v1/hub/instances/{id}`)
+  - purge on instance delete (`DELETE /api/v1/hub/instances/{id}`)
+- [x] External verification:
+  - backend testing report `iteration_33.json` (20/20 tests passed)
+  - roleplay and batch runs confirmed working with cache layer and no regressions
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
@@ -363,9 +381,11 @@ The application is now a full-stack AIMMH workspace with:
 - [ ] Deployment/release pass when requested
 - [ ] Optional modularization pass for `AimmhHubPage.jsx` and `useHubWorkspace.js`
 - [ ] Expand saved workflow templates from scaffold to full workflow management (rename, tags, export/import, cross-user sharing)
+- [ ] Add cache diagnostics surface (hit/miss counters, last-used, purge controls) in WS-Admin
 
 ### P2 — Important Enhancements
 - [x] Mobile response gestures and font scaling refinements (pinch/spread zoom + pane swipe)
+- [x] Per-instantiation context caching optimization integrated (roleplay-focused)
 - [ ] Save and reuse orchestration workflows
 - [ ] Drag-and-drop stage reordering in the runs builder
 - [ ] Richer per-instance thread drill-down/history inspection

@@ -343,6 +343,29 @@ The application is now a full-stack AIMMH workspace with:
   - backend testing report `iteration_33.json` (20/20 tests passed)
   - roleplay and batch runs confirmed working with cache layer and no regressions
 
+## Latest Product Surface Expansion — 2026-04-18
+- [x] Added new **Module Map** tab in the hub workspace with dynamic graphical module representation:
+  - fetches dynamic registry data from README registry endpoint
+  - groups modules by root (`backend`, `frontend`, `aimmh_lib`, etc.)
+  - renders interactive module nodes with relative code-size bars
+  - module detail pane shows path, code/comment metrics, module doc, and function docs
+- [x] Added filter controls for module exploration:
+  - text search by module path
+  - root-folder dropdown filter
+  - live stats cards for total/filtered/violations
+- [x] Android packaging scaffolding implemented for **both requested APK modes**:
+  - Mode A: WebView/live URL (`capacitor.config.webview.ts`)
+  - Mode B: Bundled assets (`capacitor.config.bundled.ts`)
+  - scripts and instructions under `/app/frontend/mobile/apk`
+- [x] Public documentation refreshed:
+  - `/app/README.md` rewritten with architecture analysis + APK flow
+  - `/app/CLAUDE.md` added with engineering guidance
+- [x] Validation:
+  - frontend testing report `iteration_34.json` PASS (Module Map + tab regression checks)
+
+Note:
+- APK **binary compilation** is environment-limited here (Java/Android SDK unavailable). Android project is generated/synced and ready for local Android Studio build from `/app/frontend/android`.
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
@@ -382,6 +405,7 @@ The application is now a full-stack AIMMH workspace with:
 - [ ] Optional modularization pass for `AimmhHubPage.jsx` and `useHubWorkspace.js`
 - [ ] Expand saved workflow templates from scaffold to full workflow management (rename, tags, export/import, cross-user sharing)
 - [ ] Add cache diagnostics surface (hit/miss counters, last-used, purge controls) in WS-Admin
+- [ ] APK release pipeline hardening (signing config, CI artifact publishing, release flavor)
 
 ### P2 — Important Enhancements
 - [x] Mobile response gestures and font scaling refinements (pinch/spread zoom + pane swipe)

@@ -1,0 +1,130 @@
+{
+  "summary": "Iteration 33: Backend-only testing for hub context caching integration. All 20 tests passed. Verified roleplay/batch/chat runs work with caching, cache invalidation on instance update/delete, and no regressions on hub API endpoints.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "test_report_links": [
+    "/app/backend/tests/test_iteration33_hub_caching.py",
+    "/app/test_reports/pytest/pytest_iteration33.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "hub_cache.py: Well-implemented MongoDB-based context cache with TTL indexes and proper cache key generation using SHA256 hash of instance config + thread timestamp",
+    "Cache key includes instance_updated_at and thread_updated_at for automatic invalidation when instance or thread changes",
+    "purge_instance_context_cache correctly called in v1_hub.py on instance update (PATCH) and delete (DELETE)",
+    "In-run cache (in_run_context_cache dict) prevents redundant DB lookups within a single run execution",
+    "Exception handling in _build_slot_context gracefully falls back to computing context if cache read/write fails"
+  ],
+  
+  "updated_files": [
+    "/app/backend/tests/test_iteration33_hub_caching.py"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "N/A - Backend only testing"
+  },
+  
+  "test_credentials": {
+    "note": "Guest flow used with X-Guest-Id header - unique guest ID per test to avoid quota limits"
+  },
+  
+  "seed_data_creation": "Test instances/groups created and cleaned up within tests",
+  
+  "retest_needed": false,
+  
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Hub context caching is fully operational. Cache collection 'hub_context_cache' exists with proper indexes (unique compound index on user_id+instance_id+cache_key, TTL index on expires_at). Cache entries have 30-minute TTL. Roleplay, batch, and chat runs all use the caching layer correctly.",
+  
+  "features_verified": {
+    "health_and_ready_endpoints": {
+      "status": "PASS",
+      "details": "/api/health returns ok, /api/ready returns ready with mongo check passing"
+    },
+    "hub_instances_crud": {
+      "status": "PASS",
+      "details": "List, create, get detail, update, archive, delete all working. Update and delete trigger cache purge."
+    },
+    "hub_runs_no_regression": {
+      "status": "PASS",
+      "details": "List runs and hub options endpoints working correctly"
+    },
+    "hub_chat_prompts_no_regression": {
+      "status": "PASS",
+      "details": "List chat prompts endpoint working"
+    },
+    "hub_synthesis_no_regression": {
+      "status": "PASS",
+      "details": "List synthesis batches endpoint working"
+    },
+    "hub_groups_no_regression": {
+      "status": "PASS",
+      "details": "List and create groups working"
+    },
+    "context_cache_integration": {
+      "status": "PASS",
+      "details": "Instance with full context fields (role_preset, context, instance_prompt, history_window_messages) created successfully. Instance history endpoint working."
+    },
+    "batch_run_with_caching": {
+      "status": "PASS",
+      "details": "Fan-out batch run executed successfully with caching. Cache entries created in hub_context_cache collection."
+    },
+    "roleplay_run_with_caching": {
+      "status": "PASS",
+      "details": "Roleplay run with player and DM instances executed successfully. Context caching used for both player and DM contexts."
+    },
+    "chat_prompt_with_caching": {
+      "status": "PASS",
+      "details": "Chat prompt to single instance executed successfully with caching."
+    }
+  },
+  
+  "cache_implementation_verified": {
+    "collection": "hub_context_cache",
+    "indexes": [
+      "hub_ctx_cache_unique (user_id, instance_id, cache_key) - unique compound",
+      "hub_ctx_cache_ttl (expires_at) - TTL index"
+    ],
+    "ttl": "30 minutes (1800 seconds)",
+    "cache_key_components": [
+      "instance_id",
+      "model_id", 
+      "role_preset",
+      "context",
+      "instance_prompt",
+      "history_window_messages",
+      "instance_updated_at",
+      "thread_updated_at",
+      "verbosity"
+    ],
+    "invalidation_triggers": [
+      "Instance update (PATCH /api/v1/hub/instances/{id})",
+      "Instance delete (DELETE /api/v1/hub/instances/{id})",
+      "Thread message changes (via thread_updated_at in cache key)"
+    ]
+  },
+  
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "details": "No mocked APIs - all tests use real backend endpoints"
+  },
+  
+  "notes": [
+    "All caching features working as designed",
+    "Cache entries verified in MongoDB with correct structure and TTL",
+    "In-run cache (in_run_context_cache dict) prevents redundant lookups within single run",
+    "Exception handling ensures graceful fallback if cache operations fail"
+  ]
+}

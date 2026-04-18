@@ -26,6 +26,7 @@ from models.hub_synthesis import HubSynthesisBatchListResponse, HubSynthesisBatc
 from services.auth import get_current_user, get_user_id
 from services.billing_tiers import consume_non_paying_daily_quota, current_month_start_iso, get_user_billing_profile
 from services.hub_chat import get_chat_prompt, list_chat_prompts, send_chat_prompt
+from services.hub_cache import purge_instance_context_cache
 from services.hub_synthesis import create_synthesis_batch, get_synthesis_batch, list_synthesis_batches
 from services.hub_runner import execute_hub_run, get_hub_run_detail, list_hub_groups, list_hub_instances, list_hub_runs
 from services.hub_store import (
@@ -272,6 +273,10 @@ async def update_instance(instance_id: str, req: HubInstanceUpdateRequest, curre
         {"user_id": user_id, "instance_id": instance_id},
         {"$set": update},
     )
+    try:
+        await purge_instance_context_cache(user_id, instance_id)
+    except Exception:
+        pass
     doc = await get_instance(user_id, instance_id)
     return HubInstanceOut(**doc)
 
@@ -299,6 +304,10 @@ async def delete_instance(instance_id: str, current_user: dict = Depends(get_cur
         raise HTTPException(status_code=400, detail="Archive the instance before deleting it")
 
     await db[HUB_INSTANCE_COLLECTION].delete_one({"user_id": user_id, "instance_id": instance_id, "archived": True})
+    try:
+        await purge_instance_context_cache(user_id, instance_id)
+    except Exception:
+        pass
 
     thread_id = existing.get("thread_id")
     if thread_id:

@@ -36,12 +36,20 @@
             else:
                 if not stage.participants:
                     raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} requires participants")
-                instances = await _expand_participants(user_id, stage.participants)
+                instances = await _expand_participants(
+                    user_id,
+                    stage.participants,
+                    group_cache=in_run_group_cache,
+                    instance_cache=in_run_instance_cache,
+                )
                 if not instances:
                     raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} has no active instances")
                 await ensure_models_exist(user_id, [instance["model_id"] for instance in instances])
                 model_ids = [instance["model_id"] for instance in instances]
-                slot_contexts = [await _build_slot_context(instance, stage.verbosity) for instance in instances]
+                slot_contexts = [
+                    await _build_slot_context(instance, stage.verbosity, in_run_cache=in_run_context_cache)
+                    for instance in instances
+                ]
                 for idx, instance in enumerate(instances):
                     instances_by_slot[idx] = instance
 
@@ -69,12 +77,21 @@
                 elif stage.pattern == "room_synthesized":
                     synth_instances: List[dict] = []
                     if stage.synthesis_instance_id:
-                        synth = await get_instance(user_id, stage.synthesis_instance_id, include_archived=False)
+                        synth = in_run_instance_cache.get(stage.synthesis_instance_id)
+                        if not synth:
+                            synth = await get_instance(user_id, stage.synthesis_instance_id, include_archived=False)
+                            if synth:
+                                in_run_instance_cache[stage.synthesis_instance_id] = synth
                         if not synth:
                             raise HTTPException(status_code=404, detail=f"Synthesis instance not found: {stage.synthesis_instance_id}")
                         synth_instances = [synth]
                     elif stage.synthesis_group_id:
-                        synth_instances = await _expand_group_instances(user_id, stage.synthesis_group_id)
+                        synth_instances = await _expand_group_instances(
+                            user_id,
+                            stage.synthesis_group_id,
+                            group_cache=in_run_group_cache,
+                            instance_cache=in_run_instance_cache,
+                        )
                     if len(synth_instances) != 1:
                         raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} room_synthesized requires exactly one synthesis instance or single-member group")
                     synth_instance = synth_instances[0]
@@ -88,7 +105,11 @@
                         rounds=stage.rounds,
                         synthesis_prompt=stage.synthesis_prompt or "Synthesize and analyze these AI responses:",
                         slot_contexts=slot_contexts,
-                        synth_slot_context=await _build_slot_context(synth_instance, stage.verbosity),
+                        synth_slot_context=await _build_slot_context(
+                            synth_instance,
+                            stage.verbosity,
+                            in_run_cache=in_run_context_cache,
+                        ),
                         max_history=stage.max_history,
                     )
                 elif stage.pattern == "council":

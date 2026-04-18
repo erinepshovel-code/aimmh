@@ -10,6 +10,12 @@ from aimmh_lib.adapters import make_call_fn
 from models.hub import HubRunRequest, HubRunResult, HubRunDetailResponse, HubStageSummary
 from models.lib_models import ROLE_PRESETS, verbosity_instruction
 from services.auth import get_user_id
+from services.hub_cache import (
+    DEFAULT_CONTEXT_CACHE_TTL_SECONDS,
+    build_context_cache_key,
+    get_instance_context_cache,
+    set_instance_context_cache,
+)
 from services.events import emit_event
 from services.hub_store import (
     HUB_GROUP_COLLECTION,
@@ -28,13 +34,23 @@ from services.hub_store import (
 )
 from db import db
 
+CONTEXT_CACHE_TTL_SECONDS = DEFAULT_CONTEXT_CACHE_TTL_SECONDS
+
 
 def _compose_context(*parts: Optional[str]) -> Optional[str]:
     values = [part.strip() for part in parts if part and str(part).strip()]
     return "\n\n".join(values) if values else None
 
 
-async def _expand_group_instances(user_id: str, group_id: str, visited: Optional[set[str]] = None) -> List[dict]:
+async def _expand_group_instances(
+    user_id: str,
+    group_id: str,
+    visited: Optional[set[str]] = None,
+    group_cache: Optional[Dict[str, List[dict]]] = None,
+    instance_cache: Optional[Dict[str, dict]] = None,
+) -> List[dict]:
+    if group_cache is not None and group_id in group_cache:
+        return group_cache[group_id]
     visited = visited or set()
     if group_id in visited:
         raise HTTPException(status_code=400, detail=f"Circular group nesting detected at {group_id}")
@@ -49,32 +65,69 @@ async def _expand_group_instances(user_id: str, group_id: str, visited: Optional
         member_type = member.get("member_type")
         member_id = member.get("member_id")
         if member_type == "instance":
-            instance = await get_instance(user_id, member_id, include_archived=False)
+            if instance_cache is not None and member_id in instance_cache:
+                instance = instance_cache[member_id]
+            else:
+                instance = await get_instance(user_id, member_id, include_archived=False)
+                if instance and instance_cache is not None:
+                    instance_cache[member_id] = instance
             if not instance:
                 raise HTTPException(status_code=404, detail=f"Instance not found: {member_id}")
             instances.append(instance)
         elif member_type == "group":
-            instances.extend(await _expand_group_instances(user_id, member_id, visited=set(visited)))
+            instances.extend(
+                await _expand_group_instances(
+                    user_id,
+                    member_id,
+                    visited=set(visited),
+                    group_cache=group_cache,
+                    instance_cache=instance_cache,
+                )
+            )
         else:
             raise HTTPException(status_code=422, detail=f"Unsupported group member type: {member_type}")
+    if group_cache is not None:
+        group_cache[group_id] = instances
     return instances
 
 
-async def _expand_participants(user_id: str, participants: list) -> List[dict]:
+async def _expand_participants(
+    user_id: str,
+    participants: list,
+    group_cache: Optional[Dict[str, List[dict]]] = None,
+    instance_cache: Optional[Dict[str, dict]] = None,
+) -> List[dict]:
     instances: List[dict] = []
     for participant in participants:
         source_type = participant.source_type if hasattr(participant, "source_type") else participant.get("source_type")
         source_id = participant.source_id if hasattr(participant, "source_id") else participant.get("source_id")
         if source_type == "instance":
-            instance = await get_instance(user_id, source_id, include_archived=False)
+            if instance_cache is not None and source_id in instance_cache:
+                instance = instance_cache[source_id]
+            else:
+                instance = await get_instance(user_id, source_id, include_archived=False)
+                if instance and instance_cache is not None:
+                    instance_cache[source_id] = instance
             if not instance:
                 raise HTTPException(status_code=404, detail=f"Instance not found: {source_id}")
             instances.append(instance)
         elif source_type == "group":
-            instances.extend(await _expand_group_instances(user_id, source_id))
+            instances.extend(
+                await _expand_group_instances(
+                    user_id,
+                    source_id,
+                    group_cache=group_cache,
+                    instance_cache=instance_cache,
+                )
+            )
         else:
             raise HTTPException(status_code=422, detail=f"Unsupported participant type: {source_type}")
     return instances
+
+
+async def _thread_updated_at(user_id: str, thread_id: str) -> str:
+    doc = await db.threads.find_one({"user_id": user_id, "thread_id": thread_id}, {"_id": 0, "updated_at": 1})
+    return (doc or {}).get("updated_at", "")
 
 
 def _history_block(messages: List[dict], limit: int) -> Optional[str]:
@@ -93,7 +146,33 @@ def _history_block(messages: List[dict], limit: int) -> Optional[str]:
     return "Your private instance thread history:\n" + "\n\n".join(lines)
 
 
-async def _build_slot_context(instance: dict, verbosity: Optional[int]) -> Optional[str]:
+async def _build_slot_context(
+    instance: dict,
+    verbosity: Optional[int],
+    in_run_cache: Optional[Dict[str, Optional[str]]] = None,
+) -> Optional[str]:
+    thread_stamp = await _thread_updated_at(instance["user_id"], instance["thread_id"])
+    cache_key = build_context_cache_key(
+        instance=instance,
+        verbosity=verbosity,
+        thread_updated_at=thread_stamp,
+    )
+    if in_run_cache is not None and cache_key in in_run_cache:
+        return in_run_cache[cache_key]
+    try:
+        cached_payload = await get_instance_context_cache(
+            user_id=instance["user_id"],
+            instance_id=instance["instance_id"],
+            cache_key=cache_key,
+        )
+        if cached_payload and "context_text" in cached_payload:
+            context_text = cached_payload.get("context_text")
+            if in_run_cache is not None:
+                in_run_cache[cache_key] = context_text
+            return context_text
+    except Exception:
+        pass
+
     role_preset = instance.get("role_preset")
     preset_text = ROLE_PRESETS.get(role_preset.lower().strip()) if role_preset else None
     ctx = instance.get("context") or {}
@@ -108,7 +187,7 @@ async def _build_slot_context(instance: dict, verbosity: Optional[int]) -> Optio
     ) if int(instance.get("history_window_messages", 12) or 0) > 0 else []
     history_block = _history_block(thread_history, int(instance.get("history_window_messages", 12) or 0))
     verbosity_text = verbosity_instruction(verbosity)
-    return _compose_context(
+    context_text = _compose_context(
         explicit_system or preset_text,
         role_line,
         modifier,
@@ -116,6 +195,19 @@ async def _build_slot_context(instance: dict, verbosity: Optional[int]) -> Optio
         history_block,
         verbosity_text,
     )
+    try:
+        await set_instance_context_cache(
+            user_id=instance["user_id"],
+            instance_id=instance["instance_id"],
+            cache_key=cache_key,
+            payload={"context_text": context_text},
+            ttl_seconds=CONTEXT_CACHE_TTL_SECONDS,
+        )
+    except Exception:
+        pass
+    if in_run_cache is not None:
+        in_run_cache[cache_key] = context_text
+    return context_text
 
 
 def _outputs_text(results: List[HubRunResult]) -> str:
@@ -273,6 +365,9 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
     all_results: List[HubRunResult] = []
     stage_summaries: List[HubStageSummary] = []
     prior_stage_results: List[HubRunResult] = []
+    in_run_context_cache: Dict[str, Optional[str]] = {}
+    in_run_instance_cache: Dict[str, dict] = {}
+    in_run_group_cache: Dict[str, List[dict]] = {}
     call = make_call_fn(user=current_user)
 
     try:
@@ -284,17 +379,31 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
             instances_by_slot: Dict[int, dict] = {}
 
             if stage.pattern == "roleplay":
-                player_instances = await _expand_participants(user_id, stage.player_participants)
+                player_instances = await _expand_participants(
+                    user_id,
+                    stage.player_participants,
+                    group_cache=in_run_group_cache,
+                    instance_cache=in_run_instance_cache,
+                )
                 if not player_instances:
                     raise HTTPException(status_code=422, detail=f"Stage {stage_index + 1} roleplay requires player_participants")
                 dm_instances: List[dict] = []
                 if stage.dm_instance_id:
-                    dm_instance = await get_instance(user_id, stage.dm_instance_id, include_archived=False)
+                    dm_instance = in_run_instance_cache.get(stage.dm_instance_id)
+                    if not dm_instance:
+                        dm_instance = await get_instance(user_id, stage.dm_instance_id, include_archived=False)
+                        if dm_instance:
+                            in_run_instance_cache[stage.dm_instance_id] = dm_instance
                     if not dm_instance:
                         raise HTTPException(status_code=404, detail=f"DM instance not found: {stage.dm_instance_id}")
                     dm_instances = [dm_instance]
                 elif stage.dm_group_id:
-                    dm_instances = await _expand_group_instances(user_id, stage.dm_group_id)
+                    dm_instances = await _expand_group_instances(
+                        user_id,
+                        stage.dm_group_id,
+                        group_cache=in_run_group_cache,
+                        instance_cache=in_run_instance_cache,
+                    )
                     if not dm_instances:
                         raise HTTPException(status_code=422, detail=f"DM group has no active instances: {stage.dm_group_id}")
 
@@ -302,12 +411,23 @@ async def execute_hub_run(current_user: dict, req: HubRunRequest) -> HubRunDetai
                     user_id,
                     [instance["model_id"] for instance in player_instances + dm_instances],
                 )
-                player_contexts = [await _build_slot_context(instance, stage.verbosity) for instance in player_instances]
+                player_contexts = [
+                    await _build_slot_context(instance, stage.verbosity, in_run_cache=in_run_context_cache)
+                    for instance in player_instances
+                ]
 
                 dm_model = dm_instances[0]["model_id"] if len(dm_instances) == 1 else None
                 dm_rotation = [instance["model_id"] for instance in dm_instances] if len(dm_instances) > 1 else None
-                dm_slot_context = await _build_slot_context(dm_instances[0], stage.verbosity) if len(dm_instances) == 1 else None
-                dm_rotation_contexts = [await _build_slot_context(instance, stage.verbosity) for instance in dm_instances] if len(dm_instances) > 1 else None
+                dm_slot_context = (
+                    await _build_slot_context(dm_instances[0], stage.verbosity, in_run_cache=in_run_context_cache)
+                    if len(dm_instances) == 1
+                    else None
+                )
+                dm_rotation_contexts = (
+                    [await _build_slot_context(instance, stage.verbosity, in_run_cache=in_run_context_cache) for instance in dm_instances]
+                    if len(dm_instances) > 1
+                    else None
+                )
 
                 raw_results = await roleplay(
                     call,

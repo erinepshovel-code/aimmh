@@ -51,7 +51,11 @@ async def create_synthesis_batch(current_user: dict, req: HubSynthesisRequest) -
     batch_id = make_id("hsynth")
     synthesis_prompt = _build_synthesis_prompt(req.selected_blocks, req.instruction)
     call = make_call_fn(user=current_user)
-    slot_contexts = [await _build_slot_context(instance, verbosity=None) for instance in instances]
+    in_batch_context_cache = {}
+    slot_contexts = [
+        await _build_slot_context(instance, verbosity=None, in_run_cache=in_batch_context_cache)
+        for instance in instances
+    ]
     raw_results = await fan_out(
         call,
         [instance["model_id"] for instance in instances],

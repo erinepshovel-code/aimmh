@@ -16,6 +16,7 @@ const SYNTHESIS_QUEUE_LOCAL_KEY = 'aimmh-synthesis-queue-local';
 
 const TABS = [
   { id: 'help', label: 'Help' },
+  { id: 'module-map', label: 'Module Map' },
   { id: 'visualizer', label: 'Visualizer' },
   { id: 'registry', label: 'Registry' },
   { id: 'instantiation', label: 'Instances' },
@@ -396,4 +397,4 @@ export default function AimmhHubPage() {
     </div>
   );
 }
-// "lines of code":"363","lines of commented":"4"
+// "lines of code":"364","lines of commented":"4"

@@ -8,6 +8,7 @@ import { HubRunsWorkspace } from './HubRunsWorkspace';
 import { HelpReadmePanel } from './HelpReadmePanel';
 import { WsAdminPanel } from './WsAdminPanel';
 import { PatternVisualizerPanel } from './PatternVisualizerPanel';
+import { DocsModuleMapPanel } from './DocsModuleMapPanel';
 import { RegistryManager } from '../settings/RegistryManager';
 
 export function AimmhHubTabContent({
@@ -43,6 +44,8 @@ export function AimmhHubTabContent({
       return <HelpReadmePanel welcomeInstance={welcomeInstance} prompts={chatPrompts} onSendPrompt={sendChatPrompt} busyKey={chatBusyKey} />;
     case 'registry':
       return <RegistryManager onInventoryChanged={workspace.refreshCore} />;
+    case 'module-map':
+      return <DocsModuleMapPanel />;
     case 'visualizer':
       return (
         <PatternVisualizerPanel
@@ -154,4 +157,4 @@ export function AimmhHubTabContent({
       );
   }
 }
-// "lines of code":"151","lines of commented":"0"
+// "lines of code":"154","lines of commented":"0"

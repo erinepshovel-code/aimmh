@@ -36,13 +36,17 @@ Quick start (with the aimmh backend adapter):
     # Council: every model synthesizes all responses including its own
     results = await council(call, ["gpt-4o", "claude-haiku-4-5-20251001", "gemini-2.0-flash"], "What is consciousness?")
 
-Patterns:
+Patterns (functional API):
     fan_out          — parallel call to N models (building block)
     daisy_chain      — A → output → B's prompt → C's prompt ...
     room_all         — all models respond, see each other, respond again
     room_synthesized — all respond, one synthesizer combines, synthesis drives next round
     council          — all respond, each synthesizes all responses (incl. own), in parallel
     roleplay         — DM + players, initiative ordering, sequential turns, optional reactions
+
+Instantiation API:
+    MultiModelHub    — bind a CallFn once, call any pattern as a method
+    ModelInstance    — a single model as a stateful object with persistent history
 
 Note: aimmh_lib.adapters is NOT imported here to avoid pulling in backend dependencies.
 Import it explicitly: from aimmh_lib.adapters import make_call_fn
@@ -51,6 +55,8 @@ Import it explicitly: from aimmh_lib.adapters import make_call_fn
 from aimmh_lib.conversations import (
     ModelResult,
     CallFn,
+    MultiModelHub,
+    ModelInstance,
     fan_out,
     daisy_chain,
     room_all,
@@ -62,6 +68,8 @@ from aimmh_lib.conversations import (
 __all__ = [
     "ModelResult",
     "CallFn",
+    "MultiModelHub",
+    "ModelInstance",
     "fan_out",
     "daisy_chain",
     "room_all",

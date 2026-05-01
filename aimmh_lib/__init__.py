@@ -55,8 +55,6 @@ Import it explicitly: from aimmh_lib.adapters import make_call_fn
 from aimmh_lib.conversations import (
     ModelResult,
     CallFn,
-    MultiModelHub,
-    ModelInstance,
     fan_out,
     daisy_chain,
     room_all,
@@ -68,8 +66,6 @@ from aimmh_lib.conversations import (
 __all__ = [
     "ModelResult",
     "CallFn",
-    "MultiModelHub",
-    "ModelInstance",
     "fan_out",
     "daisy_chain",
     "room_all",

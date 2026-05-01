@@ -111,6 +111,32 @@ All six patterns available: `fan_out`, `daisy_chain`, `room_all`, `room_synthesi
 
 ---
 
+
+## PyPI release workflow
+
+The repo now includes a GitHub Actions workflow at `.github/workflows/publish-pypi.yml` that builds and publishes `aimmh-lib` to PyPI using **Trusted Publishing** (OIDC).
+
+### One-time setup
+
+1. In PyPI, create a Trusted Publisher for this repository/workflow (`Publish aimmh-lib to PyPI`).
+2. In GitHub, create an environment named `pypi` (optional protections recommended).
+
+### Release
+
+- Create a GitHub Release (or run the workflow manually from **Actions → Publish aimmh-lib to PyPI**).
+- The workflow will:
+  1. Build sdist + wheel
+  2. Run `twine check`
+  3. Publish to `https://pypi.org/project/aimmh-lib/`
+
+Local sanity check commands (before tagging):
+
+```bash
+python -m pip install --upgrade build twine
+python -m build
+python -m twine check dist/*
+```
+
 ## Tech Stack
 
 **Backend:** FastAPI · Motor (async MongoDB) · asyncio · Stripe · Google OAuth · JWT

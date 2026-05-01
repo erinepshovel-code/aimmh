@@ -34,12 +34,12 @@ if ! command -v java >/dev/null 2>&1; then
 fi
 
 if [[ -n "${ANDROID_KEYSTORE_FILE:-}" ]]; then
-  cat > "$ANDROID_DIR/keystore.properties" <<KEYSTORE
-storeFile=${ANDROID_KEYSTORE_FILE}
-storePassword=${ANDROID_KEYSTORE_PASSWORD:-}
-keyAlias=${ANDROID_KEY_ALIAS:-}
-keyPassword=${ANDROID_KEY_PASSWORD:-}
-KEYSTORE
+  printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+    "${ANDROID_KEYSTORE_FILE}" \
+    "${ANDROID_KEYSTORE_PASSWORD:-}" \
+    "${ANDROID_KEY_ALIAS:-}" \
+    "${ANDROID_KEY_PASSWORD:-}" \
+    > "$ANDROID_DIR/keystore.properties"
   echo "Wrote $ANDROID_DIR/keystore.properties from environment variables."
 else
   echo "No ANDROID_KEYSTORE_FILE set. Building unsigned release artifacts."

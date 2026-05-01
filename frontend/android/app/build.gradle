@@ -1,13 +1,11 @@
 apply plugin: 'com.android.application'
 
-def keystorePropertiesFile = rootProject.file('keystore.properties')
-def keystoreProperties = new Properties()
 import java.util.Properties
 
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
 android {
@@ -28,14 +26,6 @@ android {
     }
     signingConfigs {
         release {
-            if (keystoreProperties['storeFile']) {
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            }
-        }
-    }
             def storeFilePath = keystoreProperties['storeFile'] ?: System.getenv('ANDROID_KEYSTORE_PATH')
             def storePasswordValue = keystoreProperties['storePassword'] ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
             def keyAliasValue = keystoreProperties['keyAlias'] ?: System.getenv('ANDROID_KEY_ALIAS')
@@ -57,9 +47,6 @@ android {
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (keystoreProperties['storeFile']) {
-                signingConfig signingConfigs.release
-            }
         }
     }
 }

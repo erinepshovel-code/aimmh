@@ -15,8 +15,7 @@ This folder supports both Android packaging modes and now includes release artif
 
 ## Build Commands
 
-Run from `/workspace/aimmh/frontend`.
-## Local Debug Commands
+Run from the repo's `frontend/` directory.
 
 ### Debug APK
 
@@ -94,7 +93,7 @@ The workflow:
 
 > Note: Google Play production uploads are expected to be staged through `internal` first.
 
-## Output
+## App Store Submission Checklist (Android stores)
 
 ### Google Play Store
 
@@ -131,8 +130,7 @@ The workflow:
 
 ## Cross-store release discipline
 
-For store deployments, release AAB output is expected at:
-
-`android/app/build/outputs/bundle/release/app-release.aab`
-
-If Java/SDK are missing locally, the debug script still prepares and syncs the Android project, then prints instructions.
+- Keep one source of truth for versioning (`versionCode` / `versionName`).
+- Maintain a release checklist for screenshots, privacy policy, support email, and changelog.
+- Keep signing keys backed up and rotated only with a migration plan.
+- Test on at least one physical device per major Android version band.

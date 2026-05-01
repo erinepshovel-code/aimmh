@@ -15,6 +15,7 @@ import {
 import { ResponseMarkdown } from './ResponseMarkdown';
 import { CollapsibleSection } from './CollapsibleSection';
 import { inferDeveloper, responseTokenTotal } from './chatTokenUtils';
+import { useChatCarouselGestures } from './useChatCarouselGestures';
 import { hubApi } from '../../lib/hubApi';
 
 const CHAT_FONT_SCALE_KEY = 'aimmh-chat-font-scale';
@@ -230,6 +231,15 @@ export function HubMultiChatPanel({
     };
   }, [responses, selectedPrompt]);
 
+  const gestureHandlers = useChatCarouselGestures({
+    onPrevPrompt: prevPrompt,
+    onNextPrompt: nextPrompt,
+    onPrevResponse: prevResponse,
+    onNextResponse: nextResponse,
+    onLockCurrent: lockCurrentAndAdvance,
+    setFontScale,
+  });
+
   return (
     <div className="space-y-4" data-testid="hub-multi-chat-panel">
       <CollapsibleSection
@@ -279,7 +289,7 @@ export function HubMultiChatPanel({
 
       <CollapsibleSection
         title="Prompt carousel"
-        subtitle="Gestures are temporarily disabled. Use buttons for navigation and locking."
+        subtitle="Gestures active: 1-finger swipe responses, 2-finger swipe prompts, pinch font, double-tap lock."
         icon={Sparkles}
         defaultOpen={false}
         testId="chat-prompt-carousel-section"
@@ -291,7 +301,7 @@ export function HubMultiChatPanel({
           </div>
         )}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2" data-testid="chat-gesture-hint-row">
           <div className="text-xs text-zinc-500">Prompt {prompts.length === 0 ? 0 : promptIndex + 1}/{prompts.length}</div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={prevPrompt} className="rounded-xl border border-zinc-800 px-2 py-1 text-xs text-zinc-300" data-testid="chat-prompt-carousel-prev-button"><span className="flex items-center gap-1"><ChevronLeft size={12} /> Prev</span></button>
@@ -302,7 +312,7 @@ export function HubMultiChatPanel({
         {!selectedPrompt ? (
           <div className="mt-4 rounded-2xl border border-dashed border-zinc-800 p-5 text-sm text-zinc-500">No direct chat prompts yet.</div>
         ) : (
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-4" data-testid="chat-gesture-surface" style={{ touchAction: 'none' }} {...gestureHandlers}>
             <article className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4" data-testid={`chat-prompt-card-${selectedPrompt.prompt_id}`}>
               <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Prompt</div>
               <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{selectedPrompt.prompt}</div>
@@ -394,4 +404,4 @@ export function HubMultiChatPanel({
     </div>
   );
 }
-// "lines of code":"363","lines of commented":"1"
+// "lines of code":"380","lines of commented":"1"

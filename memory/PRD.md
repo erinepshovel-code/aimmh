@@ -304,6 +304,68 @@ The application is now a full-stack AIMMH workspace with:
   - module marker sync executed via dynamic registry
   - line-rule checker passes (`<=400 code lines, comments excluded, marker boundaries ignored`)
 
+## Latest Feature Pass — 2026-04-17
+- [x] Completed run-to-visualizer auto-linking from both **Batch Runs** and **Roleplay Runs** inventory cards:
+  - clicking a run now routes to `Visualizer` tab
+  - selected pattern auto-resolves from run stage summaries (`resolvePatternFromRun`)
+  - visualizer now shows linked run context banner (label/mode/stage count)
+- [x] Reactivated chat carousel gesture controls:
+  - 1-finger swipe: previous/next response
+  - 2-finger swipe: previous/next prompt
+  - pinch/spread: font scale adjust
+  - double tap: lock current response
+- [x] Added **Saved Workflows scaffolding** in run builder:
+  - save current run draft as template
+  - list templates filtered by run mode (batch/roleplay)
+  - apply/delete templates
+  - persisted via existing hub state store key: `run-workflow-templates-v1`
+- [x] Quality fix: removed nested-button HTML warning source by refactoring `CollapsibleSection` header layout (header controls no longer render inside toggle button)
+- [x] Validation:
+  - `python /app/scripts/check_max_lines.py` → PASS
+  - targeted JS lint on touched modules → PASS
+  - testing report `iteration_32.json` → frontend 100% PASS for requested feature set
+
+## Latest Backend Optimization — 2026-04-18
+- [x] Implemented **per-instantiation context/prompt caching** with roleplay focus:
+  - new service: `backend/services/hub_cache.py`
+  - Mongo cache collection: `hub_context_cache`
+  - cache key includes: instance config + verbosity + `instance_updated_at` + `thread_updated_at`
+  - automatic TTL cache expiry (30 minutes) via Mongo TTL index
+- [x] Wired cache usage across orchestration/chat/synthesis context assembly:
+  - roleplay and batch run execution (`hub_runner`)
+  - direct chat fan-out (`hub_chat`)
+  - synthesis fan-out (`hub_synthesis`)
+- [x] Added in-run memoization to avoid duplicate context lookups within one run execution.
+- [x] Added invalidation hooks on instance mutations:
+  - purge on instance update (`PATCH /api/v1/hub/instances/{id}`)
+  - purge on instance delete (`DELETE /api/v1/hub/instances/{id}`)
+- [x] External verification:
+  - backend testing report `iteration_33.json` (20/20 tests passed)
+  - roleplay and batch runs confirmed working with cache layer and no regressions
+
+## Latest Product Surface Expansion — 2026-04-18
+- [x] Added new **Module Map** tab in the hub workspace with dynamic graphical module representation:
+  - fetches dynamic registry data from README registry endpoint
+  - groups modules by root (`backend`, `frontend`, `aimmh_lib`, etc.)
+  - renders interactive module nodes with relative code-size bars
+  - module detail pane shows path, code/comment metrics, module doc, and function docs
+- [x] Added filter controls for module exploration:
+  - text search by module path
+  - root-folder dropdown filter
+  - live stats cards for total/filtered/violations
+- [x] Android packaging scaffolding implemented for **both requested APK modes**:
+  - Mode A: WebView/live URL (`capacitor.config.webview.ts`)
+  - Mode B: Bundled assets (`capacitor.config.bundled.ts`)
+  - scripts and instructions under `/app/frontend/mobile/apk`
+- [x] Public documentation refreshed:
+  - `/app/README.md` rewritten with architecture analysis + APK flow
+  - `/app/CLAUDE.md` added with engineering guidance
+- [x] Validation:
+  - frontend testing report `iteration_34.json` PASS (Module Map + tab regression checks)
+
+Note:
+- APK **binary compilation** is environment-limited here (Java/Android SDK unavailable). Android project is generated/synced and ready for local Android Studio build from `/app/frontend/android`.
+
 ## Verified Testing Status
 - [x] Frontend end-to-end synthesis workflow passed in preview
 - [x] Tab switching reliability passed from a scrolled instantiation state into Chat & Synthesis
@@ -341,10 +403,13 @@ The application is now a full-stack AIMMH workspace with:
 ### P1 — Next
 - [ ] Deployment/release pass when requested
 - [ ] Optional modularization pass for `AimmhHubPage.jsx` and `useHubWorkspace.js`
-- [ ] Saved workflow/templates for favorite orchestration setups
+- [ ] Expand saved workflow templates from scaffold to full workflow management (rename, tags, export/import, cross-user sharing)
+- [ ] Add cache diagnostics surface (hit/miss counters, last-used, purge controls) in WS-Admin
+- [ ] APK release pipeline hardening (signing config, CI artifact publishing, release flavor)
 
 ### P2 — Important Enhancements
 - [x] Mobile response gestures and font scaling refinements (pinch/spread zoom + pane swipe)
+- [x] Per-instantiation context caching optimization integrated (roleplay-focused)
 - [ ] Save and reuse orchestration workflows
 - [ ] Drag-and-drop stage reordering in the runs builder
 - [ ] Richer per-instance thread drill-down/history inspection

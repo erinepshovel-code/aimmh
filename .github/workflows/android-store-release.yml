@@ -1,0 +1,87 @@
+name: Android Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: "Release name shown in Play Console rollout notes"
+        required: false
+        default: "Automated release"
+      track:
+        description: "Play track"
+        required: true
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+        default: internal
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install frontend dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Decode Android keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/release.keystore
+
+      - name: Create signing properties
+        run: |
+          cat > android/keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build release bundle (AAB)
+        run: |
+          cd android
+          ./gradlew --no-daemon bundleRelease
+
+      - name: Upload release bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-bundle
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.interdependentway.aimmh
+          releaseFiles: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ github.event.inputs.track }}
+          status: completed
+          releaseName: ${{ github.event.inputs.release_name }}

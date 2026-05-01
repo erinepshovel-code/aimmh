@@ -16,6 +16,7 @@ This folder supports both Android packaging modes and now includes release artif
 ## Build Commands
 
 Run from `/workspace/aimmh/frontend`.
+## Local Debug Commands
 
 ### Debug APK
 
@@ -65,7 +66,35 @@ The mode switch script copies one of these files into `capacitor.config.ts`:
 
 For WebView mode, it uses `AIMMH_WEBVIEW_URL` if present, otherwise `REACT_APP_BACKEND_URL`, and defaults to `/chat` path.
 
-## App Store Submission Checklist (Android stores)
+## Play Store Release Workflow (GitHub Actions)
+
+A CI workflow now exists at:
+
+- `.github/workflows/android-store-release.yml`
+
+Trigger it manually from **Actions → Android Store Release → Run workflow**.
+
+### Required repository secrets
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+
+The workflow:
+
+1. Installs frontend dependencies.
+2. Builds production web assets.
+3. Runs `npx cap sync android`.
+4. Decodes signing keystore + writes `frontend/android/keystore.properties`.
+5. Builds signed `bundleRelease` (`.aab`).
+6. Uploads `.aab` artifact.
+7. Publishes to Play track (`internal`, `alpha`, `beta`, `production`).
+
+> Note: Google Play production uploads are expected to be staged through `internal` first.
+
+## Output
 
 ### Google Play Store
 
@@ -102,7 +131,8 @@ For WebView mode, it uses `AIMMH_WEBVIEW_URL` if present, otherwise `REACT_APP_B
 
 ## Cross-store release discipline
 
-- Keep one source of truth for versioning (`versionCode` / `versionName`).
-- Maintain a release checklist for screenshots, privacy policy, support email, and changelog.
-- Keep signing keys backed up and rotated only with a migration plan.
-- Test on at least one physical device per major Android version band.
+For store deployments, release AAB output is expected at:
+
+`android/app/build/outputs/bundle/release/app-release.aab`
+
+If Java/SDK are missing locally, the debug script still prepares and syncs the Android project, then prints instructions.
